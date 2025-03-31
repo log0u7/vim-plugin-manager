@@ -1,5 +1,5 @@
 " vim-plugin-manager.vim - Manage Vim plugins with git submodules
-" Maintainer: YOUR_NAME
+" Maintainer: G.K.E. <gke@6admin.io>
 " Version: 1.0
 
 if exists('g:loaded_plugin_manager') || &cp
@@ -25,7 +25,7 @@ if !exists('g:plugin_manager_vimrc_path')
 endif
 
 if !exists('g:plugin_manager_sidebar_width')
-  let g:plugin_manager_sidebar_width = 40
+  let g:plugin_manager_sidebar_width = 60
 endif
 
 if !exists('g:plugin_manager_default_git_host')
