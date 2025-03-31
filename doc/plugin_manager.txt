@@ -88,7 +88,7 @@ The plugin manager can be configured through the following global variables:
 
 *g:plugin_manager_sidebar_width*
     Width of the sidebar window in columns.
-    Default: 40
+    Default: 60
 
 *g:plugin_manager_default_git_host*
     Default Git host for short plugin names (user/repo format).
@@ -103,7 +103,7 @@ Example of custom configuration in your vimrc:
     let g:plugin_manager_vimrc_path = "~/.vim/config/main.vim"
     
     " Wider sidebar
-    let g:plugin_manager_sidebar_width = 50
+    let g:plugin_manager_sidebar_width = 80
     
     " Use a different Git host by default
     let g:plugin_manager_default_git_host = "gitlab.com"
@@ -206,8 +206,8 @@ Restoring plugins:
 ================================================================================
 7. About                                                    *plugin-manager-about*
 
-Author:   YOUR_NAME
-License:  MIT
+Author:   G.K.E <gke@6admin.io>
+License:  GPLv3
 Repository: https://github.com/yourusername/vim-plugin-manager
 
 Bug reports and feature requests can be submitted to the GitHub repository.
