@@ -1,0 +1,215 @@
+*plugin_manager.txt*  Manage Vim plugins with Git submodules
+
+================================================================================
+CONTENTS                                                  *plugin-manager-contents*
+
+1. Introduction ................ |plugin-manager-intro|
+2. Installation ................ |plugin-manager-installation|
+3. Configuration ............... |plugin-manager-configuration|
+4. Commands .................... |plugin-manager-commands|
+5. Interface ................... |plugin-manager-interface|
+6. Examples .................... |plugin-manager-examples|
+7. About ....................... |plugin-manager-about|
+
+================================================================================
+1. Introduction                                              *plugin-manager-intro*
+
+Vim Plugin Manager is a lightweight plugin management system using Git
+submodules. It allows for easy installation, removal, updating, and backup of
+plugins while maintaining proper versioning of your entire Vim configuration.
+
+Features:
+- Install plugins as Git submodules in Vim 8's package structure
+- Remove plugins cleanly
+- Update all plugins at once
+- Automatic generation of helptags
+- Backup your entire configuration to multiple remote repositories
+- Integrated with Git for proper versioning
+- Interactive sidebar interface with visual progress indicators
+- Support for short GitHub repository names (user/repo format)
+
+================================================================================
+2. Installation                                       *plugin-manager-installation*
+
+Requirements:
+- Vim 8.0 or higher
+- Git
+
+Installation:
+
+1. Clone your Vim configuration repository (or create a new one):
+>
+    # If you already have a .vim Git repository:
+    cd ~/.vim
+    
+    # If you're starting from scratch:
+    cd ~
+    git init .vim
+<
+
+2. Install the plugin manager:
+>
+    git submodule add https://github.com/yourusername/vim-plugin-manager.git \
+        ~/.vim/pack/plugins/start/vim-plugin-manager
+<
+
+3. Set up your remote repositories:
+>
+    git remote rename origin genesis
+    git remote add origin your_primary_repository_url
+    
+    # Optional: Add backup repositories
+    git remote set-url origin --add --push second_repository_url
+    git remote set-url origin --add --push third_repository_url
+<
+
+After installation, you can run `:help plugin-manager` for more information.
+
+================================================================================
+3. Configuration                                     *plugin-manager-configuration*
+
+The plugin manager can be configured through the following global variables:
+
+*g:plugin_manager_plugins_dir*
+    Path to the plugins directory relative to your Vim config folder.
+    Default: "pack/plugins"
+
+*g:plugin_manager_start_dir*
+    Name of the directory for auto-loaded plugins.
+    Default: "start"
+
+*g:plugin_manager_opt_dir*
+    Name of the directory for optionally loaded plugins.
+    Default: "opt"
+
+*g:plugin_manager_vimrc_path*
+    Path to your vimrc file.
+    Default: "~/.vim/vimrc"
+
+*g:plugin_manager_sidebar_width*
+    Width of the sidebar window in columns.
+    Default: 40
+
+*g:plugin_manager_default_git_host*
+    Default Git host for short plugin names (user/repo format).
+    Default: "github.com"
+
+Example of custom configuration in your vimrc:
+>
+    " Custom plugin directory
+    let g:plugin_manager_plugins_dir = "pack/bundle"
+    
+    " Custom vimrc location
+    let g:plugin_manager_vimrc_path = "~/.vim/config/main.vim"
+    
+    " Wider sidebar
+    let g:plugin_manager_sidebar_width = 50
+    
+    " Use a different Git host by default
+    let g:plugin_manager_default_git_host = "gitlab.com"
+<
+
+================================================================================
+4. Commands                                              *plugin-manager-commands*
+
+The plugin adds the following commands:
+
+*:PluginManager* [subcommand] [arguments]
+    Main command for managing plugins.
+    
+    Subcommands:
+      add <plugin> [name] [opt]   Install a plugin from URL or user/repo format
+      remove <name> [-f]          Remove a plugin (with -f to force)
+      list                        List all installed plugins
+      status                      Show status of plugins
+      update                      Update all plugins
+      summary                     Show summary of changes
+      backup                      Backup configuration to remote repositories
+      helptags                    Generate helptags for all plugins
+      restore                     Reinstall all modules from .gitmodules
+
+*:PluginManagerRemote* <repository_url>
+    Add a new backup repository for pushing changes.
+
+*:PluginManagerToggle*
+    Toggle the plugin manager sidebar interface.
+
+================================================================================
+5. Interface                                            *plugin-manager-interface*
+
+The plugin provides an interactive sidebar interface that can be toggled with the
+command `:PluginManagerToggle`.
+
+Sidebar Keyboard Shortcuts:
+  q - Close the sidebar
+  l - List installed plugins
+  u - Update all plugins
+  s - Show status of submodules
+  b - Backup configuration
+  h - Generate help tags
+  r - Restore all plugins
+  ? - Show help/usage information
+
+Visual feedback is provided via progress bars during operations like updating
+plugins or generating helptags.
+
+================================================================================
+6. Examples                                              *plugin-manager-examples*
+
+Installing a plugin:
+>
+    " Install from GitHub using shortened format
+    :PluginManager add vim-airline/vim-airline
+    
+    " Install from full URL
+    :PluginManager add https://github.com/tpope/vim-fugitive.git
+    
+    " Install with custom name
+    :PluginManager add tpope/vim-surround surround
+    
+    " Install as optional plugin (need to :packadd to use)
+    :PluginManager add tpope/vim-commentary commentary opt
+<
+
+The shortened format (user/repo) automatically expands to the full GitHub URL:
+https://github.com/user/repo.git
+
+Removing a plugin:
+>
+    " With confirmation
+    :PluginManager remove fugitive
+    
+    " Force remove without confirmation
+    :PluginManager remove surround -f
+<
+
+Updating plugins:
+>
+    :PluginManager update
+<
+
+Backing up configuration:
+>
+    :PluginManager backup
+<
+
+Adding a backup repository:
+>
+    :PluginManagerRemote https://github.com/yourusername/vim-config-backup.git
+<
+
+Restoring plugins:
+>
+    :PluginManager restore
+<
+
+================================================================================
+7. About                                                    *plugin-manager-about*
+
+Author:   YOUR_NAME
+License:  MIT
+Repository: https://github.com/yourusername/vim-plugin-manager
+
+Bug reports and feature requests can be submitted to the GitHub repository.
+
+ vim:tw=78:ts=8:ft=help:norl:
