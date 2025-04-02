@@ -93,31 +93,31 @@ function! s:EnsureVimDirectory()
   return 1
 endfunction
 
-" Execute command with output in sidebar
-function! s:ExecuteWithSidebar(title, cmd)
-  " Ensure we're in the Vim directory
-  if !s:EnsureVimDirectory()
-    return ''
-  endif
-  
-  " Initialize output collection
-  let s:command_output = [a:title, repeat('-', len(a:title)), '', 'Executing operation, please wait...']
-  
-  " Create or update sidebar window
-  call s:OpenSidebar(s:command_output)
-  
-  " Execute command and collect output 
-  let l:output = system(a:cmd)
-  let s:command_output = [a:title, repeat('-', len(a:title)), '']
-  call extend(s:command_output, split(l:output, "\n"))
-  
-  " Update sidebar with new content
-  call add(s:command_output, '')
-  call add(s:command_output, 'Press q to close this window...')
-  call s:UpdateSidebar(s:command_output)
-  
-  return l:output
-endfunction
+"" Execute command with output in sidebar
+"function! s:ExecuteWithSidebar(title, cmd)
+"  " Ensure we're in the Vim directory
+"  if !s:EnsureVimDirectory()
+"    return ''
+"  endif
+"  
+"  " Initialize output collection
+"  let s:command_output = [a:title, repeat('-', len(a:title)), '', 'Executing operation, please wait...']
+"  
+"  " Create or update sidebar window
+"  call s:OpenSidebar(s:command_output)
+"  
+"  " Execute command and collect output 
+"  let l:output = system(a:cmd)
+"  let s:command_output = [a:title, repeat('-', len(a:title)), '']
+"  call extend(s:command_output, split(l:output, "\n"))
+"  
+"  " Update sidebar with new content
+"  call add(s:command_output, '')
+"  call add(s:command_output, 'Press q to close this window...')
+"  call s:UpdateSidebar(s:command_output)
+"  
+"  return l:output
+"endfunction
 
 " Convert short name to full URL
 function! s:ConvertToFullUrl(shortName)
@@ -131,7 +131,7 @@ function! s:ConvertToFullUrl(shortName)
     return 'https://' . g:plugin_manager_default_git_host . '/' . a:shortName . '.git'
   endif
   
-  " Return empty string if it's not a valid format
+  " Return empty string for calling function to handle not a valid format
   return ''
 endfunction
 
@@ -153,9 +153,9 @@ function! s:SetupSidebarMappings()
   " Common Plugin Manager operations
   nnoremap <buffer> l :call <SID>List()<CR>
   nnoremap <buffer> u :call <SID>Update()<CR>
+  nnoremap <buffer> h :call <SID>GenerateHelptags()<CR>
   nnoremap <buffer> s :call <SID>Status()<CR>
   nnoremap <buffer> b :call <SID>Backup()<CR>
-  nnoremap <buffer> h :call <SID>GenerateHelptags()<CR>
   nnoremap <buffer> r :call <SID>Restore()<CR>
   nnoremap <buffer> ? :call <SID>Usage()<CR>
 endfunction
@@ -186,8 +186,8 @@ function! s:OpenSidebar(lines)
     setlocal nonumber
     setlocal filetype=pluginmanager
     setlocal nofoldenable
-    setlocal updatetime=300
-    
+    setlocal updatetime=3000
+
     " Setup mappings
     call s:SetupSidebarMappings()
   endif
@@ -197,10 +197,13 @@ function! s:OpenSidebar(lines)
   
   " Mark as non-modifiable once content is set
   setlocal nomodifiable
+
+  " Apply syntax highlighting explicitly
+  call s:SetupPluginManagerSyntax()
 endfunction
 
 " Update the sidebar content
-function! s:UpdateSidebar(lines)
+function! s:UpdateSidebar(lines, append = 0)
   " Find the sidebar buffer window
   let l:win_id = bufwinid(s:buffer_name)
   if l:win_id == -1
@@ -213,9 +216,19 @@ function! s:UpdateSidebar(lines)
   call win_gotoid(l:win_id)
   
   " Update content
-  setlocal modifiable
-  silent! %delete _
-  call setline(1, a:lines)
+  if &modifiable == 0
+    setlocal modifiable
+  endif
+
+  if a:append
+    " Append to existing content
+    call append(line('$'), a:lines)
+  else
+    " Replace existing content
+    silent! %delete _
+    call setline(1, a:lines)
+  endif
+  
   setlocal nomodifiable
   
   " Move cursor to top
@@ -227,24 +240,24 @@ function! s:Usage()
   let l:lines = [
         \ "PluginManager Commands:",
         \ "---------------------",
-        \ "add <plugin> [modulename] [opt]  - Add a new plugin",
-        \ "remove <modulename> [-f]         - Remove a plugin",
-        \ "backup                           - Backup configuration",
-        \ "list                             - List installed plugins",
-        \ "status                           - Show status of submodules",
-        \ "update                           - Update all plugins",
-        \ "summary                          - Show summary of changes",
-        \ "helptags                         - Generate help tags",
-        \ "restore                          - Reinstall all modules",
+        \ "add <plugin> [opt]           - Add a new plugin",
+        \ "remove <plugin> [-f]         - Remove a plugin",
+        \ "backup                       - Backup configuration",
+        \ "list                         - List installed plugins",
+        \ "status                       - Show status of submodules",
+        \ "update                       - Update all plugins",
+        \ "helptags                     - Generate plugins helptags",
+        \ "summary                      - Show summary of changes",
+        \ "restore                      - Reinstall all modules",
         \ "",
         \ "Sidebar Keyboard Shortcuts:",
         \ "-------------------------",
         \ "q - Close the sidebar",
         \ "l - List installed plugins",
         \ "u - Update all plugins",
+        \ "h - Generate helptags for all plugins",
         \ "s - Show status of submodules",
         \ "b - Backup configuration",
-        \ "h - Generate help tags",
         \ "r - Restore all plugins",
         \ "? - Show this help",
         \ "",
@@ -315,52 +328,12 @@ function! s:Update()
   let s:command_output = ['Updating Plugins:', '----------------', '', 'All plugins updated successfully.']
   call s:UpdateSidebar(s:command_output)
   
-  " Generate helptags
-  call s:GenerateHelptags()
-endfunction
-
-" Backup configuration to remote repositories
-function! s:Backup()
-  if !s:EnsureVimDirectory()
-    return
-  endif
-  
-  let l:lines = ['Backup Configuration:', '--------------------', '', 'Performing backup...']
-  call s:OpenSidebar(l:lines)
-  
-  " Check if vimrc has been modified
-  "let l:vimrcStatus = system('git status --porcelain ' . g:plugin_manager_vimrc_path)
-  "let s:command_output = ['Backup Configuration:', '--------------------', '', 'Checking vimrc status...']
-  
-  " If vimrc has changes, commit them
-  "if !empty(l:vimrcStatus)
-  "  call add(s:command_output, 'Committing vimrc changes...')
-  "  call system('git add ' . g:plugin_manager_vimrc_path)
-  "  call system('git commit -m "Auto-backup: Updated vimrc"')
-  "endif
-  
-  " Check for other pending changes
-  "let l:gitStatus = system('git status --porcelain')
-  "if !empty(l:gitStatus)
-  "  call add(s:command_output, 'Committing pending changes...')
-  "  call system('git add .')
-  "  call system('git commit -m "Auto-backup: Saved pending changes"')
-  "endif
-  
-  " Push changes to all configured remotes
-  call add(s:command_output, 'Pushing changes to remote repositories...')
-  let l:pushResult = system('git push --all')
-  call add(s:command_output, l:pushResult)
-  
-  " Push tags as well
-  "call add(s:command_output, 'Pushing tags...')
-  "let l:tagResult = system('git push --tags')
-  "if !empty(l:tagResult)
-  "  call add(s:command_output, l:tagResult)
-  "endif
-  
-  call add(s:command_output, 'Backup completed successfully.')
+  " Add message about generating helptags
+  call add(s:command_output, 'Generating helptags:')
   call s:UpdateSidebar(s:command_output)
+  
+  " Generate helptags 
+  call s:GenerateHelptags(0) 
 endfunction
 
 " Generate helptags for a specific plugin
@@ -373,35 +346,27 @@ function! s:GenerateHelptag(pluginPath)
 endfunction
 
 " Generate helptags for all installed plugins
-function! s:GenerateHelptags()
+function! s:GenerateHelptags(create_header = 1)
   if !s:EnsureVimDirectory()
     return
   endif
-  
-  let l:lines = ['Generating Helptags:', '------------------', '', 'Generating helptags for all plugins...']
-  call s:OpenSidebar(l:lines)
-  
-  " Initialize output
-  let s:command_output = ['Generating Helptags:', '------------------', '', 'Generating helptags:']
-  
-  " Generate for plugins in 'start' directory
-  let l:startPath = g:plugin_manager_plugins_dir . '/' . g:plugin_manager_start_dir
+    
+  " Initialize output only if creating a new header
+  if a:create_header
+    let s:command_output = ['Generating Helptags:', '------------------', '', 'Generating helptags:']
+    call s:UpdateSidebar(s:command_output)
+  endif
+
+  " Generate for plugins in 'all plugins directories
+  let l:startPath = g:plugin_manager_plugins_dir . '/'
   if isdirectory(l:startPath)
-    for l:plugin in glob(l:startPath . '/*', 0, 1)
+    for l:plugin in glob(l:startPath . '*/*', 0, 1)
       call s:GenerateHelptag(l:plugin)
     endfor
   endif
-  
-  " Generate for plugins in 'opt' directory
-  let l:optPath = g:plugin_manager_plugins_dir . '/' . g:plugin_manager_opt_dir
-  if isdirectory(l:optPath)
-    for l:plugin in glob(l:optPath . '/*', 0, 1)
-      call s:GenerateHelptag(l:plugin)
-    endfor
-  endif
-  
-  call add(s:command_output, "Helptags generation complete.")
-  call s:UpdateSidebar(s:command_output)
+
+  call add(s:command_output, "Helptags generated successfully.")
+  call s:UpdateSidebar(s:command_output, 1)
 endfunction
 
 " Add a new plugin
@@ -453,6 +418,24 @@ function! s:RemoveModule(moduleName, removedPluginPath)
   call system('git commit -m "Removed ' . a:moduleName . ' modules"')
   call add(s:command_output, 'Plugin removed successfully.')
   
+  call s:UpdateSidebar(s:command_output)
+endfunction
+
+" Backup configuration to remote repositories
+function! s:Backup()
+  if !s:EnsureVimDirectory()
+    return
+  endif
+  
+  let l:lines = ['Backup Configuration:', '--------------------', '', 'Performing backup...']
+  call s:OpenSidebar(l:lines)
+  
+  " Push changes to all configured remotes
+  call add(s:command_output, 'Pushing changes to remote repositories...')
+  let l:pushResult = system('git push --all')
+  call add(s:command_output, l:pushResult)
+  
+  call add(s:command_output, 'Backup completed successfully.')
   call s:UpdateSidebar(s:command_output)
 endfunction
 
@@ -565,7 +548,7 @@ function! s:Remove(...)
   let l:removedPluginPath = system('find ' . g:plugin_manager_plugins_dir . ' -type d -name "*' . l:moduleName . '*" | head -n1')
   let l:removedPluginPath = substitute(l:removedPluginPath, '\n$', '', '')
   
-  if !empty(l:removedPluginPath) && filereadable(l:removedPluginPath . '/.git')
+  if !empty(l:removedPluginPath) && isdirectory(l:removedPluginPath . '/.git')
     if a:0 < 2
       let l:response = input("Are you sure you want to remove " . l:removedPluginPath . "? [y/N] ")
       if l:response =~? '^y\(es\)\?$'
@@ -698,11 +681,11 @@ function! PluginManager(...)
     call s:Summary()
   elseif l:command == "backup"
     call s:Backup()
-  elseif l:command == "helptags"
-    call s:GenerateHelptags()
   elseif l:command == "restore"
     call s:Restore()
-  else
+  elseif l:command == "helptags"
+    call s:GenerateHelptags()  
+    else
     call s:Usage()
   endif
 endfunction
