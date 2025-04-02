@@ -504,11 +504,11 @@ function! s:AddModule(moduleUrl, installDir)
   endif
   
   " Fix: Check if submodule already exists
-  let l:gitmoduleCheck = system('grep -c "' . a:installDir . '" .gitmodules 2>/dev/null')
+  let l:gitmoduleCheck = system('grep -c "' . a:installDir . '" .gitmodules 2>/dev/null || echo "0" ')
   if l:gitmoduleCheck != "0"
-    call s:UpdateSidebar(['Error: Plugin already installed at this location.'], 1)
+    call s:UpdateSidebar(['Error: Plugin already installed at this location :'. a:installDir], 1)
     return
-  endif
+  end
   
   " Execute git submodule add command
   let l:result = system('git submodule add "' . a:moduleUrl . '" "' . a:installDir . '"')
