@@ -209,6 +209,7 @@ function! s:Usage()
         \ "add <plugin_url> [opt]       - Add a new plugin",
         \ "remove [plugin_name] [-f]    - Remove a plugin",
         \ "backup                       - Backup configuration",
+        \ "reload [plugin]              - Reload configuration",        
         \ "list                         - List installed plugins",
         \ "status                       - Show status of submodules",
         \ "update [plugin_name|all]     - Update all plugins or a specific one",
@@ -223,6 +224,7 @@ function! s:Usage()
         \ "u - Update all plugins",
         \ "h - Generate helptags for all plugins",
         \ "s - Show status of submodules",
+        \ "S - Show summary of changes",        
         \ "b - Backup configuration",
         \ "r - Restore all plugins",
         \ "? - Show this help",
@@ -756,6 +758,51 @@ function! s:Remove(...)
   return 0
 endfunction
 
+" Reload a specific plugin or all Vim configuration
+function! s:Reload(...)
+  if !s:EnsureVimDirectory()
+    return
+  endif
+  
+  let l:header = ['Reload:', '-------', '']
+  
+  " Check if a specific module was specified
+  let l:specific_module = a:0 > 0 ? a:1 : ''
+  
+  if !empty(l:specific_module)
+    " Reload a specific module
+    call s:OpenSidebar(l:header + ['Reloading plugin: ' . l:specific_module . '...'])
+    
+    " Find the module path
+    let l:grep_cmd = 'grep -A1 "path = .*' . l:specific_module . '" .gitmodules | grep "path =" | cut -d "=" -f2 | tr -d " "'
+    let l:module_path = system(l:grep_cmd)
+    let l:module_path = substitute(l:module_path, '\n$', '', '')
+    
+    if empty(l:module_path)
+      call s:UpdateSidebar(['Error: Module "' . l:specific_module . '" not found.'], 1)
+      return
+    endif
+    
+    " Simple approach: remove and re-add to runtime path
+    execute 'set rtp-=' . l:module_path
+    execute 'set rtp+=' . l:module_path
+    
+    call s:UpdateSidebar(['Plugin "' . l:specific_module . '" reloaded.'], 1)
+  else
+    " Reload all Vim configuration
+    call s:OpenSidebar(l:header + ['Reloading entire Vim configuration...'])
+    
+    " Source vimrc file - this is the simplest way to reload everything
+    if filereadable(g:plugin_manager_vimrc_path)
+      call s:UpdateSidebar(['Sourcing ' . g:plugin_manager_vimrc_path . '...'], 1)
+      execute 'source ' . g:plugin_manager_vimrc_path
+      call s:UpdateSidebar(['Vim configuration reloaded successfully.'], 1)
+    else
+      call s:UpdateSidebar(['Warning: Vimrc file not found at ' . g:plugin_manager_vimrc_path], 1)
+    endif
+  endif
+endfunction
+
 " Function to toggle the Plugin Manager sidebar
 function! s:TogglePluginManager()
  let l:win_id = bufwinid(s:buffer_name)
@@ -858,7 +905,14 @@ command! PluginManagerToggle call s:TogglePluginManager()
       else 
         call s:GenerateHelptags()
       endif
+    elseif l:command == "reload"
+      " Pass the optional module name if provided
+      if a:0 >= 2
+        call s:Reload(a:2)
+      else
+        call s:Reload()
+      endif
     else
       call s:Usage()
     endif
-   endfunction
+  endfunction
