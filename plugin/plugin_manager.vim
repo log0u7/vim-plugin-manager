@@ -515,8 +515,8 @@ function! s:AddModule(moduleUrl, installDir)
   
   " Fix: Check if submodule already exists
   let l:gitmoduleCheck = system('grep -c "' . a:installDir . '" .gitmodules 2>/dev/null || echo "0" ')
-  echom l:gitmoduleCheck
   if l:gitmoduleCheck != "0"
+    echom l:gitmoduleCheck
     call s:UpdateSidebar(['Error: Plugin already installed at this location :'. a:installDir], 1)
     return
   end
