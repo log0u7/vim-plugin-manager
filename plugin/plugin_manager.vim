@@ -236,13 +236,13 @@ function! s:Usage()
   let l:lines = [
         \ "PluginManager Commands:",
         \ "---------------------",
-        \ "add <plugin> [opt]           - Add a new plugin",
-        \ "remove <plugin> [-f]         - Remove a plugin",
+        \ "add <plugin_url> [opt]       - Add a new plugin",
+        \ "remove [plugin_name] [-f]    - Remove a plugin",
         \ "backup                       - Backup configuration",
         \ "list                         - List installed plugins",
         \ "status                       - Show status of submodules",
-        \ "update                       - Update all plugins",
-        \ "helptags                     - Generate plugins helptags",
+        \ "update [plugin_name|all]     - Update all plugins or a specific one",
+        \ "helptags [plugin_name]       - Generate plugins helptags, optionally for a specific plugin",
         \ "summary                      - Show summary of changes",
         \ "restore                      - Reinstall all modules",
         \ "",
@@ -327,7 +327,7 @@ function! s:Summary()
   call s:OpenSidebar(l:lines)
 endfunction
 
-function! s:Update()
+  function! s:Update(...)
   " Prevent multiple concurrent update calls
   if exists('s:update_in_progress') && s:update_in_progress
     return
@@ -349,21 +349,57 @@ function! s:Update()
   
   " Initialize once before executing commands
   let l:header = ['Updating Plugins:', '----------------', '']
-  let l:initial_message = l:header + ['Updating all plugins...']
-  call s:OpenSidebar(l:initial_message)
   
-  " Stash local changes in submodules first
-  call s:UpdateSidebar(['Stashing local changes in submodules...'], 1)
-  call system('git submodule foreach --recursive "git stash -q || true"')
+  " Check if a specific module was specified
+  let l:specific_module = a:0 > 0 ? a:1 : 'all'
+  
+  if l:specific_module == 'all'
+    let l:initial_message = l:header + ['Updating all plugins...']
+    call s:OpenSidebar(l:initial_message)
+    
+    " Stash local changes in submodules first
+    call s:UpdateSidebar(['Stashing local changes in submodules...'], 1)
+    call system('git submodule foreach --recursive "git stash -q || true"')
 
-  " Execute update commands
-  call system('git submodule sync')
-  let l:updateResult = system('git submodule update --remote --merge --force')
-  
-  " Fix: Check if commit is needed
-  let l:gitStatus = system('git status -s')
-  if !empty(l:gitStatus)
-    call system('git commit -am "Update Modules"')
+    " Execute update commands
+    call system('git submodule sync')
+    let l:updateResult = system('git submodule update --remote --merge --force')
+    
+    " Fix: Check if commit is needed
+    let l:gitStatus = system('git status -s')
+    if !empty(l:gitStatus)
+      call system('git commit -am "Update Modules"')
+    endif
+  else
+    " Update a specific module
+    let l:initial_message = l:header + ['Updating plugin: ' . l:specific_module . '...']
+    call s:OpenSidebar(l:initial_message)
+    
+    " Find the module path
+    let l:module_path = ''
+    let l:grep_cmd = 'grep -A1 "path = .*' . l:specific_module . '" .gitmodules | grep "path =" | cut -d "=" -f2 | tr -d " "'
+    let l:module_path = system(l:grep_cmd)
+    let l:module_path = substitute(l:module_path, '\n$', '', '')
+    
+    if empty(l:module_path)
+      call s:UpdateSidebar(['Error: Module "' . l:specific_module . '" not found.'], 1)
+      let s:update_in_progress = 0
+      return
+    endif
+    
+    " Stash local changes in the specific submodule
+    call s:UpdateSidebar(['Stashing local changes in module...'], 1)
+    call system('cd "' . l:module_path . '" && git stash -q || true')
+    
+    " Update only this module
+    call system('git submodule sync -- "' . l:module_path . '"')
+    let l:updateResult = system('git submodule update --remote --merge --force -- "' . l:module_path . '"')
+    
+    " Check if commit is needed
+    let l:gitStatus = system('git status -s')
+    if !empty(l:gitStatus)
+      call system('git commit -am "Update Module: ' . l:specific_module . '"')
+    endif
   endif
   
   " Update with results
@@ -373,34 +409,34 @@ function! s:Update()
     let l:update_lines += split(l:updateResult, "\n")
   endif
   
-  " Add update success message but don't add the "Generating helptags:" line yet
-  let l:update_lines += ['', 'All plugins updated successfully.']
+  " Add update success message
+  if l:specific_module == 'all'
+    let l:update_lines += ['', 'All plugins updated successfully.']
+  else
+    let l:update_lines += ['', 'Plugin "' . l:specific_module . '" updated successfully.']
+  endif
   
   " Update sidebar with results
   call s:UpdateSidebar(l:update_lines, 1)
   
   " Generate helptags
-  " Call with flag to indicate NOT to create a header - use our existing sidebar
-  call s:GenerateHelptags(0)
+  if l:specific_module == 'all'
+    " Call with flag to indicate NOT to create a header - use our existing sidebar
+    call s:GenerateHelptags(0)
+  else
+    " Generate helptags only for the specific module
+    call s:GenerateHelptags(0, l:specific_module)
+  endif
   
   " Reset update in progress flag
   let s:update_in_progress = 0
-endfunction
-
-" Generate helptags for a specific plugin
-function! s:GenerateHelptag(pluginPath)
-  let l:docPath = a:pluginPath . '/doc'
-  if isdirectory(l:docPath)
-    execute 'helptags ' . l:docPath
-    return 1
-  endif
-  return 0
 endfunction
 
 "" Generate helptags for all installed plugins
 function! s:GenerateHelptags(...)
   " Fix: Properly handle optional arguments
   let l:create_header = a:0 > 0 ? a:1 : 1
+  let l:specific_module = a:0 > 1 ? a:2 : ''
   
   if !s:EnsureVimDirectory()
     return
@@ -421,12 +457,24 @@ function! s:GenerateHelptags(...)
   let l:generated_plugins = []
   
   if isdirectory(l:pluginsDir)
-    for l:plugin in glob(l:pluginsDir . '*/*', 0, 1)
-      if s:GenerateHelptag(l:plugin)
-        let l:tagsGenerated = 1
-        call add(l:generated_plugins, "Generated helptags for " . fnamemodify(l:plugin, ':t'))
-      endif
-    endfor
+    if !empty(l:specific_module)
+      " Find the specific plugin path
+      let l:plugin_pattern = l:pluginsDir . '*/*' . l:specific_module . '*'
+      for l:plugin in glob(l:plugin_pattern, 0, 1)
+        if s:GenerateHelptag(l:plugin)
+          let l:tagsGenerated = 1
+          call add(l:generated_plugins, "Generated helptags for " . fnamemodify(l:plugin, ':t'))
+        endif
+      endfor
+    else
+      " Generate helptags for all plugins
+      for l:plugin in glob(l:pluginsDir . '*/*', 0, 1)
+        if s:GenerateHelptag(l:plugin)
+          let l:tagsGenerated = 1
+          call add(l:generated_plugins, "Generated helptags for " . fnamemodify(l:plugin, ':t'))
+        endif
+      endfor
+    endif
   endif
 
   let l:result_message = []
@@ -837,33 +885,43 @@ command! -nargs=1 PluginManagerRemote call s:AddRemoteBackup(<f-args>)
 command! PluginManagerToggle call s:TogglePluginManager()
 
 " Main function to handle PluginManager commands
-function! PluginManager(...)
- if a:0 < 1
-   call s:Usage()
-   return
- endif
- 
- let l:command = a:1
- 
- if l:command == "add" && a:0 >= 2
-   call s:Add(a:2, get(a:, 3, ""), get(a:, 4, ""))
- elseif l:command == "remove" && a:0 >= 2
-   call s:Remove(a:2, get(a:, 3, ""))
- elseif l:command == "list"
-   call s:List()
- elseif l:command == "status"
-   call s:Status()
- elseif l:command == "update"
-   call s:Update()
- elseif l:command == "summary"
-   call s:Summary()
- elseif l:command == "backup"
-   call s:Backup()
- elseif l:command == "restore"
-   call s:Restore()
- elseif l:command == "helptags"
-   call s:GenerateHelptags()  
- else
-   call s:Usage()
- endif
-endfunction
+  function! PluginManager(...)
+    if a:0 < 1
+      call s:Usage()
+      return
+    endif
+    
+    let l:command = a:1
+    
+    if l:command == "add" && a:0 >= 2
+      call s:Add(a:2, get(a:, 3, ""), get(a:, 4, ""))
+    elseif l:command == "remove" && a:0 >= 2
+      call s:Remove(a:2, get(a:, 3, ""))
+    elseif l:command == "list"
+      call s:List()
+    elseif l:command == "status"
+      call s:Status()
+    elseif l:command == "update"
+      " Pass the optional module name if provided
+      if a:0 >= 2
+        call s:Update(a:2)
+      else
+        call s:Update('all')
+      endif
+    elseif l:command == "summary"
+      call s:Summary()
+    elseif l:command == "backup"
+      call s:Backup()
+    elseif l:command == "restore"
+      call s:Restore()
+    elseif l:command == "helptags"
+      " Pass the optional module name if provided
+      if a:0 >= 2
+        call s:GenerateHelptags(1, a:2)
+      else 
+        call s:GenerateHelptags()
+      endif
+    else
+      call s:Usage()
+    endif
+   endfunction
