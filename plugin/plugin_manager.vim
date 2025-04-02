@@ -42,7 +42,7 @@ endif
 if !exists('g:plugin_manager_vimrc_path')
   if has('nvim')
     let g:plugin_manager_vimrc_path = g:plugin_manager_vim_dir . '/init.vim'
-  else
+  else "TODO: correct default path is ~/.vimrc
     let g:plugin_manager_vimrc_path = g:plugin_manager_vim_dir . '/vimrc'
   endif
 endif
@@ -515,6 +515,7 @@ function! s:AddModule(moduleUrl, installDir)
   
   " Fix: Check if submodule already exists
   let l:gitmoduleCheck = system('grep -c "' . a:installDir . '" .gitmodules 2>/dev/null || echo "0" ')
+  echom l:gitmoduleCheck
   if l:gitmoduleCheck != "0"
     call s:UpdateSidebar(['Error: Plugin already installed at this location :'. a:installDir], 1)
     return
