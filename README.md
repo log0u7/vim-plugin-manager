@@ -13,7 +13,7 @@ A lightweight Vim plugin manager that uses Git submodules and Vim 8's native pac
 ## Requirements
 
 - Vim 8.0 or higher
-- Git
+- Git 2.40 or higher
 
 ## Installation
 
