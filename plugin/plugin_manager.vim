@@ -280,7 +280,7 @@ function! s:List()
     return
   endif
   
-  let l:output = system('grep ''url\|path'' .gitmodules | cut -d " " -f3 | awk ''NR%2{printf "%s\t=>\t",$0;next;}1'' | column -t')
+  let l:output = system('grep ''url\|path'' .gitmodules | cut -d " " -f3 | awk ''NR%2{printf "%s\t=>\t",$0;next;}1'' | sort | column -t')
   let l:lines = ['Installed Plugins:', '----------------', '']
   call extend(l:lines, split(l:output, "\n"))
   
