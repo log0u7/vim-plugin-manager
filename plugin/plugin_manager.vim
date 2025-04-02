@@ -358,7 +358,7 @@ endfunction
     call s:OpenSidebar(l:initial_message)
     
     " Stash local changes in submodules first
-    call s:UpdateSidebar(['Stashing local changes in submodules...'], 1)
+     call s:UpdateSidebar(['Stashing local changes in submodules...'], 1)
     call system('git submodule foreach --recursive "git stash -q || true"')
 
     " Execute update commands
@@ -504,7 +504,7 @@ function! s:AddModule(moduleUrl, installDir)
   endif
   
   " Fix: Check if submodule already exists
-  let l:gitmoduleCheck = system('grep -c "' . a:installDir . '" .gitmodules 2>/dev/null || echo 0')
+  let l:gitmoduleCheck = system('grep -c "' . a:installDir . '" .gitmodules 2>/dev/null')
   if l:gitmoduleCheck != "0"
     call s:UpdateSidebar(['Error: Plugin already installed at this location.'], 1)
     return
