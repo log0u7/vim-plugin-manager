@@ -372,12 +372,15 @@ function! s:Update()
     let l:update_lines += ['', 'Update details:', '']
     let l:update_lines += split(l:updateResult, "\n")
   endif
-  let l:update_lines += ['', 'All plugins updated successfully.', '', 'Generating helptags:']
+  
+  " Add update success message but don't add the "Generating helptags:" line yet
+  let l:update_lines += ['', 'All plugins updated successfully.']
   
   " Update sidebar with results
   call s:UpdateSidebar(l:update_lines, 1)
   
   " Generate helptags
+  " Call with flag to indicate NOT to create a header - use our existing sidebar
   call s:GenerateHelptags(0)
   
   " Reset update in progress flag
@@ -394,7 +397,7 @@ function! s:GenerateHelptag(pluginPath)
   return 0
 endfunction
 
-" Generate helptags for all installed plugins
+"" Generate helptags for all installed plugins
 function! s:GenerateHelptags(...)
   " Fix: Properly handle optional arguments
   let l:create_header = a:0 > 0 ? a:1 : 1
@@ -407,6 +410,9 @@ function! s:GenerateHelptags(...)
   if l:create_header
     let l:header = ['Generating Helptags:', '------------------', '', 'Generating helptags:']
     call s:OpenSidebar(l:header)
+  else
+    " If we're not creating a new header, just add a separator line
+    call s:UpdateSidebar(['', 'Generating helptags:'], 1)
   endif
 
   " Fix: Check if plugins directory exists
