@@ -59,7 +59,6 @@ endif
 let s:urlRegexp = 'https\?:\/\/\(www\.\)\?[-a-zA-Z0-9@:%._\\+~#=]\{1,256}\.[a-zA-Z0-9()]\{1,6}\b\([-a-zA-Z0-9()@:%_\\+.~#?&//=]*\)'
 let s:shortNameRegexp = '^[a-zA-Z0-9_-]\+\/[a-zA-Z0-9_-]\+$'
 let s:buffer_name = 'PluginManager'
-let s:command_output = []
 
 " Function to ensure we're in the Vim config directory
 function! s:EnsureVimDirectory()
@@ -73,9 +72,9 @@ function! s:EnsureVimDirectory()
   
   " Check if the vim directory exists
   if !isdirectory(g:plugin_manager_vim_dir)
-    let s:command_output = ['Error:', '------', '', 'Vim directory not found: ' . g:plugin_manager_vim_dir, 
+    let l:error_lines = ['Error:', '------', '', 'Vim directory not found: ' . g:plugin_manager_vim_dir, 
           \ 'Please set g:plugin_manager_vim_dir to your Vim configuration directory.']
-    call s:OpenSidebar(s:command_output)
+    call s:OpenSidebar(l:error_lines)
     return 0
   endif
   
@@ -84,9 +83,9 @@ function! s:EnsureVimDirectory()
   
   " Check if it's a git repository
   if !isdirectory('.git')
-    let s:command_output = ['Error:', '------', '', 'The Vim directory is not a git repository.', 
+    let l:error_lines = ['Error:', '------', '', 'The Vim directory is not a git repository.', 
           \ 'Please initialize it with: git init ' . g:plugin_manager_vim_dir]
-    call s:OpenSidebar(s:command_output)
+    call s:OpenSidebar(l:error_lines)
     return 0
   endif
   
@@ -780,52 +779,50 @@ endfunction
 
 " Function to add a backup remote repository
 function! s:AddRemoteBackup(...)
- if !s:EnsureVimDirectory()
-   return
- endif
- 
- if a:0 < 1
-   let l:lines = ["Remote Backup Usage:", "-------------------", "", "Usage: PluginManagerRemote <repository_url>"]
-   call s:OpenSidebar(l:lines)
-   return
- endif
- 
- let l:repoUrl = a:1
- if l:repoUrl !~ s:urlRegexp
-   let l:lines = ["Invalid URL:", "-----------", "", l:repoUrl . " is not a valid url"]
-   call s:OpenSidebar(l:lines)
-   return
- endif
- 
- let l:lines = ['Add Remote Repository:', '---------------------', '', 'Adding backup repository: ' . l:repoUrl]
- call s:OpenSidebar(l:lines)
- 
- " Add remote
- let s:command_output = ['Add Remote Repository:', '---------------------', '', 'Adding repository...']
- 
- " Fix: Check if remote origin exists
- let l:originExists = system('git remote | grep -c "^origin$" || echo 0')
- if l:originExists == "0"
-   call add(s:command_output, 'Adding origin remote...')
-   let l:result = system('git remote add origin ' . l:repoUrl)
- else
-   call add(s:command_output, 'Adding push URL to origin remote...')
-   let l:result = system('git remote set-url origin --add --push ' . l:repoUrl)
- endif
- 
- if v:shell_error != 0
-   call add(s:command_output, 'Error adding remote:')
-   call extend(s:command_output, split(l:result, "\n"))
- else
-   call add(s:command_output, 'Repository added successfully.')
- endif
- 
- call add(s:command_output, '')
- call add(s:command_output, 'Configured repositories:')
- let l:remotes = system('git remote -v')
- call extend(s:command_output, split(l:remotes, "\n"))
- 
- call s:UpdateSidebar(s:command_output)
+  if !s:EnsureVimDirectory()
+    return
+  endif
+  
+  if a:0 < 1
+    let l:lines = ["Remote Backup Usage:", "-------------------", "", "Usage: PluginManagerRemote <repository_url>"]
+    call s:OpenSidebar(l:lines)
+    return
+  endif
+  
+  let l:repoUrl = a:1
+  if l:repoUrl !~ s:urlRegexp
+    let l:lines = ["Invalid URL:", "-----------", "", l:repoUrl . " is not a valid url"]
+    call s:OpenSidebar(l:lines)
+    return
+  endif
+  
+  let l:header = ['Add Remote Repository:', '---------------------', '', 'Adding backup repository: ' . l:repoUrl]
+  call s:OpenSidebar(l:header)
+  
+  " Check if remote origin exists
+  let l:originExists = system('git remote | grep -c "^origin$" || echo 0')
+  if l:originExists == "0"
+    call s:UpdateSidebar(['Adding origin remote...'], 1)
+    let l:result = system('git remote add origin ' . l:repoUrl)
+  else
+    call s:UpdateSidebar(['Adding push URL to origin remote...'], 1)
+    let l:result = system('git remote set-url origin --add --push ' . l:repoUrl)
+  endif
+  
+  let l:result_lines = []
+  if v:shell_error != 0
+    let l:result_lines += ['Error adding remote:']
+    let l:result_lines += split(l:result, "\n")
+  else
+    let l:result_lines += ['Repository added successfully.']
+  endif
+  
+  call s:UpdateSidebar(l:result_lines, 1)
+  
+  " Display configured repositories
+  call s:UpdateSidebar(['', 'Configured repositories:'], 1)
+  let l:remotes = system('git remote -v')
+  call s:UpdateSidebar(split(l:remotes, "\n"), 1)
 endfunction
 
 " Define commands
