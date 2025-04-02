@@ -517,6 +517,7 @@ function! s:AddModule(moduleUrl, installDir)
   let l:gitmoduleCheck = system('grep -c "' . a:installDir . '" .gitmodules 2>/dev/null || echo "0" ')
   if l:gitmoduleCheck != "0"
     echom l:gitmoduleCheck
+    call s:UpdateSidebar(['Error: val:'. l:gitmoduleCheck], 1)
     call s:UpdateSidebar(['Error: Plugin already installed at this location :'. a:installDir], 1)
     return
   end
