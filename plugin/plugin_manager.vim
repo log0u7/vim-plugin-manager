@@ -432,6 +432,16 @@ endfunction
   let s:update_in_progress = 0
 endfunction
 
+" Generate helptags for a specific plugin
+function! s:GenerateHelptag(pluginPath)
+  let l:docPath = a:pluginPath . '/doc'
+  if isdirectory(l:docPath)
+    execute 'helptags ' . l:docPath
+    return 1
+  endif
+  return 0
+endfunction
+
 "" Generate helptags for all installed plugins
 function! s:GenerateHelptags(...)
   " Fix: Properly handle optional arguments
