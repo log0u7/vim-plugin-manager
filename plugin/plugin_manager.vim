@@ -514,7 +514,7 @@ function! s:AddModule(moduleUrl, installDir)
   endif
   
   " Fix: Check if submodule already exists
-  let l:gitmoduleCheck = system('grep -c "' . a:installDir . '" .gitmodules 2>/dev/null || echo "0" ')
+  let l:gitmoduleCheck = system('grep -c "' . a:installDir . '" .gitmodules 2>/dev/null')
   if l:gitmoduleCheck != "0"
     echom l:gitmoduleCheck
     call s:UpdateSidebar(['Error: val:'. l:gitmoduleCheck], 1)
