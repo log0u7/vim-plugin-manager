@@ -145,21 +145,6 @@ function! s:RepositoryExists(url)
   return v:shell_error == 0
 endfunction
 
-" Sidebar buffer mappings
-function! s:SetupSidebarMappings()
-  " Close the sidebar
-  nnoremap <buffer> q :bd<CR>
-  
-  " Common Plugin Manager operations
-  nnoremap <buffer> l :call <SID>List()<CR>
-  nnoremap <buffer> u :call <SID>Update()<CR>
-  nnoremap <buffer> h :call <SID>GenerateHelptags()<CR>
-  nnoremap <buffer> s :call <SID>Status()<CR>
-  nnoremap <buffer> b :call <SID>Backup()<CR>
-  nnoremap <buffer> r :call <SID>Restore()<CR>
-  nnoremap <buffer> ? :call <SID>Usage()<CR>
-endfunction
-
 " Open the sidebar window with optimized logic
 function! s:OpenSidebar(lines)
   " Check if sidebar buffer already exists
@@ -172,27 +157,12 @@ function! s:OpenSidebar(lines)
   else
     " Create a new window on the right
     execute 'silent! rightbelow ' . g:plugin_manager_sidebar_width . 'vnew ' . s:buffer_name
-    
-    " Set buffer options only once when created
-    setlocal buftype=nofile
-    setlocal bufhidden=hide
-    setlocal noswapfile
-    setlocal nowrap
-    setlocal nobuflisted
-    setlocal nonumber
-    setlocal filetype=pluginmanager
-    setlocal nofoldenable
-    setlocal updatetime=3000
-
-    " Setup mappings only when buffer is created
-    call s:SetupSidebarMappings()
+    " Set the filetype to trigger ftplugin and syntax files
+    set filetype=pluginmanager
   endif
   
   " Update buffer content more efficiently
   call s:UpdateSidebar(a:lines, 0)
-  
-  " Apply syntax highlighting
-  call s:SetupPluginManagerSyntax()
 endfunction
 
 " Update the sidebar content with better performance
@@ -785,49 +755,6 @@ function! s:Remove(...)
   
   return 0
 endfunction
-
-" Syntax highlighting for PluginManager buffer
-function! s:SetupPluginManagerSyntax()
-  if exists('b:current_syntax') && b:current_syntax == 'pluginmanager'
-    return
-  endif
-  
-  syntax clear
-  
-  " Headers
-  syntax match PMHeader /^[A-Za-z0-9 ]\+:$/
-  syntax match PMSubHeader /^-\+$/
-  
- " Keywords
- syntax keyword PMKeyword Usage Examples
- syntax match PMCommand /^\s*\(PluginManager\|add\|remove\|list\|status\|update\|summary\|backup\|helptags\|restore\)/
- 
- " URLs
- syntax match PMUrl /https\?:\/\/\S\+/
- 
- " Success messages
- syntax match PMSuccess /\<successfully\>/
- 
- " Error messages
- syntax match PMError /\<Error\>/
- 
- " Set highlighting
- highlight default link PMHeader Title
- highlight default link PMSubHeader Comment
- highlight default link PMKeyword Statement
- highlight default link PMCommand Function
- highlight default link PMUrl Underlined
- highlight default link PMSuccess String
- highlight default link PMError Error
- 
- let b:current_syntax = 'pluginmanager'
-endfunction
-
-" Setup autocmd for PluginManager syntax
-augroup PluginManagerSyntax
- autocmd!
- autocmd BufNewFile,BufRead,BufEnter PluginManager call s:SetupPluginManagerSyntax()
-augroup END
 
 " Function to toggle the Plugin Manager sidebar
 function! s:TogglePluginManager()
