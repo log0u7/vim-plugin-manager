@@ -1,6 +1,6 @@
 " vim-plugin-manager.vim - Manage Vim plugins with git submodules
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.1
+" Version: 1.2
 
 if exists('g:loaded_plugin_manager') || &cp
   finish
@@ -93,31 +93,32 @@ function! s:EnsureVimDirectory()
   return 1
 endfunction
 
-"" Execute command with output in sidebar
-"function! s:ExecuteWithSidebar(title, cmd)
-"  " Ensure we're in the Vim directory
-"  if !s:EnsureVimDirectory()
-"    return ''
-"  endif
-"  
-"  " Initialize output collection
-"  let s:command_output = [a:title, repeat('-', len(a:title)), '', 'Executing operation, please wait...']
-"  
-"  " Create or update sidebar window
-"  call s:OpenSidebar(s:command_output)
-"  
-"  " Execute command and collect output 
-"  let l:output = system(a:cmd)
-"  let s:command_output = [a:title, repeat('-', len(a:title)), '']
-"  call extend(s:command_output, split(l:output, "\n"))
-"  
-"  " Update sidebar with new content
-"  call add(s:command_output, '')
-"  call add(s:command_output, 'Press q to close this window...')
-"  call s:UpdateSidebar(s:command_output)
-"  
-"  return l:output
-"endfunction
+" Execute command with output in sidebar - redesigned for better efficiency
+function! s:ExecuteWithSidebar(title, cmd)
+  " Ensure we're in the Vim directory
+  if !s:EnsureVimDirectory()
+    return ''
+  endif
+  
+  " Create initial header only once
+  let l:header = [a:title, repeat('-', len(a:title)), '']
+  let l:initial_message = l:header + ['Executing operation, please wait...']
+  
+  " Create or update sidebar window with initial message
+  call s:OpenSidebar(l:initial_message)
+  
+  " Execute command and collect output
+  let l:output = system(a:cmd)
+  let l:output_lines = split(l:output, "\n")
+  
+  " Prepare final output - reuse header
+  let l:final_output = l:header + l:output_lines + ['', 'Press q to close this window...']
+  
+  " Update sidebar with final content - replace entire contents
+  call s:UpdateSidebar(l:final_output, 0)
+  
+  return l:output
+endfunction
 
 " Convert short name to full URL
 function! s:ConvertToFullUrl(shortName)
@@ -160,7 +161,7 @@ function! s:SetupSidebarMappings()
   nnoremap <buffer> ? :call <SID>Usage()<CR>
 endfunction
 
-" Open the sidebar window
+" Open the sidebar window with optimized logic
 function! s:OpenSidebar(lines)
   " Check if sidebar buffer already exists
   let l:buffer_exists = bufexists(s:buffer_name)
@@ -169,15 +170,11 @@ function! s:OpenSidebar(lines)
   if l:win_id != -1
     " Sidebar window is already open, focus it
     call win_gotoid(l:win_id)
-    
-    " Clear existing content
-    setlocal modifiable
-    silent! %delete _
   else
     " Create a new window on the right
     execute 'silent! rightbelow ' . g:plugin_manager_sidebar_width . 'vnew ' . s:buffer_name
     
-    " Set buffer options
+    " Set buffer options only once when created
     setlocal buftype=nofile
     setlocal bufhidden=hide
     setlocal noswapfile
@@ -188,22 +185,19 @@ function! s:OpenSidebar(lines)
     setlocal nofoldenable
     setlocal updatetime=3000
 
-    " Setup mappings
+    " Setup mappings only when buffer is created
     call s:SetupSidebarMappings()
   endif
   
-  " Update buffer content
-  call s:UpdateSidebar(a:lines)
+  " Update buffer content more efficiently
+  call s:UpdateSidebar(a:lines, 0)
   
-  " Mark as non-modifiable once content is set
-  setlocal nomodifiable
-
-  " Apply syntax highlighting explicitly
+  " Apply syntax highlighting
   call s:SetupPluginManagerSyntax()
 endfunction
 
-" Update the sidebar content
-function! s:UpdateSidebar(lines, append = 0)
+" Update the sidebar content with better performance
+function! s:UpdateSidebar(lines, append)
   " Find the sidebar buffer window
   let l:win_id = bufwinid(s:buffer_name)
   if l:win_id == -1
@@ -215,23 +209,26 @@ function! s:UpdateSidebar(lines, append = 0)
   " Focus the sidebar window
   call win_gotoid(l:win_id)
   
-  " Update content
-  if &modifiable == 0
-    setlocal modifiable
-  endif
-
-  if a:append
-    " Append to existing content
+  " Only change modifiable state once
+  setlocal modifiable
+  
+  " Update content based on append flag
+  if a:append && !empty(a:lines)
+    " More efficient append - don't write empty lines
+    if line('$') > 0 && getline('$') != ''
+      call append(line('$'), '')  " Add separator line
+    endif
     call append(line('$'), a:lines)
   else
-    " Replace existing content
+    " Replace existing content more efficiently
     silent! %delete _
-    call setline(1, a:lines)
+    if !empty(a:lines)
+      call setline(1, a:lines)
+    endif
   endif
   
+  " Set back to non-modifiable and move cursor to top
   setlocal nomodifiable
-  
-  " Move cursor to top
   call cursor(1, 1)
 endfunction
 
@@ -277,6 +274,13 @@ function! s:List()
     return
   endif
   
+  " Fix: Check if .gitmodules exists
+  if !filereadable('.gitmodules')
+    let l:lines = ['Installed Plugins:', '----------------', '', 'No plugins installed (.gitmodules not found)']
+    call s:OpenSidebar(l:lines)
+    return
+  endif
+  
   let l:output = system('grep ''url\|path'' .gitmodules | cut -d " " -f3 | awk ''NR%2{printf "%s\t=>\t",$0;next;}1'' | column -t')
   let l:lines = ['Installed Plugins:', '----------------', '']
   call extend(l:lines, split(l:output, "\n"))
@@ -287,6 +291,13 @@ endfunction
 " Show the status of submodules
 function! s:Status()
   if !s:EnsureVimDirectory()
+    return
+  endif
+  
+  " Fix: Check if .gitmodules exists
+  if !filereadable('.gitmodules')
+    let l:lines = ['Submodule Status:', '----------------', '', 'No submodules found (.gitmodules not found)']
+    call s:OpenSidebar(l:lines)
     return
   endif
   
@@ -303,6 +314,13 @@ function! s:Summary()
     return
   endif
   
+  " Fix: Check if .gitmodules exists
+  if !filereadable('.gitmodules')
+    let l:lines = ['Submodule Summary:', '----------------', '', 'No submodules found (.gitmodules not found)']
+    call s:OpenSidebar(l:lines)
+    return
+  endif
+  
   let l:output = system('git submodule summary')
   let l:lines = ['Submodule Summary:', '----------------', '']
   call extend(l:lines, split(l:output, "\n"))
@@ -310,30 +328,61 @@ function! s:Summary()
   call s:OpenSidebar(l:lines)
 endfunction
 
-" Update all plugins
 function! s:Update()
+  " Prevent multiple concurrent update calls
+  if exists('s:update_in_progress') && s:update_in_progress
+    return
+  endif
+  let s:update_in_progress = 1
+
   if !s:EnsureVimDirectory()
+    let s:update_in_progress = 0
     return
   endif
   
-  let l:lines = ['Updating Plugins:', '----------------', '', 'Updating all plugins...']
-  call s:OpenSidebar(l:lines)
+  " Fix: Check if .gitmodules exists
+  if !filereadable('.gitmodules')
+    let l:lines = ['Updating Plugins:', '----------------', '', 'No plugins to update (.gitmodules not found)']
+    call s:OpenSidebar(l:lines)
+    let s:update_in_progress = 0
+    return
+  endif
   
+  " Initialize once before executing commands
+  let l:header = ['Updating Plugins:', '----------------', '']
+  let l:initial_message = l:header + ['Updating all plugins...']
+  call s:OpenSidebar(l:initial_message)
+  
+  " Stash local changes in submodules first
+  call s:UpdateSidebar(['Stashing local changes in submodules...'], 1)
+  call system('git submodule foreach --recursive "git stash -q || true"')
+
   " Execute update commands
   call system('git submodule sync')
-  call system('git submodule update --remote --merge')
-  call system('git commit -am "Update Modules"')
+  let l:updateResult = system('git submodule update --remote --merge --force')
+  
+  " Fix: Check if commit is needed
+  let l:gitStatus = system('git status -s')
+  if !empty(l:gitStatus)
+    call system('git commit -am "Update Modules"')
+  endif
+  
+  " Update with results
+  let l:update_lines = []
+  if !empty(l:updateResult)
+    let l:update_lines += ['', 'Update details:', '']
+    let l:update_lines += split(l:updateResult, "\n")
+  endif
+  let l:update_lines += ['', 'All plugins updated successfully.', '', 'Generating helptags:']
   
   " Update sidebar with results
-  let s:command_output = ['Updating Plugins:', '----------------', '', 'All plugins updated successfully.']
-  call s:UpdateSidebar(s:command_output)
+  call s:UpdateSidebar(l:update_lines, 1)
   
-  " Add message about generating helptags
-  call add(s:command_output, 'Generating helptags:')
-  call s:UpdateSidebar(s:command_output)
+  " Generate helptags
+  call s:GenerateHelptags(0)
   
-  " Generate helptags 
-  call s:GenerateHelptags(0) 
+  " Reset update in progress flag
+  let s:update_in_progress = 0
 endfunction
 
 " Generate helptags for a specific plugin
@@ -341,32 +390,49 @@ function! s:GenerateHelptag(pluginPath)
   let l:docPath = a:pluginPath . '/doc'
   if isdirectory(l:docPath)
     execute 'helptags ' . l:docPath
-    call add(s:command_output, "Generated helptags for " . fnamemodify(a:pluginPath, ':t'))
+    return 1
   endif
+  return 0
 endfunction
 
 " Generate helptags for all installed plugins
-function! s:GenerateHelptags(create_header = 1)
+function! s:GenerateHelptags(...)
+  " Fix: Properly handle optional arguments
+  let l:create_header = a:0 > 0 ? a:1 : 1
+  
   if !s:EnsureVimDirectory()
     return
   endif
     
   " Initialize output only if creating a new header
-  if a:create_header
-    let s:command_output = ['Generating Helptags:', '------------------', '', 'Generating helptags:']
-    call s:UpdateSidebar(s:command_output)
+  if l:create_header
+    let l:header = ['Generating Helptags:', '------------------', '', 'Generating helptags:']
+    call s:OpenSidebar(l:header)
   endif
 
-  " Generate for plugins in 'all plugins directories
-  let l:startPath = g:plugin_manager_plugins_dir . '/'
-  if isdirectory(l:startPath)
-    for l:plugin in glob(l:startPath . '*/*', 0, 1)
-      call s:GenerateHelptag(l:plugin)
+  " Fix: Check if plugins directory exists
+  let l:pluginsDir = g:plugin_manager_plugins_dir . '/'
+  let l:tagsGenerated = 0
+  let l:generated_plugins = []
+  
+  if isdirectory(l:pluginsDir)
+    for l:plugin in glob(l:pluginsDir . '*/*', 0, 1)
+      if s:GenerateHelptag(l:plugin)
+        let l:tagsGenerated = 1
+        call add(l:generated_plugins, "Generated helptags for " . fnamemodify(l:plugin, ':t'))
+      endif
     endfor
   endif
 
-  call add(s:command_output, "Helptags generated successfully.")
-  call s:UpdateSidebar(s:command_output, 1)
+  let l:result_message = []
+  if l:tagsGenerated
+    call extend(l:result_message, l:generated_plugins)
+    call add(l:result_message, "Helptags generated successfully.")
+  else
+    call add(l:result_message, "No documentation directories found.")
+  endif
+  
+  call s:UpdateSidebar(l:result_message, 1)
 endfunction
 
 " Add a new plugin
@@ -375,23 +441,48 @@ function! s:AddModule(moduleUrl, installDir)
     return
   endif
   
-  let l:lines = ['Add Plugin:', '----------', '', 'Installing ' . a:moduleUrl . ' in ' . a:installDir . '...']
-  call s:OpenSidebar(l:lines)
+  let l:header = ['Add Plugin:', '----------', '', 'Installing ' . a:moduleUrl . ' in ' . a:installDir . '...']
+  call s:OpenSidebar(l:header)
   
-  " Execute commands
-  let s:command_output = ['Add Plugin:', '----------', '', 'Installing ' . a:moduleUrl . '...']
+  " Check if module directory exists and create if needed
+  let l:parentDir = fnamemodify(a:installDir, ':h')
+  if !isdirectory(l:parentDir)
+    call mkdir(l:parentDir, 'p')
+  endif
   
-  call system('git submodule add "' . a:moduleUrl . '" "' . a:installDir . '"')
-  call add(s:command_output, 'Committing changes...')
+  " Fix: Check if submodule already exists
+  let l:gitmoduleCheck = system('grep -c "' . a:installDir . '" .gitmodules 2>/dev/null || echo 0')
+  if l:gitmoduleCheck != "0"
+    call s:UpdateSidebar(['Error: Plugin already installed at this location.'], 1)
+    return
+  endif
   
-  call system('git commit -m "Added ' . a:moduleUrl . ' module"')
-  call add(s:command_output, 'Plugin installed successfully.')
+  " Execute git submodule add command
+  let l:result = system('git submodule add "' . a:moduleUrl . '" "' . a:installDir . '"')
+  if v:shell_error != 0
+    let l:error_lines = ['Error installing plugin:']
+    call extend(l:error_lines, split(l:result, "\n"))
+    call s:UpdateSidebar(l:error_lines, 1)
+    return
+  endif
   
-  " Generate helptags for the new plugin
-  call add(s:command_output, 'Generating helptags...')
-  call s:GenerateHelptag(a:installDir)
+  call s:UpdateSidebar(['Committing changes...'], 1)
   
-  call s:UpdateSidebar(s:command_output)
+  let l:result = system('git commit -m "Added ' . a:moduleUrl . ' module"')
+  let l:result_lines = []
+  if v:shell_error != 0
+    let l:result_lines += ['Error committing changes:']
+    let l:result_lines += split(l:result, "\n")
+  else
+    let l:result_lines += ['Plugin installed successfully.', 'Generating helptags...']
+    if s:GenerateHelptag(a:installDir)
+      let l:result_lines += ['Helptags generated successfully.']
+    else
+      let l:result_lines += ['No documentation directory found.']
+    endif
+  endif
+  
+  call s:UpdateSidebar(l:result_lines, 1)
 endfunction
 
 " Remove an existing plugin
@@ -400,25 +491,48 @@ function! s:RemoveModule(moduleName, removedPluginPath)
     return
   endif
   
-  let l:lines = ['Remove Plugin:', '-------------', '', 'Removing ' . a:moduleName . ' from ' . a:removedPluginPath . '...']
-  call s:OpenSidebar(l:lines)
+  let l:header = ['Remove Plugin:', '-------------', '', 'Removing ' . a:moduleName . ' from ' . a:removedPluginPath . '...']
+  call s:OpenSidebar(l:header)
   
-  " Execute commands
-  let s:command_output = ['Remove Plugin:', '-------------', '', 'Removing module ' . a:moduleName . '...']
+  " Execute deinit command
+  let l:result = system('git submodule deinit "' . a:removedPluginPath . '"')
+  if v:shell_error != 0
+    let l:error_lines = ['Error deinitializing submodule:']
+    call extend(l:error_lines, split(l:result, "\n"))
+    call s:UpdateSidebar(l:error_lines, 1)
+    return
+  endif
+  call s:UpdateSidebar(['Removing repository...'], 1)
   
-  call system('git submodule deinit "' . a:removedPluginPath . '"')
-  call add(s:command_output, 'Removing repository...')
+  let l:result = system('git rm -rf "' . a:removedPluginPath . '"')
+  if v:shell_error != 0
+    let l:error_lines = ['Error removing repository:']
+    call extend(l:error_lines, split(l:result, "\n"))
+    call s:UpdateSidebar(l:error_lines, 1)
+    return
+  endif
+  call s:UpdateSidebar(['Cleaning .git modules...'], 1)
   
-  call system('git rm -rf "' . a:removedPluginPath . '"')
-  call add(s:command_output, 'Cleaning .git modules...')
+  " Fix: Check if .git/modules directory exists
+  if isdirectory('.git/modules/' . a:removedPluginPath)
+    let l:result = system('rm -rf .git/modules/"' . a:removedPluginPath . '"')
+    if v:shell_error != 0
+      let l:error_lines = ['Error cleaning git modules:']
+      call extend(l:error_lines, split(l:result, "\n"))
+      call s:UpdateSidebar(l:error_lines, 1)
+      return
+    endif
+  endif
+  call s:UpdateSidebar(['Committing changes...'], 1)
   
-  call system('rm -rf .git/modules/"' . a:removedPluginPath . '"')
-  call add(s:command_output, 'Committing changes...')
-  
-  call system('git commit -m "Removed ' . a:moduleName . ' modules"')
-  call add(s:command_output, 'Plugin removed successfully.')
-  
-  call s:UpdateSidebar(s:command_output)
+  let l:result = system('git commit -m "Removed ' . a:moduleName . ' module"')
+  if v:shell_error != 0
+    let l:error_lines = ['Error committing changes:']
+    call extend(l:error_lines, split(l:result, "\n"))
+    call s:UpdateSidebar(l:error_lines, 1)
+  else
+    call s:UpdateSidebar(['Plugin removed successfully.'], 1)
+  endif
 endfunction
 
 " Backup configuration to remote repositories
@@ -427,16 +541,43 @@ function! s:Backup()
     return
   endif
   
-  let l:lines = ['Backup Configuration:', '--------------------', '', 'Performing backup...']
-  call s:OpenSidebar(l:lines)
+  let l:header = ['Backup Configuration:', '--------------------', '', 'Checking git status...']
+  call s:OpenSidebar(l:header)
+  
+  " Fix: Check if there are changes to commit
+  let l:gitStatus = system('git status -s')
+  let l:status_lines = []
+  if !empty(l:gitStatus)
+    let l:status_lines += ['Committing local changes...']
+    let l:commitResult = system('git commit -am "Automatic backup"')
+    let l:status_lines += split(l:commitResult, "\n")
+  else
+    let l:status_lines += ['No local changes to commit.']
+  endif
+  
+  call s:UpdateSidebar(l:status_lines, 1)
   
   " Push changes to all configured remotes
-  call add(s:command_output, 'Pushing changes to remote repositories...')
-  let l:pushResult = system('git push --all')
-  call add(s:command_output, l:pushResult)
+  call s:UpdateSidebar(['Pushing changes to remote repositories...'], 1)
   
-  call add(s:command_output, 'Backup completed successfully.')
-  call s:UpdateSidebar(s:command_output)
+  " Fix: Check if any remotes exist
+  let l:remotesExist = system('git remote')
+  if empty(l:remotesExist)
+    call s:UpdateSidebar([
+          \ 'No remote repositories configured.',
+          \ 'Use PluginManagerRemote to add a remote repository.'
+          \ ], 1)
+    return
+  endif
+  
+  let l:pushResult = system('git push --all')
+  if v:shell_error != 0
+    let l:error_lines = ['Error pushing to remote:']
+    call extend(l:error_lines, split(l:pushResult, "\n"))
+    call s:UpdateSidebar(l:error_lines, 1)
+  else
+    call s:UpdateSidebar(['Backup completed successfully.'], 1)
+  endif
 endfunction
 
 " Restore all plugins from .gitmodules
@@ -445,37 +586,50 @@ function! s:Restore()
     return
   endif
   
-  let l:lines = ['Restore Plugins:', '---------------', '', 'Restoring all plugins...']
-  call s:OpenSidebar(l:lines)
-  
-  " Initialize output
-  let s:command_output = ['Restore Plugins:', '---------------', '', 'Checking for .gitmodules file...']
+  let l:header = ['Restore Plugins:', '---------------', '', 'Checking for .gitmodules file...']
+  call s:OpenSidebar(l:header)
   
   " First, check if .gitmodules exists
   if !filereadable('.gitmodules')
-    call add(s:command_output, 'Error: .gitmodules file not found!')
-    call s:UpdateSidebar(s:command_output)
+    call s:UpdateSidebar(['Error: .gitmodules file not found!'], 1)
     return
   endif
   
   " Initialize submodules if they haven't been yet
-  call add(s:command_output, 'Initializing submodules...')
-  call system('git submodule init')
+  call s:UpdateSidebar(['Initializing submodules...'], 1)
+  let l:result = system('git submodule init')
+  if v:shell_error != 0
+    let l:error_lines = ['Error initializing submodules:']
+    call extend(l:error_lines, split(l:result, "\n"))
+    call s:UpdateSidebar(l:error_lines, 1)
+    return
+  endif
   
   " Fetch and update all submodules
-  call add(s:command_output, 'Fetching and updating all submodules...')
-  call system('git submodule update --init --recursive')
+  call s:UpdateSidebar(['Fetching and updating all submodules...'], 1)
+  let l:result = system('git submodule update --init --recursive')
+  if v:shell_error != 0
+    let l:error_lines = ['Error updating submodules:']
+    call extend(l:error_lines, split(l:result, "\n"))
+    call s:UpdateSidebar(l:error_lines, 1)
+    return
+  endif
   
   " Make sure all submodules are at the correct commit
-  call add(s:command_output, 'Ensuring all submodules are at the correct commit...')
+  call s:UpdateSidebar(['Ensuring all submodules are at the correct commit...'], 1)
   call system('git submodule sync')
-  call system('git submodule update --init --recursive --force')
+  let l:result = system('git submodule update --init --recursive --force')
+  if v:shell_error != 0
+    let l:error_lines = ['Error during final submodule update:']
+    call extend(l:error_lines, split(l:result, "\n"))
+    call s:UpdateSidebar(l:error_lines, 1)
+    return
+  endif
   
-  call add(s:command_output, 'All plugins have been restored successfully.')
-  call s:UpdateSidebar(s:command_output)
+  call s:UpdateSidebar(['All plugins have been restored successfully.', '', 'Generating helptags:'], 1)
   
   " Generate helptags for all plugins
-  call s:GenerateHelptags()
+  call s:GenerateHelptags(0)
 endfunction
 
 " Handle 'add' command
@@ -516,17 +670,21 @@ function! s:Add(...)
   " Check if a custom module name was provided
   let l:installDir = ""
   
-  if a:0 >= 3 && a:3 != ""
-    " Install in opt directory with specified name
-    if a:2 != ""
-      let l:installDir = g:plugin_manager_plugins_dir . "/" . g:plugin_manager_opt_dir . "/" . a:2
+  " Fix: Better parameter handling
+  let l:customName = a:0 >= 2 ? a:2 : ""
+  let l:isOptional = a:0 >= 3 && a:3 != ""
+  
+  if l:isOptional
+    " Install in opt directory
+    if !empty(l:customName)
+      let l:installDir = g:plugin_manager_plugins_dir . "/" . g:plugin_manager_opt_dir . "/" . l:customName
     else
       let l:installDir = g:plugin_manager_plugins_dir . "/" . g:plugin_manager_opt_dir . "/" . l:moduleName
     endif
   else
     " Install in start directory
-    if a:0 >= 2 && a:2 != ""
-      let l:installDir = g:plugin_manager_plugins_dir . "/" . g:plugin_manager_start_dir . "/" . a:2
+    if !empty(l:customName)
+      let l:installDir = g:plugin_manager_plugins_dir . "/" . g:plugin_manager_start_dir . "/" . l:customName
     else
       let l:installDir = g:plugin_manager_plugins_dir . "/" . g:plugin_manager_start_dir . "/" . l:moduleName
     endif
@@ -545,8 +703,7 @@ function! s:Remove(...)
   endif
   
   let l:moduleName = a:1
-  let l:removedPluginPath = system('find ' . g:plugin_manager_plugins_dir . ' -type d -name "*' . l:moduleName . '*" | head -n1')
-  let l:removedPluginPath = substitute(l:removedPluginPath, '\n$', '', '')
+  let l:removedPluginPath = substitute(system('find ' . g:plugin_manager_plugins_dir . ' -type d -name "*' . l:moduleName . '*" | head -n1'), '\n$', '', '')
   
   if !empty(l:removedPluginPath) && isdirectory(l:removedPluginPath . '/.git')
     if a:0 < 2
@@ -578,79 +735,97 @@ function! s:SetupPluginManagerSyntax()
   syntax match PMHeader /^[A-Za-z0-9 ]\+:$/
   syntax match PMSubHeader /^-\+$/
   
-  " Keywords
-  syntax keyword PMKeyword Usage Examples
-  syntax match PMCommand /^\s*\(PluginManager\|add\|remove\|list\|status\|update\|summary\|backup\|helptags\|restore\)/
-  
-  " URLs
-  syntax match PMUrl /https\?:\/\/\S\+/
-  
-  " Success messages
-  syntax match PMSuccess /\<successfully\>/
-  
-  " Set highlighting
-  highlight default link PMHeader Title
-  highlight default link PMSubHeader Comment
-  highlight default link PMKeyword Statement
-  highlight default link PMCommand Function
-  highlight default link PMUrl Underlined
-  highlight default link PMSuccess String
-  
-  let b:current_syntax = 'pluginmanager'
+ " Keywords
+ syntax keyword PMKeyword Usage Examples
+ syntax match PMCommand /^\s*\(PluginManager\|add\|remove\|list\|status\|update\|summary\|backup\|helptags\|restore\)/
+ 
+ " URLs
+ syntax match PMUrl /https\?:\/\/\S\+/
+ 
+ " Success messages
+ syntax match PMSuccess /\<successfully\>/
+ 
+ " Error messages
+ syntax match PMError /\<Error\>/
+ 
+ " Set highlighting
+ highlight default link PMHeader Title
+ highlight default link PMSubHeader Comment
+ highlight default link PMKeyword Statement
+ highlight default link PMCommand Function
+ highlight default link PMUrl Underlined
+ highlight default link PMSuccess String
+ highlight default link PMError Error
+ 
+ let b:current_syntax = 'pluginmanager'
 endfunction
 
 " Setup autocmd for PluginManager syntax
 augroup PluginManagerSyntax
-  autocmd!
-  autocmd BufNewFile,BufRead,BufEnter PluginManager call s:SetupPluginManagerSyntax()
+ autocmd!
+ autocmd BufNewFile,BufRead,BufEnter PluginManager call s:SetupPluginManagerSyntax()
 augroup END
 
 " Function to toggle the Plugin Manager sidebar
 function! s:TogglePluginManager()
-  let l:win_id = bufwinid(s:buffer_name)
-  if l:win_id != -1
-    " Sidebar is visible, close it
-    execute 'bd ' . bufnr(s:buffer_name)
-  else
-    " Open sidebar with usage info
-    call s:Usage()
-  endif
+ let l:win_id = bufwinid(s:buffer_name)
+ if l:win_id != -1
+   " Sidebar is visible, close it
+   execute 'bd ' . bufnr(s:buffer_name)
+ else
+   " Open sidebar with usage info
+   call s:Usage()
+ endif
 endfunction
 
 " Function to add a backup remote repository
 function! s:AddRemoteBackup(...)
-  if !s:EnsureVimDirectory()
-    return
-  endif
-  
-  if a:0 < 1
-    let l:lines = ["Remote Backup Usage:", "-------------------", "", "Usage: PluginManagerRemote <repository_url>"]
-    call s:OpenSidebar(l:lines)
-    return
-  endif
-  
-  let l:repoUrl = a:1
-  if l:repoUrl !~ s:urlRegexp
-    let l:lines = ["Invalid URL:", "-----------", "", l:repoUrl . " is not a valid url"]
-    call s:OpenSidebar(l:lines)
-    return
-  endif
-  
-  let l:lines = ['Add Remote Repository:', '---------------------', '', 'Adding backup repository: ' . l:repoUrl]
-  call s:OpenSidebar(l:lines)
-  
-  " Add remote
-  let s:command_output = ['Add Remote Repository:', '---------------------', '', 'Adding repository...']
-  call system('git remote set-url origin --add --push ' . l:repoUrl)
-  
-  " Display configured remotes
-  call add(s:command_output, 'Repository added successfully.')
-  call add(s:command_output, '')
-  call add(s:command_output, 'Configured repositories:')
-  let l:remotes = system('git remote -v')
-  call extend(s:command_output, split(l:remotes, "\n"))
-  
-  call s:UpdateSidebar(s:command_output)
+ if !s:EnsureVimDirectory()
+   return
+ endif
+ 
+ if a:0 < 1
+   let l:lines = ["Remote Backup Usage:", "-------------------", "", "Usage: PluginManagerRemote <repository_url>"]
+   call s:OpenSidebar(l:lines)
+   return
+ endif
+ 
+ let l:repoUrl = a:1
+ if l:repoUrl !~ s:urlRegexp
+   let l:lines = ["Invalid URL:", "-----------", "", l:repoUrl . " is not a valid url"]
+   call s:OpenSidebar(l:lines)
+   return
+ endif
+ 
+ let l:lines = ['Add Remote Repository:', '---------------------', '', 'Adding backup repository: ' . l:repoUrl]
+ call s:OpenSidebar(l:lines)
+ 
+ " Add remote
+ let s:command_output = ['Add Remote Repository:', '---------------------', '', 'Adding repository...']
+ 
+ " Fix: Check if remote origin exists
+ let l:originExists = system('git remote | grep -c "^origin$" || echo 0')
+ if l:originExists == "0"
+   call add(s:command_output, 'Adding origin remote...')
+   let l:result = system('git remote add origin ' . l:repoUrl)
+ else
+   call add(s:command_output, 'Adding push URL to origin remote...')
+   let l:result = system('git remote set-url origin --add --push ' . l:repoUrl)
+ endif
+ 
+ if v:shell_error != 0
+   call add(s:command_output, 'Error adding remote:')
+   call extend(s:command_output, split(l:result, "\n"))
+ else
+   call add(s:command_output, 'Repository added successfully.')
+ endif
+ 
+ call add(s:command_output, '')
+ call add(s:command_output, 'Configured repositories:')
+ let l:remotes = system('git remote -v')
+ call extend(s:command_output, split(l:remotes, "\n"))
+ 
+ call s:UpdateSidebar(s:command_output)
 endfunction
 
 " Define commands
@@ -660,32 +835,32 @@ command! PluginManagerToggle call s:TogglePluginManager()
 
 " Main function to handle PluginManager commands
 function! PluginManager(...)
-  if a:0 < 1
-    call s:Usage()
-    return
-  endif
-  
-  let l:command = a:1
-  
-  if l:command == "add" && a:0 >= 2
-    call s:Add(a:2, get(a:, 3, ""), get(a:, 4, ""))
-  elseif l:command == "remove" && a:0 >= 2
-    call s:Remove(a:2, get(a:, 3, ""))
-  elseif l:command == "list"
-    call s:List()
-  elseif l:command == "status"
-    call s:Status()
-  elseif l:command == "update"
-    call s:Update()
-  elseif l:command == "summary"
-    call s:Summary()
-  elseif l:command == "backup"
-    call s:Backup()
-  elseif l:command == "restore"
-    call s:Restore()
-  elseif l:command == "helptags"
-    call s:GenerateHelptags()  
-    else
-    call s:Usage()
-  endif
+ if a:0 < 1
+   call s:Usage()
+   return
+ endif
+ 
+ let l:command = a:1
+ 
+ if l:command == "add" && a:0 >= 2
+   call s:Add(a:2, get(a:, 3, ""), get(a:, 4, ""))
+ elseif l:command == "remove" && a:0 >= 2
+   call s:Remove(a:2, get(a:, 3, ""))
+ elseif l:command == "list"
+   call s:List()
+ elseif l:command == "status"
+   call s:Status()
+ elseif l:command == "update"
+   call s:Update()
+ elseif l:command == "summary"
+   call s:Summary()
+ elseif l:command == "backup"
+   call s:Backup()
+ elseif l:command == "restore"
+   call s:Restore()
+ elseif l:command == "helptags"
+   call s:GenerateHelptags()  
+ else
+   call s:Usage()
+ endif
 endfunction
