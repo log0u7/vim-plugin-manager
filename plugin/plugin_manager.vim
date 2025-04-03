@@ -227,6 +227,7 @@ function! s:Usage()
         \ "S - Show summary of changes",        
         \ "b - Backup configuration",
         \ "r - Restore all plugins",
+        \ "R - Reload configuration",
         \ "? - Show this help",
         \ "",
         \ "Configuration:",
