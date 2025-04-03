@@ -471,56 +471,6 @@ function! s:GenerateHelptags(...)
   call s:UpdateSidebar(l:result_message, 1)
 endfunction
 
-" Add a new plugin
-function! s:AddModule(moduleUrl, installDir)
-  if !s:EnsureVimDirectory()
-    return
-  endif
-  
-  let l:header = ['Add Plugin:', '----------', '', 'Installing ' . a:moduleUrl . ' in ' . a:installDir . '...']
-  call s:OpenSidebar(l:header)
-  
-  " Check if module directory exists and create if needed
-  let l:parentDir = fnamemodify(a:installDir, ':h')
-  if !isdirectory(l:parentDir)
-    call mkdir(l:parentDir, 'p')
-  endif
-  
-  " Fix: Check if submodule already exists
-  let l:gitmoduleCheck = system('grep -c "' . a:installDir . '" .gitmodules 2>/dev/null')
-  if shellescape(l:gitmoduleCheck) != 0
-    call s:UpdateSidebar(['Error: Plugin already installed at this location :'. a:installDir], 1)
-    return
-  end
-  
-  " Execute git submodule add command
-  let l:result = system('git submodule add "' . a:moduleUrl . '" "' . a:installDir . '"')
-  if v:shell_error != 0
-    let l:error_lines = ['Error installing plugin:']
-    call extend(l:error_lines, split(l:result, "\n"))
-    call s:UpdateSidebar(l:error_lines, 1)
-    return
-  endif
-  
-  call s:UpdateSidebar(['Committing changes...'], 1)
-  
-  let l:result = system('git commit -m "Added ' . a:moduleUrl . ' module"')
-  let l:result_lines = []
-  if v:shell_error != 0
-    let l:result_lines += ['Error committing changes:']
-    let l:result_lines += split(l:result, "\n")
-  else
-    let l:result_lines += ['Plugin installed successfully.', 'Generating helptags...']
-    if s:GenerateHelptag(a:installDir)
-      let l:result_lines += ['Helptags generated successfully.']
-    else
-      let l:result_lines += ['No documentation directory found.']
-    endif
-  endif
-  
-  call s:UpdateSidebar(l:result_lines, 1)
-endfunction
-
 " Handle 'add' command
 function! s:Add(...)
   if a:0 < 1
@@ -583,57 +533,57 @@ function! s:Add(...)
   return 0
 endfunction
 
-" Remove an existing plugin
-function! s:RemoveModule(moduleName, removedPluginPath)
+" Add a new plugin
+function! s:AddModule(moduleUrl, installDir)
   if !s:EnsureVimDirectory()
     return
   endif
   
-  let l:header = ['Remove Plugin:', '-------------', '', 'Removing ' . a:moduleName . ' from ' . a:removedPluginPath . '...']
+  let l:header = ['Add Plugin:', '----------', '', 'Installing ' . a:moduleUrl . ' in ' . a:installDir . '...']
   call s:OpenSidebar(l:header)
   
-  " Execute deinit command
-  let l:result = system('git submodule deinit "' . a:removedPluginPath . '"')
+  " Check if module directory exists and create if needed
+  let l:parentDir = fnamemodify(a:installDir, ':h')
+  if !isdirectory(l:parentDir)
+    call mkdir(l:parentDir, 'p')
+  endif
+  
+  " Fix: Check if submodule already exists
+  let l:gitmoduleCheck = system('grep -c "' . a:installDir . '" .gitmodules 2>/dev/null')
+  if shellescape(l:gitmoduleCheck) != 0
+    call s:UpdateSidebar(['Error: Plugin already installed at this location :'. a:installDir], 1)
+    return
+  end
+  
+  " Execute git submodule add command
+  let l:result = system('git submodule add "' . a:moduleUrl . '" "' . a:installDir . '"')
   if v:shell_error != 0
-    let l:error_lines = ['Error deinitializing submodule:']
+    let l:error_lines = ['Error installing plugin:']
     call extend(l:error_lines, split(l:result, "\n"))
     call s:UpdateSidebar(l:error_lines, 1)
     return
   endif
-  call s:UpdateSidebar(['Removing repository...'], 1)
   
-  let l:result = system('git rm -rf "' . a:removedPluginPath . '"')
-  if v:shell_error != 0
-    let l:error_lines = ['Error removing repository:']
-    call extend(l:error_lines, split(l:result, "\n"))
-    call s:UpdateSidebar(l:error_lines, 1)
-    return
-  endif
-  call s:UpdateSidebar(['Cleaning .git modules...'], 1)
-  
-  " Fix: Check if .git/modules directory exists
-  if isdirectory('.git/modules/' . a:removedPluginPath)
-    let l:result = system('rm -rf .git/modules/"' . a:removedPluginPath . '"')
-    if v:shell_error != 0
-      let l:error_lines = ['Error cleaning git modules:']
-      call extend(l:error_lines, split(l:result, "\n"))
-      call s:UpdateSidebar(l:error_lines, 1)
-      return
-    endif
-  endif
   call s:UpdateSidebar(['Committing changes...'], 1)
   
-  let l:result = system('git commit -m "Removed ' . a:moduleName . ' module"')
+  let l:result = system('git commit -m "Added ' . a:moduleUrl . ' module"')
+  let l:result_lines = []
   if v:shell_error != 0
-    let l:error_lines = ['Error committing changes:']
-    call extend(l:error_lines, split(l:result, "\n"))
-    call s:UpdateSidebar(l:error_lines, 1)
+    let l:result_lines += ['Error committing changes:']
+    let l:result_lines += split(l:result, "\n")
   else
-    call s:UpdateSidebar(['Plugin removed successfully.'], 1)
+    let l:result_lines += ['Plugin installed successfully.', 'Generating helptags...']
+    if s:GenerateHelptag(a:installDir)
+      let l:result_lines += ['Helptags generated successfully.']
+    else
+      let l:result_lines += ['No documentation directory found.']
+    endif
   endif
+  
+  call s:UpdateSidebar(l:result_lines, 1)
 endfunction
 
-" Handle 'remove' command
+" Handle 'remove' command - fixed to properly handle plugin removal
 function! s:Remove(...)
   if a:0 < 1
     let l:lines = ["Remove Plugin Usage:", "-----------------", "", "Usage: PluginManager remove <modulename> [-f]"]
@@ -642,24 +592,131 @@ function! s:Remove(...)
   endif
   
   let l:moduleName = a:1
-  let l:removedPluginPath = substitute(system('find ' . g:plugin_manager_plugins_dir . ' -type d -name "*' . l:moduleName . '*" | head -n1'), '\n$', '', '')
+  
+  " Improved plugin path detection - search more precisely and handle partial matches better
+  " First try exact match in submodules
+  let l:grep_cmd = 'grep -A1 "submodule.*' . l:moduleName . '" .gitmodules | grep "path =" | head -n1 | cut -d "=" -f2 | tr -d " "'
+  let l:removedPluginPath = substitute(system(l:grep_cmd), '\n$', '', '')
+  
+  " If exact match failed, try to find by directory name
+  if empty(l:removedPluginPath)
+    let l:find_cmd = 'find ' . g:plugin_manager_plugins_dir . ' -type d -name "' . l:moduleName . '" | head -n1'
+    let l:removedPluginPath = substitute(system(l:find_cmd), '\n$', '', '')
+  endif
+  
+  " If still not found, try partial match as last resort
+  if empty(l:removedPluginPath)
+    let l:find_cmd = 'find ' . g:plugin_manager_plugins_dir . ' -type d -name "*' . l:moduleName . '*" | head -n1'
+    let l:removedPluginPath = substitute(system(l:find_cmd), '\n$', '', '')
+  endif
+  
+  " Debug information for plugin path detection
+  echo "Detected plugin path: " . l:removedPluginPath
   
   if !empty(l:removedPluginPath) && isdirectory(l:removedPluginPath)
-    if a:0 < 2
+    " Force flag provided or prompt for confirmation
+    if a:0 >= 2 && a:2 == "-f"
+      call s:RemoveModule(l:moduleName, l:removedPluginPath)
+    else
       let l:response = input("Are you sure you want to remove " . l:removedPluginPath . "? [y/N] ")
       if l:response =~? '^y\(es\)\?$'
         call s:RemoveModule(l:moduleName, l:removedPluginPath)
       endif
-    elseif a:0 >= 2 && a:2 == "-f"
-      call s:RemoveModule(l:moduleName, l:removedPluginPath)
     endif
   else
-    let l:lines = ["Module Not Found:", "----------------", "", "Unable to find module " . l:moduleName]
+    " Provide more informative error for debugging
+    let l:lines = ["Module Not Found:", "----------------", "", 
+          \ "Unable to find module '" . l:moduleName . "'", "",
+          \ "Debug info:", "- Plugins directory: " . g:plugin_manager_plugins_dir,
+          \ "- Search command: find " . g:plugin_manager_plugins_dir . " -type d -name \"*" . l:moduleName . "*\"",
+          \ "- .gitmodules exists: " . (filereadable('.gitmodules') ? "Yes" : "No")]
+    
+    " Add list of currently installed plugins for reference
+    if filereadable('.gitmodules')
+      let l:lines += ["", "Installed plugins:"]
+      let l:installed = system('grep "path = " .gitmodules | cut -d "=" -f2 | tr -d " "')
+      let l:lines += split(l:installed, "\n")
+    endif
+    
     call s:OpenSidebar(l:lines)
     return 1
   endif
   
   return 0
+endfunction
+
+" Remove an existing plugin - fixed to provide better error handling
+function! s:RemoveModule(moduleName, removedPluginPath)
+  if !s:EnsureVimDirectory()
+    return
+  endif
+  
+  let l:header = ['Remove Plugin:', '-------------', '', 'Removing ' . a:moduleName . ' from ' . a:removedPluginPath . '...']
+  call s:OpenSidebar(l:header)
+  
+  " Execute deinit command with better error handling
+  let l:result = system('git submodule deinit -f "' . a:removedPluginPath . '" 2>&1')
+  let l:deinit_success = v:shell_error == 0
+  
+  if !l:deinit_success
+    let l:error_lines = ['Warning during deinitializing submodule (continuing anyway):']
+    call extend(l:error_lines, split(l:result, "\n"))
+    call s:UpdateSidebar(l:error_lines, 1)
+  else
+    call s:UpdateSidebar(['Successfully deinitialized submodule.'], 1)
+  endif
+  
+  call s:UpdateSidebar(['Removing repository...'], 1)
+  
+  " Try to remove repository even if deinit failed
+  let l:result = system('git rm -f "' . a:removedPluginPath . '" 2>&1')
+  if v:shell_error != 0
+    let l:error_lines = ['Error removing repository:']
+    call extend(l:error_lines, split(l:result, "\n"))
+    call s:UpdateSidebar(l:error_lines, 1)
+    
+    " Try alternative removal method
+    call s:UpdateSidebar(['Trying alternative removal method...'], 1)
+    let l:result = system('rm -rf "' . a:removedPluginPath . '" 2>&1')
+    if v:shell_error != 0
+      call s:UpdateSidebar(['Alternative removal also failed.'], 1)
+      return
+    else
+      call s:UpdateSidebar(['Directory removed manually. You may need to edit .gitmodules manually.'], 1)
+    endif
+  else
+    call s:UpdateSidebar(['Repository removed successfully.'], 1)
+  endif
+  
+  call s:UpdateSidebar(['Cleaning .git modules...'], 1)
+  
+  " Clean .git/modules directory
+  if isdirectory('.git/modules/' . a:removedPluginPath)
+    let l:result = system('rm -rf ".git/modules/' . a:removedPluginPath . '" 2>&1')
+    if v:shell_error != 0
+      let l:error_lines = ['Warning cleaning git modules (continuing anyway):']
+      call extend(l:error_lines, split(l:result, "\n"))
+      call s:UpdateSidebar(l:error_lines, 1)
+    else
+      call s:UpdateSidebar(['Git modules cleaned successfully.'], 1)
+    endif
+  else
+    call s:UpdateSidebar(['No module directory to clean in .git/modules.'], 1)
+  endif
+  
+  call s:UpdateSidebar(['Committing changes...'], 1)
+  
+  " Commit changes - create a forced commit even if nothing staged
+  let l:result = system('git add -A && git commit -m "Removed ' . a:moduleName . ' module" || git commit --allow-empty -m "Removed ' . a:moduleName . ' module" 2>&1')
+  if v:shell_error != 0
+    let l:error_lines = ['Warning during commit (plugin still removed):']
+    call extend(l:error_lines, split(l:result, "\n"))
+    call s:UpdateSidebar(l:error_lines, 1)
+  else
+    call s:UpdateSidebar(['Changes committed successfully.'], 1)
+  endif
+  
+  call s:UpdateSidebar(['Plugin removal completed.'], 1)
 endfunction
 
 " Backup configuration to remote repositories
