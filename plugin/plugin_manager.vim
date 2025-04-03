@@ -583,7 +583,7 @@ function! s:AddModule(moduleUrl, installDir)
   call s:UpdateSidebar(l:result_lines, 1)
 endfunction
 
-" Handle 'remove' command - fixed to properly handle plugin removal
+" Handle 'remove' command - fixed to better handle different module naming patterns
 function! s:Remove(...)
   if a:0 < 1
     let l:lines = ["Remove Plugin Usage:", "-----------------", "", "Usage: PluginManager remove <modulename> [-f]"]
@@ -592,25 +592,49 @@ function! s:Remove(...)
   endif
   
   let l:moduleName = a:1
+  let l:removedPluginPath = ""
   
-  " Improved plugin path detection - search more precisely and handle partial matches better
-  " First try exact match in submodules
-  let l:grep_cmd = 'grep -A1 "submodule.*' . l:moduleName . '" .gitmodules | grep "path =" | head -n1 | cut -d "=" -f2 | tr -d " "'
-  let l:removedPluginPath = substitute(system(l:grep_cmd), '\n$', '', '')
+  " Check if .gitmodules exists, and try to find the module path from it
+  if filereadable('.gitmodules')
+    " Improved gitmodules search to handle spaces in paths
+    let l:grep_cmd = 'grep -A1 "submodule.*' . l:moduleName . '" .gitmodules 2>/dev/null | grep "path" | head -n1 | cut -d "=" -f2'
+    let l:removedPluginPath = substitute(system(l:grep_cmd), '^\s*\(.\{-}\)\s*$', '\1', '')
+    
+    " If that fails, try a manual search through the file
+    if empty(l:removedPluginPath)
+      let l:lines = readfile('.gitmodules')
+      let l:in_module = 0
+      let l:found_module = 0
+      
+      for l:line in l:lines
+        if l:line =~ '\[submodule'
+          let l:in_module = 1
+          let l:found_module = l:line =~ l:moduleName
+        elseif l:in_module && l:found_module && l:line =~ '\s*path\s*='
+          let l:removedPluginPath = substitute(l:line, '\s*path\s*=\s*', '', '')
+          break
+        elseif l:in_module && l:line =~ '\[submodule'
+          let l:in_module = 0
+          let l:found_module = 0
+        endif
+      endfor
+    endif
+  endif
   
-  " If exact match failed, try to find by directory name
+  " If not found in .gitmodules, try direct filesystem search
   if empty(l:removedPluginPath)
+    " Try exact directory name match first
     let l:find_cmd = 'find ' . g:plugin_manager_plugins_dir . ' -type d -name "' . l:moduleName . '" | head -n1'
     let l:removedPluginPath = substitute(system(l:find_cmd), '\n$', '', '')
+    
+    " Then try partial name match if needed
+    if empty(l:removedPluginPath)
+      let l:find_cmd = 'find ' . g:plugin_manager_plugins_dir . ' -type d -name "*' . l:moduleName . '*" | head -n1'
+      let l:removedPluginPath = substitute(system(l:find_cmd), '\n$', '', '')
+    endif
   endif
   
-  " If still not found, try partial match as last resort
-  if empty(l:removedPluginPath)
-    let l:find_cmd = 'find ' . g:plugin_manager_plugins_dir . ' -type d -name "*' . l:moduleName . '*" | head -n1'
-    let l:removedPluginPath = substitute(system(l:find_cmd), '\n$', '', '')
-  endif
-  
-  " Debug information for plugin path detection
+  " Debug information 
   echo "Detected plugin path: " . l:removedPluginPath
   
   if !empty(l:removedPluginPath) && isdirectory(l:removedPluginPath)
@@ -628,14 +652,29 @@ function! s:Remove(...)
     let l:lines = ["Module Not Found:", "----------------", "", 
           \ "Unable to find module '" . l:moduleName . "'", "",
           \ "Debug info:", "- Plugins directory: " . g:plugin_manager_plugins_dir,
-          \ "- Search command: find " . g:plugin_manager_plugins_dir . " -type d -name \"*" . l:moduleName . "*\"",
-          \ "- .gitmodules exists: " . (filereadable('.gitmodules') ? "Yes" : "No")]
+          \ "- Search command: find " . g:plugin_manager_plugins_dir . " -type d -name \"*" . l:moduleName . "*\""]
+    
+    " Add information about .gitmodules
+    if filereadable('.gitmodules')
+      let l:lines += ["- .gitmodules exists: Yes", 
+            \ "- Search in .gitmodules: grep -A1 \"submodule.*" . l:moduleName . "\" .gitmodules"]
+    else
+      let l:lines += ["- .gitmodules exists: No"]
+    endif
     
     " Add list of currently installed plugins for reference
+    let l:installed = []
     if filereadable('.gitmodules')
-      let l:lines += ["", "Installed plugins:"]
-      let l:installed = system('grep "path = " .gitmodules | cut -d "=" -f2 | tr -d " "')
-      let l:lines += split(l:installed, "\n")
+      let l:lines += ["", "Installed plugins in .gitmodules:"]
+      let l:installed = systemlist('grep "path = " .gitmodules | cut -d "=" -f2')
+      let l:lines += l:installed
+    endif
+    
+    " If nothing found in .gitmodules but directory exists, show filesystem plugins
+    if empty(l:installed)
+      let l:lines += ["", "Plugin directories found in filesystem:"]
+      let l:fs_plugins = systemlist('find ' . g:plugin_manager_plugins_dir . ' -mindepth 2 -maxdepth 2 -type d | sort')
+      let l:lines += l:fs_plugins
     endif
     
     call s:OpenSidebar(l:lines)
