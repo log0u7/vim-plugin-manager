@@ -521,6 +521,68 @@ function! s:AddModule(moduleUrl, installDir)
   call s:UpdateSidebar(l:result_lines, 1)
 endfunction
 
+" Handle 'add' command
+function! s:Add(...)
+  if a:0 < 1
+    let l:lines = ["Add Plugin Usage:", "---------------", "", "Usage: PluginManager add <plugin> [modulename] [opt]"]
+    call s:OpenSidebar(l:lines)
+    return 1
+  endif
+  
+  let l:pluginInput = a:1
+  let l:moduleUrl = s:ConvertToFullUrl(l:pluginInput)
+  
+  " Check if URL is valid
+  if empty(l:moduleUrl)
+    let l:lines = ["Invalid Plugin Format:", "--------------------", "", l:pluginInput . " is not a valid plugin name or URL.", "Use format 'user/repo' or complete URL."]
+    call s:OpenSidebar(l:lines)
+    return 1
+  endif
+  
+  " Check if repository exists
+  if !s:RepositoryExists(l:moduleUrl)
+    let l:lines = ["Repository Not Found:", "--------------------", "", "Repository not found: " . l:moduleUrl]
+    
+    " If it was a short name, suggest using a full URL
+    if l:pluginInput =~ s:shortNameRegexp
+      call add(l:lines, "This plugin was not found on " . g:plugin_manager_default_git_host . ".")
+      call add(l:lines, "Try using a full URL to the repository if it's hosted elsewhere.")
+    endif
+    
+    call s:OpenSidebar(l:lines)
+    return 1
+  endif
+  
+  " If we got here, the repository exists
+  let l:moduleName = fnamemodify(l:moduleUrl, ':t:r')  " Remove .git from the end if present
+  
+  " Check if a custom module name was provided
+  let l:installDir = ""
+  
+  " Fix: Better parameter handling
+  let l:customName = a:0 >= 2 ? a:2 : ""
+  let l:isOptional = a:0 >= 3 && a:3 != ""
+  
+  if l:isOptional
+    " Install in opt directory
+    if !empty(l:customName)
+      let l:installDir = g:plugin_manager_plugins_dir . "/" . g:plugin_manager_opt_dir . "/" . l:customName
+    else
+      let l:installDir = g:plugin_manager_plugins_dir . "/" . g:plugin_manager_opt_dir . "/" . l:moduleName
+    endif
+  else
+    " Install in start directory
+    if !empty(l:customName)
+      let l:installDir = g:plugin_manager_plugins_dir . "/" . g:plugin_manager_start_dir . "/" . l:customName
+    else
+      let l:installDir = g:plugin_manager_plugins_dir . "/" . g:plugin_manager_start_dir . "/" . l:moduleName
+    endif
+  endif
+  
+  call s:AddModule(l:moduleUrl, l:installDir)
+  return 0
+endfunction
+
 " Remove an existing plugin
 function! s:RemoveModule(moduleName, removedPluginPath)
   if !s:EnsureVimDirectory()
@@ -569,6 +631,35 @@ function! s:RemoveModule(moduleName, removedPluginPath)
   else
     call s:UpdateSidebar(['Plugin removed successfully.'], 1)
   endif
+endfunction
+
+" Handle 'remove' command
+function! s:Remove(...)
+  if a:0 < 1
+    let l:lines = ["Remove Plugin Usage:", "-----------------", "", "Usage: PluginManager remove <modulename> [-f]"]
+    call s:OpenSidebar(l:lines)
+    return 1
+  endif
+  
+  let l:moduleName = a:1
+  let l:removedPluginPath = substitute(system('find ' . g:plugin_manager_plugins_dir . ' -type d -name "*' . l:moduleName . '*" | head -n1'), '\n$', '', '')
+  
+  if !empty(l:removedPluginPath) && isdirectory(l:removedPluginPath)
+    if a:0 < 2
+      let l:response = input("Are you sure you want to remove " . l:removedPluginPath . "? [y/N] ")
+      if l:response =~? '^y\(es\)\?$'
+        call s:RemoveModule(l:moduleName, l:removedPluginPath)
+      endif
+    elseif a:0 >= 2 && a:2 == "-f"
+      call s:RemoveModule(l:moduleName, l:removedPluginPath)
+    endif
+  else
+    let l:lines = ["Module Not Found:", "----------------", "", "Unable to find module " . l:moduleName]
+    call s:OpenSidebar(l:lines)
+    return 1
+  endif
+  
+  return 0
 endfunction
 
 " Backup configuration to remote repositories
@@ -666,97 +757,6 @@ function! s:Restore()
   
   " Generate helptags for all plugins
   call s:GenerateHelptags(0)
-endfunction
-
-" Handle 'add' command
-function! s:Add(...)
-  if a:0 < 1
-    let l:lines = ["Add Plugin Usage:", "---------------", "", "Usage: PluginManager add <plugin> [modulename] [opt]"]
-    call s:OpenSidebar(l:lines)
-    return 1
-  endif
-  
-  let l:pluginInput = a:1
-  let l:moduleUrl = s:ConvertToFullUrl(l:pluginInput)
-  
-  " Check if URL is valid
-  if empty(l:moduleUrl)
-    let l:lines = ["Invalid Plugin Format:", "--------------------", "", l:pluginInput . " is not a valid plugin name or URL.", "Use format 'user/repo' or complete URL."]
-    call s:OpenSidebar(l:lines)
-    return 1
-  endif
-  
-  " Check if repository exists
-  if !s:RepositoryExists(l:moduleUrl)
-    let l:lines = ["Repository Not Found:", "--------------------", "", "Repository not found: " . l:moduleUrl]
-    
-    " If it was a short name, suggest using a full URL
-    if l:pluginInput =~ s:shortNameRegexp
-      call add(l:lines, "This plugin was not found on " . g:plugin_manager_default_git_host . ".")
-      call add(l:lines, "Try using a full URL to the repository if it's hosted elsewhere.")
-    endif
-    
-    call s:OpenSidebar(l:lines)
-    return 1
-  endif
-  
-  " If we got here, the repository exists
-  let l:moduleName = fnamemodify(l:moduleUrl, ':t:r')  " Remove .git from the end if present
-  
-  " Check if a custom module name was provided
-  let l:installDir = ""
-  
-  " Fix: Better parameter handling
-  let l:customName = a:0 >= 2 ? a:2 : ""
-  let l:isOptional = a:0 >= 3 && a:3 != ""
-  
-  if l:isOptional
-    " Install in opt directory
-    if !empty(l:customName)
-      let l:installDir = g:plugin_manager_plugins_dir . "/" . g:plugin_manager_opt_dir . "/" . l:customName
-    else
-      let l:installDir = g:plugin_manager_plugins_dir . "/" . g:plugin_manager_opt_dir . "/" . l:moduleName
-    endif
-  else
-    " Install in start directory
-    if !empty(l:customName)
-      let l:installDir = g:plugin_manager_plugins_dir . "/" . g:plugin_manager_start_dir . "/" . l:customName
-    else
-      let l:installDir = g:plugin_manager_plugins_dir . "/" . g:plugin_manager_start_dir . "/" . l:moduleName
-    endif
-  endif
-  
-  call s:AddModule(l:moduleUrl, l:installDir)
-  return 0
-endfunction
-
-" Handle 'remove' command
-function! s:Remove(...)
-  if a:0 < 1
-    let l:lines = ["Remove Plugin Usage:", "-----------------", "", "Usage: PluginManager remove <modulename> [-f]"]
-    call s:OpenSidebar(l:lines)
-    return 1
-  endif
-  
-  let l:moduleName = a:1
-  let l:removedPluginPath = substitute(system('find ' . g:plugin_manager_plugins_dir . ' -type d -name "*' . l:moduleName . '*" | head -n1'), '\n$', '', '')
-  
-  if !empty(l:removedPluginPath) && isdirectory(l:removedPluginPath . '/.git')
-    if a:0 < 2
-      let l:response = input("Are you sure you want to remove " . l:removedPluginPath . "? [y/N] ")
-      if l:response =~? '^y\(es\)\?$'
-        call s:RemoveModule(l:moduleName, l:removedPluginPath)
-      endif
-    elseif a:0 >= 2 && a:2 == "-f"
-      call s:RemoveModule(l:moduleName, l:removedPluginPath)
-    endif
-  else
-    let l:lines = ["Module Not Found:", "----------------", "", "Unable to find module " . l:moduleName]
-    call s:OpenSidebar(l:lines)
-    return 1
-  endif
-  
-  return 0
 endfunction
 
 " Reload a specific plugin or all Vim configuration
