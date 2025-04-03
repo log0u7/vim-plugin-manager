@@ -51,7 +51,11 @@ git submodule add https://github.com/yourusername/vim-plugin-manager.git ~/.vim/
 ```
 
 ### Generate helptags
+```bash
+vim -c "helptags ~/.vim/pack/plugins/start/vim-plugin-manager/doc" -c q
+```
 
+Or after opening vim :
 ```vim
 :helptags ~/.vim/pack/plugins/start/vim-plugin-manager/doc
 ```
