@@ -702,7 +702,7 @@ function! s:RemoveModule(moduleName, removedPluginPath)
     call extend(l:error_lines, split(l:result, "\n"))
     call s:UpdateSidebar(l:error_lines, 1)
   else
-    call s:UpdateSidebar(['Successfully deinitialized submodule.'], 1)
+    call s:UpdateSidebar(['Deinitialized submodule successfully.'], 1)
   endif
   
   call s:UpdateSidebar(['Removing repository...'], 1)
