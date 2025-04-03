@@ -547,16 +547,19 @@ function! s:AddModule(moduleUrl, installDir)
   if !isdirectory(l:parentDir)
     call mkdir(l:parentDir, 'p')
   endif
+
+  " Ensure the path is relative to vim directory
+  let l:relativeInstallDir = substitute(a:installDir, '^' . g:plugin_manager_vim_dir . '/', '', '')
   
   " Fix: Check if submodule already exists
-  let l:gitmoduleCheck = system('grep -c "' . a:installDir . '" .gitmodules 2>/dev/null')
+  let l:gitmoduleCheck = system('grep -c "' . l:relativeInstallDir . '" .gitmodules 2>/dev/null')
   if shellescape(l:gitmoduleCheck) != 0
-    call s:UpdateSidebar(['Error: Plugin already installed at this location :'. a:installDir], 1)
+    call s:UpdateSidebar(['Error: Plugin already installed at this location :'. l:relativeInstallDir], 1)
     return
   end
   
   " Execute git submodule add command
-  let l:result = system('git submodule add "' . a:moduleUrl . '" "' . a:installDir . '"')
+  let l:result = system('git submodule add "' . a:moduleUrl . '" "' . l:relativeInstallDir . '"')
   if v:shell_error != 0
     let l:error_lines = ['Error installing plugin:']
     call extend(l:error_lines, split(l:result, "\n"))
@@ -855,7 +858,6 @@ function! s:Restore()
   call s:GenerateHelptags(0)
 endfunction
 
-" Reload a specific plugin or all Vim configuration
 " Reload a specific plugin or all Vim configuration
 function! s:Reload(...)
   if !s:EnsureVimDirectory()
