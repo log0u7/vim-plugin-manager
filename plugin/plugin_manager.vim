@@ -856,6 +856,7 @@ function! s:Restore()
 endfunction
 
 " Reload a specific plugin or all Vim configuration
+" Reload a specific plugin or all Vim configuration
 function! s:Reload(...)
   if !s:EnsureVimDirectory()
     return
@@ -880,20 +881,68 @@ function! s:Reload(...)
       return
     endif
     
-    " Simple approach: remove and re-add to runtime path
+    " A more effective approach to reload a plugin:
+    " 1. Remove it from runtimepath
     execute 'set rtp-=' . l:module_path
+    
+    " 2. Clear any runtime files loaded from this plugin
+    let l:runtime_paths = split(globpath(l:module_path, '**/*.vim'), '\n')
+    for l:rtp in l:runtime_paths
+      " Only try to clear files that are in autoload, plugin, or ftplugin directories
+      if l:rtp =~ '/autoload/' || l:rtp =~ '/plugin/' || l:rtp =~ '/ftplugin/'
+        " Get the script ID if loaded
+        let l:sid = 0
+        redir => l:scriptnames
+        silent scriptnames
+        redir END
+        
+        for l:line in split(l:scriptnames, '\n')
+          if l:line =~ l:rtp
+            let l:sid = str2nr(matchstr(l:line, '^\s*\zs\d\+\ze:'))
+            break
+          endif
+        endfor
+        
+        " If script is loaded, try to unload it
+        if l:sid > 0
+          " Attempt to clear script variables (doesn't work for all plugins)
+          execute 'runtime! ' . l:rtp
+        endif
+      endif
+    endfor
+    
+    " 3. Add it back to runtimepath
     execute 'set rtp+=' . l:module_path
     
-    call s:UpdateSidebar(['Plugin "' . l:specific_module . '" reloaded.'], 1)
+    " 4. Reload all runtime files from the plugin
+    for l:rtp in l:runtime_paths
+      if l:rtp =~ '/plugin/' || l:rtp =~ '/ftplugin/'
+        execute 'runtime! ' . l:rtp
+      endif
+    endfor
+    
+    call s:UpdateSidebar(['Plugin "' . l:specific_module . '" reloaded successfully.', 'Note: Some plugins may require restarting Vim for a complete reload.'], 1)
   else
     " Reload all Vim configuration
     call s:OpenSidebar(l:header + ['Reloading entire Vim configuration...'])
     
-    " Source vimrc file - this is the simplest way to reload everything
+    " First unload all plugins
+    call s:UpdateSidebar(['Unloading plugins...'], 1)
+    
+    " Then reload vimrc file
     if filereadable(g:plugin_manager_vimrc_path)
       call s:UpdateSidebar(['Sourcing ' . g:plugin_manager_vimrc_path . '...'], 1)
+      
+      " More effective reloading approach
+      execute 'runtime! plugin/**/*.vim'
+      execute 'runtime! ftplugin/**/*.vim'
+      execute 'runtime! syntax/**/*.vim'
+      execute 'runtime! indent/**/*.vim'
+      
+      " Finally source the vimrc
       execute 'source ' . g:plugin_manager_vimrc_path
-      call s:UpdateSidebar(['Vim configuration reloaded successfully.'], 1)
+      
+      call s:UpdateSidebar(['Vim configuration reloaded successfully.', 'Note: Some plugins may require restarting Vim for a complete reload.'], 1)
     else
       call s:UpdateSidebar(['Warning: Vimrc file not found at ' . g:plugin_manager_vimrc_path], 1)
     endif
