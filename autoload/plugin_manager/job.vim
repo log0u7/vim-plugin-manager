@@ -188,3 +188,10 @@ function! plugin_manager#jobs#cancel_all()
     
     call plugin_manager#ui#update_sidebar(['All jobs cancelled.'], 1)
 endfunction
+
+" Callback for execute_with_sidebar function
+function! plugin_manager#jobs#execute_callback(job_id, status, output)
+    " Update sidebar with the final content
+    call plugin_manager#ui#update_sidebar(['Command completed' . (a:status == 0 ? ' successfully.' : ' with errors.'), ''], 1)
+    call plugin_manager#ui#update_sidebar(a:output, 1)
+endfunction

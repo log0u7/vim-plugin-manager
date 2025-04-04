@@ -31,34 +31,19 @@ function! plugin_manager#utils#ensure_vim_directory()
     
     return 1
   endfunction
-  
-" Execute command with output in sidebar - redesigned for better efficiency
+
+" Execute command with output in sidebar using async jobs
 function! plugin_manager#utils#execute_with_sidebar(title, cmd)
-    " Ensure we're in the Vim directory
-    if !plugin_manager#utils#ensure_vim_directory()
-      return ''
-    endif
-    
-    " Create initial header only once
-    let l:header = [a:title, repeat('-', len(a:title)), '']
-    let l:initial_message = l:header + ['Executing operation, please wait...']
-    
-    " Create or update sidebar window with initial message
-    call plugin_manager#ui#open_sidebar(l:initial_message)
-    
-    " Execute command and collect output
-    let l:output = system(a:cmd)
-    let l:output_lines = split(l:output, "\n")
-    
-    " Prepare final output - reuse header
-    let l:final_output = l:header + l:output_lines + ['', 'Press q to close this window...']
-    
-    " Update sidebar with final content - replace entire contents
-    call plugin_manager#ui#update_sidebar(l:final_output, 0)
-    
-    return l:output
-endfunction
+  " Ensure we're in the Vim directory
+  if !plugin_manager#utils#ensure_vim_directory()
+    return ''
+  endif
   
+  " Execute command asynchronously and return job ID
+  let l:job_id = plugin_manager#jobs#execute(a:title, a:cmd, function('plugin_manager#jobs#execute_callback'))
+  return l:job_id
+endfunction
+
 " Convert short name to full URL
 function! plugin_manager#utils#convert_to_full_url(shortName)
     " If it's already a URL, return it as is
@@ -75,7 +60,8 @@ function! plugin_manager#utils#convert_to_full_url(shortName)
     return ''
 endfunction
   
-" Check if a repository exists
+" Check if a repository exists with option for async
+" Note: We keep this synchronous for UX in most cases, but prepare for async later
 function! plugin_manager#utils#repository_exists(url)
     " Use git ls-remote to check if the repository exists
     let l:cmd = 'git ls-remote ' . a:url . ' > /dev/null 2>&1'
