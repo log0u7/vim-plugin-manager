@@ -1,5 +1,8 @@
 " UI functions for vim-plugin-manager
 
+" Buffer name
+let s:buffer_name = 'PluginManager'  
+
 " Open the sidebar window with optimized logic
 function! plugin_manager#ui#open_sidebar(lines)
     " Check if sidebar buffer already exists

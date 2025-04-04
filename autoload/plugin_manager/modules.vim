@@ -1,5 +1,8 @@
 " Module management functions for vim-plugin-manager
 
+" Variable to prevent multiple concurrent updates
+let s:update_in_progress = 0
+
 " List all installed plugins
 function! plugin_manager#modules#list()
     if !plugin_manager#utils#ensure_vim_directory()
@@ -374,7 +377,7 @@ function! plugin_manager#modules#add(...)
       let l:lines = ["Repository Not Found:", "--------------------", "", "Repository not found: " . l:moduleUrl]
       
       " If it was a short name, suggest using a full URL
-      if l:pluginInput =~ s:shortNameRegexp
+      if l:pluginInput =~ g:pm_shortNameRegexp
         call add(l:lines, "This plugin was not found on " . g:plugin_manager_default_git_host . ".")
         call add(l:lines, "Try using a full URL to the repository if it's hosted elsewhere.")
       endif
@@ -853,7 +856,7 @@ function! plugin_manager#modules#add_remote_backup(...)
     endif
     
     let l:repoUrl = a:1
-    if l:repoUrl !~ s:urlRegexp
+    if l:repoUrl !~ g:pm_urlRegexp
       let l:lines = ["Invalid URL:", "-----------", "", l:repoUrl . " is not a valid url"]
       call plugin_manager#ui#open_sidebar(l:lines)
       return

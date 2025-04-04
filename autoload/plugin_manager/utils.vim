@@ -62,12 +62,12 @@ endfunction
 " Convert short name to full URL
 function! plugin_manager#utils#convert_to_full_url(shortName)
     " If it's already a URL, return it as is
-    if a:shortName =~ s:urlRegexp
+    if a:shortName =~ g:pm_urlRegexp
       return a:shortName
     endif
     
     " Check if it's a user/repo format
-    if a:shortName =~ s:shortNameRegexp
+    if a:shortName =~ g:pm_shortNameRegexp
       return 'https://' . g:plugin_manager_default_git_host . '/' . a:shortName . '.git'
     endif
     
@@ -94,19 +94,19 @@ function! plugin_manager#utils#parse_gitmodules()
     
     " Check if .gitmodules exists
     if !filereadable('.gitmodules')
-      let s:gitmodules_cache = {}
-      return s:gitmodules_cache
+      let g:pm_gitmodules_cache = {}
+      return g:pm_gitmodules_cache
     endif
     
     " Check if file has been modified since last parse
     let l:mtime = getftime('.gitmodules')
-    if !empty(s:gitmodules_cache) && l:mtime == s:gitmodules_mtime
-      return s:gitmodules_cache
+    if !empty(g:pm_gitmodules_cache) && l:mtime == g:pm_gitmodules_mtime
+      return g:pm_gitmodules_cache
     endif
     
     " Reset cache
-    let s:gitmodules_cache = {}
-    let s:gitmodules_mtime = l:mtime
+    let g:pm_gitmodules_cache = {}
+    let g:pm_gitmodules_mtime = l:mtime
     
     " Parse the file
     let l:lines = readfile('.gitmodules')
@@ -124,21 +124,21 @@ function! plugin_manager#utils#parse_gitmodules()
         let l:in_module = 1
         " Extract module name from [submodule "name"] format
         let l:current_module = substitute(l:line, '\[submodule "\(.\{-}\)"\]', '\1', '')
-        let s:gitmodules_cache[l:current_module] = {'name': l:current_module}
+        let g:pm_gitmodules_cache[l:current_module] = {'name': l:current_module}
       " Inside module section
       elseif l:in_module && !empty(l:current_module)
         " Path property
         if l:line =~ '\s*path\s*='
           let l:path = substitute(l:line, '\s*path\s*=\s*', '', '')
           let l:path = substitute(l:path, '^\s*\(.\{-}\)\s*$', '\1', '')  " Trim whitespace
-          let s:gitmodules_cache[l:current_module]['path'] = l:path
+          let g:pm_gitmodules_cache[l:current_module]['path'] = l:path
           " Extract short name from path (last component)
-          let s:gitmodules_cache[l:current_module]['short_name'] = fnamemodify(l:path, ':t')
+          let g:pm_gitmodules_cache[l:current_module]['short_name'] = fnamemodify(l:path, ':t')
         " URL property
         elseif l:line =~ '\s*url\s*='
           let l:url = substitute(l:line, '\s*url\s*=\s*', '', '')
           let l:url = substitute(l:url, '^\s*\(.\{-}\)\s*$', '\1', '')  " Trim whitespace
-          let s:gitmodules_cache[l:current_module]['url'] = l:url
+          let g:pm_gitmodules_cache[l:current_module]['url'] = l:url
         " New section starts - reset current module
         elseif l:line =~ '\['
           let l:in_module = 0
@@ -148,19 +148,19 @@ function! plugin_manager#utils#parse_gitmodules()
     endfor
     
     " Validate the modules: each should have both path and url
-    for [l:name, l:module] in items(s:gitmodules_cache)
+    for [l:name, l:module] in items(g:pm_gitmodules_cache)
       if !has_key(l:module, 'path') || !has_key(l:module, 'url')
         " Mark invalid modules but don't remove them
-        let s:gitmodules_cache[l:name]['is_valid'] = 0
+        let g:pm_gitmodules_cache[l:name]['is_valid'] = 0
       else
-        let s:gitmodules_cache[l:name]['is_valid'] = 1
+        let g:pm_gitmodules_cache[l:name]['is_valid'] = 1
         
         " Check if the plugin directory exists
-        let s:gitmodules_cache[l:name]['exists'] = isdirectory(l:module.path)
+        let g:pm_gitmodules_cache[l:name]['exists'] = isdirectory(l:module.path)
       endif
     endfor
     
-    return s:gitmodules_cache
+    return g:pm_gitmodules_cache
 endfunction
   
 " Utility function to find a module by name, path, or short name
@@ -209,6 +209,6 @@ endfunction
   
 " Force refresh the gitmodules cache
 function! plugin_manager#utils#refresh_modules_cache()
-    let s:gitmodules_mtime = 0
+    let g:pm_gitmodules_mtime = 0
     return plugin_manager#utils#parse_gitmodules()
 endfunction
