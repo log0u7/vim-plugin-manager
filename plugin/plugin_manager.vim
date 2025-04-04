@@ -55,16 +55,12 @@ if !exists('g:plugin_manager_default_git_host')
 endif
 
 " Internal variables (shared between files)
-let s:urlRegexp = 'https\?:\/\/\(www\.\)\?[-a-zA-Z0-9@:%._\\+~#=]\{1,256}\.[a-zA-Z0-9()]\{1,6}\b\([-a-zA-Z0-9()@:%_\\+.~#?&//=]*\)'
-let s:shortNameRegexp = '^[a-zA-Z0-9_-]\+\/[a-zA-Z0-9_-]\+$'
-let s:buffer_name = 'PluginManager'
-
-" Variable to prevent multiple concurrent updates
-let s:update_in_progress = 0
+let g:pm_urlRegexp = 'https\?:\/\/\(www\.\)\?[-a-zA-Z0-9@:%._\\+~#=]\{1,256}\.[a-zA-Z0-9()]\{1,6}\b\([-a-zA-Z0-9()@:%_\\+.~#?&//=]*\)'
+let g:pm_shortNameRegexp = '^[a-zA-Z0-9_-]\+\/[a-zA-Z0-9_-]\+$'
 
 " Cache for gitmodules data
-let s:gitmodules_cache = {}
-let s:gitmodules_mtime = 0
+let g:pm_gitmodules_cache = {}
+let g:pm_gitmodules_mtime = 0
 
 " Define commands
 command! -nargs=* PluginManager call plugin_manager#main(<f-args>)
