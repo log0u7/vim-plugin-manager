@@ -6,42 +6,118 @@ function! plugin_manager#modules#list()
       return
     endif
     
-    " Check if .gitmodules exists
-    if !filereadable('.gitmodules')
+    " Use the gitmodules cache
+    let l:modules = plugin_manager#utils#parse_gitmodules()
+    
+    if empty(l:modules)
       let l:lines = ['Installed Plugins:', '----------------', '', 'No plugins installed (.gitmodules not found)']
       call plugin_manager#ui#open_sidebar(l:lines)
       return
     endif
     
-    let l:output = system('grep ''url\|path'' .gitmodules | cut -d " " -f3 | awk ''NR%2{printf "%s\t=>\t",$0;next;}1'' | sort | column -t')
-    let l:lines = ['Installed Plugins:', '----------------', '']
-    call extend(l:lines, split(l:output, "\n"))
+    let l:lines = ['Installed Plugins:', '----------------', '', 'Name'.repeat(' ', 20).'Path'.repeat(' ', 30).'URL']
+    let l:lines += [repeat('-', 100)]
+    
+    " Sort modules by name
+    let l:module_names = sort(keys(l:modules))
+    
+    for l:name in l:module_names
+      let l:module = l:modules[l:name]
+      if has_key(l:module, 'is_valid') && l:module.is_valid
+        let l:short_name = l:module.short_name
+        let l:path = l:module.path
+        let l:url = l:module.url
+        
+        " Format the output with aligned columns
+        let l:name_col = l:short_name . repeat(' ', max([0, 20 - len(l:short_name)]))
+        let l:path_col = l:path . repeat(' ', max([0, 30 - len(l:path)]))
+        
+        let l:status = has_key(l:module, 'exists') && l:module.exists ? '' : ' [MISSING]'
+        
+        call add(l:lines, l:name_col . l:path_col . l:url . l:status)
+      endif
+    endfor
     
     call plugin_manager#ui#open_sidebar(l:lines)
-  endfunction
+endfunction
   
-  " Show the status of submodules
-  function! plugin_manager#modules#status()
+" Show the status of submodules with detailed information
+function! plugin_manager#modules#status()
     if !plugin_manager#utils#ensure_vim_directory()
       return
     endif
     
-    " Check if .gitmodules exists
-    if !filereadable('.gitmodules')
+    " Use the gitmodules cache
+    let l:modules = plugin_manager#utils#parse_gitmodules()
+    
+    if empty(l:modules)
       let l:lines = ['Submodule Status:', '----------------', '', 'No submodules found (.gitmodules not found)']
       call plugin_manager#ui#open_sidebar(l:lines)
       return
     endif
     
-    let l:output = system('git submodule status')
     let l:lines = ['Submodule Status:', '----------------', '']
-    call extend(l:lines, split(l:output, "\n"))
+    call add(l:lines, 'Plugin'.repeat(' ', 16).'Commit'.repeat(' ', 12).'Branch'.repeat(' ', 10).'Last Updated'.repeat(' ', 12).'Status')
+    call add(l:lines, repeat('-', 100))
+    
+    " Sort modules by name
+    let l:module_names = sort(keys(l:modules))
+    
+    for l:name in l:module_names
+      let l:module = l:modules[l:name]
+      if has_key(l:module, 'is_valid') && l:module.is_valid
+        let l:path = l:module.path
+        
+        " Get current commit
+        let l:commit = system('cd "' . l:path . '" && git rev-parse --short HEAD 2>/dev/null || echo "N/A"')
+        let l:commit = substitute(l:commit, '\n', '', 'g')
+        
+        " Get current branch
+        let l:branch = system('cd "' . l:path . '" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "N/A"')
+        let l:branch = substitute(l:branch, '\n', '', 'g')
+        
+        " Get last commit date
+        let l:last_updated = system('cd "' . l:path . '" && git log -1 --format=%cd --date=relative 2>/dev/null || echo "N/A"')
+        let l:last_updated = substitute(l:last_updated, '\n', '', 'g')
+        
+        " Check if there are uncommitted changes
+        let l:changes = system('cd "' . l:path . '" && git status -s 2>/dev/null')
+        let l:has_changes = !empty(l:changes)
+        
+        " Check if behind/ahead of remote
+        let l:behind_ahead = system('cd "' . l:path . '" && git rev-list --count --left-right @{upstream}...HEAD 2>/dev/null || echo "?"')
+        let l:behind_ahead = substitute(l:behind_ahead, '\n', '', 'g')
+        let l:behind_ahead_parts = split(l:behind_ahead, '\t')
+        let l:behind = len(l:behind_ahead_parts) >= 1 ? l:behind_ahead_parts[0] : '?'
+        let l:ahead = len(l:behind_ahead_parts) >= 2 ? l:behind_ahead_parts[1] : '?'
+        
+        " Determine status
+        let l:status = 'OK'
+        if !isdirectory(l:path)
+          let l:status = 'MISSING'
+        elseif l:has_changes
+          let l:status = 'LOCAL CHANGES'
+        elseif l:behind != '0' && l:behind != '?'
+          let l:status = 'BEHIND (' . l:behind . ')'
+        elseif l:ahead != '0' && l:ahead != '?'
+          let l:status = 'AHEAD (' . l:ahead . ')'
+        endif
+        
+        " Format the output with aligned columns
+        let l:name_col = l:module.short_name . repeat(' ', max([0, 20 - len(l:module.short_name)]))
+        let l:commit_col = l:commit . repeat(' ', max([0, 15 - len(l:commit)]))
+        let l:branch_col = l:branch . repeat(' ', max([0, 15 - len(l:branch)]))
+        let l:date_col = l:last_updated . repeat(' ', max([0, 20 - len(l:last_updated)]))
+        
+        call add(l:lines, l:name_col . l:commit_col . l:branch_col . l:date_col . l:status)
+      endif
+    endfor
     
     call plugin_manager#ui#open_sidebar(l:lines)
-  endfunction
+endfunction
   
-  " Show a summary of submodule changes
-  function! plugin_manager#modules#summary()
+" Show a summary of submodule changes
+function! plugin_manager#modules#summary()
     if !plugin_manager#utils#ensure_vim_directory()
       return
     endif
@@ -58,20 +134,20 @@ function! plugin_manager#modules#list()
     call extend(l:lines, split(l:output, "\n"))
     
     call plugin_manager#ui#open_sidebar(l:lines)
-  endfunction
+endfunction
   
-  " Generate helptags for a specific plugin
-  function! s:generate_helptag(pluginPath)
+" Generate helptags for a specific plugin
+function! s:generate_helptag(pluginPath)
     let l:docPath = a:pluginPath . '/doc'
     if isdirectory(l:docPath)
       execute 'helptags ' . l:docPath
       return 1
     endif
     return 0
-  endfunction
+endfunction
   
-  " Generate helptags for all installed plugins
-  function! plugin_manager#modules#generate_helptags(...)
+" Generate helptags for all installed plugins
+function! plugin_manager#modules#generate_helptags(...)
     " Fix: Properly handle optional arguments
     let l:create_header = a:0 > 0 ? a:1 : 1
     let l:specific_module = a:0 > 1 ? a:2 : ''
@@ -124,10 +200,10 @@ function! plugin_manager#modules#list()
     endif
     
     call plugin_manager#ui#update_sidebar(l:result_message, 1)
-  endfunction
+endfunction
   
-  " Update plugins
-  function! plugin_manager#modules#update(...)
+" Update plugins
+function! plugin_manager#modules#update(...)
     " Prevent multiple concurrent update calls
     if exists('s:update_in_progress') && s:update_in_progress
       return
@@ -139,8 +215,10 @@ function! plugin_manager#modules#list()
       return
     endif
     
-    " Fix: Check if .gitmodules exists
-    if !filereadable('.gitmodules')
+    " Use the gitmodules cache
+    let l:modules = plugin_manager#utils#parse_gitmodules()
+    
+    if empty(l:modules)
       let l:lines = ['Updating Plugins:', '----------------', '', 'No plugins to update (.gitmodules not found)']
       call plugin_manager#ui#open_sidebar(l:lines)
       let s:update_in_progress = 0
@@ -165,24 +243,32 @@ function! plugin_manager#modules#list()
       call system('git submodule sync')
       let l:updateResult = system('git submodule update --remote --merge --force')
       
-      " Fix: Check if commit is needed
+      " Check if commit is needed
       let l:gitStatus = system('git status -s')
       if !empty(l:gitStatus)
         call system('git commit -am "Update Modules"')
       endif
     else
-      " Update a specific module
-      let l:initial_message = l:header + ['Updating plugin: ' . l:specific_module . '...']
+      " Update a specific module - use find_module function
+      let l:module_info = plugin_manager#utils#find_module(l:specific_module)
+      
+      if empty(l:module_info)
+        call plugin_manager#ui#open_sidebar(l:header + ['Error: Module "' . l:specific_module . '" not found.'])
+        let s:update_in_progress = 0
+        return
+      endif
+      
+      let l:module = l:module_info.module
+      let l:module_path = l:module.path
+      let l:module_name = l:module.short_name
+      
+      let l:initial_message = l:header + ['Updating plugin: ' . l:module_name . ' (' . l:module_path . ')...']
       call plugin_manager#ui#open_sidebar(l:initial_message)
       
-      " Find the module path
-      let l:module_path = ''
-      let l:grep_cmd = 'grep -A1 "path = .*' . l:specific_module . '" .gitmodules | grep "path =" | cut -d "=" -f2 | tr -d " "'
-      let l:module_path = system(l:grep_cmd)
-      let l:module_path = substitute(l:module_path, '\n$', '', '')
-      
-      if empty(l:module_path)
-        call plugin_manager#ui#update_sidebar(['Error: Module "' . l:specific_module . '" not found.'], 1)
+      " Check if directory exists
+      if !isdirectory(l:module_path)
+        call plugin_manager#ui#update_sidebar(['Error: Module directory "' . l:module_path . '" not found.', 
+              \ 'Try running "PluginManager restore" to reinstall missing modules.'], 1)
         let s:update_in_progress = 0
         return
       endif
@@ -198,7 +284,7 @@ function! plugin_manager#modules#list()
       " Check if commit is needed
       let l:gitStatus = system('git status -s')
       if !empty(l:gitStatus)
-        call system('git commit -am "Update Module: ' . l:specific_module . '"')
+        call system('git commit -am "Update Module: ' . l:module_name . '"')
       endif
     endif
     
@@ -209,11 +295,41 @@ function! plugin_manager#modules#list()
       let l:update_lines += split(l:updateResult, "\n")
     endif
     
+    " Show what was updated
+    let l:update_lines += ['', 'Checking for updates...']
+    let l:updated_modules = []
+    
+    " Use git log to determine what was updated
+    if l:specific_module == 'all'
+      " Check all modules
+      for [l:name, l:module] in items(l:modules)
+        if l:module.is_valid && isdirectory(l:module.path)
+          let l:log = system('cd "' . l:module.path . '" && git log -1 --format="%h %s" 2>/dev/null')
+          if !empty(l:log)
+            call add(l:updated_modules, l:module.short_name . ': ' . substitute(l:log, '\n', '', 'g'))
+          endif
+        endif
+      endfor
+    else
+      " Check only the specific module
+      if isdirectory(l:module_path)
+        let l:log = system('cd "' . l:module_path . '" && git log -1 --format="%h %s" 2>/dev/null')
+        if !empty(l:log)
+          call add(l:updated_modules, l:module_name . ': ' . substitute(l:log, '\n', '', 'g'))
+        endif
+      endif
+    endif
+    
+    if !empty(l:updated_modules)
+      let l:update_lines += ['Latest commits:']
+      let l:update_lines += l:updated_modules
+    endif
+    
     " Add update success message
     if l:specific_module == 'all'
       let l:update_lines += ['', 'All plugins updated successfully.']
     else
-      let l:update_lines += ['', 'Plugin "' . l:specific_module . '" updated successfully.']
+      let l:update_lines += ['', 'Plugin "' . l:module_name . '" updated successfully.']
     endif
     
     " Update sidebar with results
@@ -228,12 +344,15 @@ function! plugin_manager#modules#list()
       call plugin_manager#modules#generate_helptags(0, l:specific_module)
     endif
     
+    " Force refresh the cache after updates
+    call plugin_manager#utils#refresh_modules_cache()
+    
     " Reset update in progress flag
     let s:update_in_progress = 0
-  endfunction
+endfunction
   
-  " Handle 'add' command
-  function! plugin_manager#modules#add(...)
+" Handle 'add' command
+function! plugin_manager#modules#add(...)
     if a:0 < 1
       let l:lines = ["Add Plugin Usage:", "---------------", "", "Usage: PluginManager add <plugin> [modulename] [opt]"]
       call plugin_manager#ui#open_sidebar(l:lines)
@@ -292,10 +411,10 @@ function! plugin_manager#modules#list()
     
     call s:add_module(l:moduleUrl, l:installDir)
     return 0
-  endfunction
+endfunction
   
-  " Add a new plugin
-  function! s:add_module(moduleUrl, installDir)
+" Add a new plugin
+function! s:add_module(moduleUrl, installDir)
     if !plugin_manager#utils#ensure_vim_directory()
       return
     endif
@@ -345,10 +464,10 @@ function! plugin_manager#modules#list()
     endif
     
     call plugin_manager#ui#update_sidebar(l:result_lines, 1)
-  endfunction
+endfunction
   
-  " Handle 'remove' command
-  function! plugin_manager#modules#remove(...)
+" Handle 'remove' command
+function! plugin_manager#modules#remove(...)
     if a:0 < 1
       let l:lines = ["Remove Plugin Usage:", "-----------------", "", "Usage: PluginManager remove <modulename> [-f]"]
       call plugin_manager#ui#open_sidebar(l:lines)
@@ -356,106 +475,107 @@ function! plugin_manager#modules#list()
     endif
     
     let l:moduleName = a:1
-    let l:removedPluginPath = ""
+    let l:force_flag = a:0 >= 2 && a:2 == "-f"
     
-    " Check if .gitmodules exists, and try to find the module path from it
-    if filereadable('.gitmodules')
-      " Improved gitmodules search to handle spaces in paths
-      let l:grep_cmd = 'grep -A1 "submodule.*' . l:moduleName . '" .gitmodules 2>/dev/null | grep "path" | head -n1 | cut -d "=" -f2'
-      let l:removedPluginPath = substitute(system(l:grep_cmd), '^\s*\(.\{-}\)\s*$', '\1', '')
+    " Use the module finder from the cache system
+    let l:module_info = plugin_manager#utils#find_module(l:moduleName)
+    
+    if !empty(l:module_info)
+      let l:module = l:module_info.module
+      let l:module_path = l:module.path
+      let l:module_name = l:module.short_name
       
-      " If that fails, try a manual search through the file
-      if empty(l:removedPluginPath)
-        let l:lines = readfile('.gitmodules')
-        let l:in_module = 0
-        let l:found_module = 0
-        
-        for l:line in l:lines
-          if l:line =~ '\[submodule'
-            let l:in_module = 1
-            let l:found_module = l:line =~ l:moduleName
-          elseif l:in_module && l:found_module && l:line =~ '\s*path\s*='
-            let l:removedPluginPath = substitute(l:line, '\s*path\s*=\s*', '', '')
-            break
-          elseif l:in_module && l:line =~ '\[submodule'
-            let l:in_module = 0
-            let l:found_module = 0
-          endif
-        endfor
-      endif
-    endif
-    
-    " If not found in .gitmodules, try direct filesystem search
-    if empty(l:removedPluginPath)
-      " Try exact directory name match first
-      let l:find_cmd = 'find ' . g:plugin_manager_plugins_dir . ' -type d -name "' . l:moduleName . '" | head -n1'
-      let l:removedPluginPath = substitute(system(l:find_cmd), '\n$', '', '')
-      
-      " Then try partial name match if needed
-      if empty(l:removedPluginPath)
-        let l:find_cmd = 'find ' . g:plugin_manager_plugins_dir . ' -type d -name "*' . l:moduleName . '*" | head -n1'
-        let l:removedPluginPath = substitute(system(l:find_cmd), '\n$', '', '')
-      endif
-    endif
-    
-    " Debug information 
-    echo "Detected plugin path: " . l:removedPluginPath
-    
-    if !empty(l:removedPluginPath) && isdirectory(l:removedPluginPath)
       " Force flag provided or prompt for confirmation
-      if a:0 >= 2 && a:2 == "-f"
-        call s:remove_module(l:moduleName, l:removedPluginPath)
+      if l:force_flag
+        call s:remove_module(l:module_name, l:module_path)
       else
-        let l:response = input("Are you sure you want to remove " . l:removedPluginPath . "? [y/N] ")
+        let l:response = input("Are you sure you want to remove " . l:module_name . " (" . l:module_path . ")? [y/N] ")
         if l:response =~? '^y\(es\)\?$'
-          call s:remove_module(l:moduleName, l:removedPluginPath)
+          call s:remove_module(l:module_name, l:module_path)
         endif
       endif
     else
-      " Provide more informative error for debugging
-      let l:lines = ["Module Not Found:", "----------------", "", 
-            \ "Unable to find module '" . l:moduleName . "'", "",
-            \ "Debug info:", "- Plugins directory: " . g:plugin_manager_plugins_dir,
-            \ "- Search command: find " . g:plugin_manager_plugins_dir . " -type d -name \"*" . l:moduleName . "*\""]
+      " Module not found in cache, fallback to filesystem search
+      let l:removedPluginPath = ""
       
-      " Add information about .gitmodules
-      if filereadable('.gitmodules')
-        let l:lines += ["- .gitmodules exists: Yes", 
-              \ "- Search in .gitmodules: grep -A1 \"submodule.*" . l:moduleName . "\" .gitmodules"]
+      " Try direct filesystem search
+      let l:find_cmd = 'find ' . g:plugin_manager_plugins_dir . ' -type d -name "*' . l:moduleName . '*" | head -n1'
+      let l:removedPluginPath = substitute(system(l:find_cmd), '\n$', '', '')
+      
+      if !empty(l:removedPluginPath) && isdirectory(l:removedPluginPath)
+        let l:filesystem_name = fnamemodify(l:removedPluginPath, ':t')
+        
+        " Force flag provided or prompt for confirmation
+        if l:force_flag
+          call s:remove_module(l:filesystem_name, l:removedPluginPath)
+        else
+          let l:response = input("Are you sure you want to remove " . l:filesystem_name . " (" . l:removedPluginPath . ")? [y/N] ")
+          if l:response =~? '^y\(es\)\?$'
+            call s:remove_module(l:filesystem_name, l:removedPluginPath)
+          endif
+        endif
       else
-        let l:lines += ["- .gitmodules exists: No"]
+        " Provide more informative error for debugging
+        let l:lines = ["Module Not Found:", "----------------", "", 
+              \ "Unable to find module '" . l:moduleName . "'", ""]
+        
+        " List available modules for reference
+        let l:modules = plugin_manager#utils#parse_gitmodules()
+        if !empty(l:modules)
+          let l:lines += ["Available modules:"]
+          for [l:name, l:module] in items(l:modules)
+            if l:module.is_valid
+              call add(l:lines, "- " . l:module.short_name . " (" . l:module.path . ")")
+            endif
+          endfor
+        else
+          let l:lines += ["No modules found in .gitmodules"]
+          
+          " Check filesystem if nothing in .gitmodules
+          let l:fs_plugins = systemlist('find ' . g:plugin_manager_plugins_dir . ' -mindepth 2 -maxdepth 2 -type d | sort')
+          if !empty(l:fs_plugins)
+            let l:lines += ["", "Plugin directories found in filesystem:"]
+            let l:lines += l:fs_plugins
+          endif
+        endif
+        
+        call plugin_manager#ui#open_sidebar(l:lines)
+        return 1
       endif
-      
-      " Add list of currently installed plugins for reference
-      let l:installed = []
-      if filereadable('.gitmodules')
-        let l:lines += ["", "Installed plugins in .gitmodules:"]
-        let l:installed = systemlist('grep "path = " .gitmodules | cut -d "=" -f2')
-        let l:lines += l:installed
-      endif
-      
-      " If nothing found in .gitmodules but directory exists, show filesystem plugins
-      if empty(l:installed)
-        let l:lines += ["", "Plugin directories found in filesystem:"]
-        let l:fs_plugins = systemlist('find ' . g:plugin_manager_plugins_dir . ' -mindepth 2 -maxdepth 2 -type d | sort')
-        let l:lines += l:fs_plugins
-      endif
-      
-      call plugin_manager#ui#open_sidebar(l:lines)
-      return 1
     endif
     
     return 0
-  endfunction
+endfunction
   
-  " Remove an existing plugin
-  function! s:remove_module(moduleName, removedPluginPath)
+" Remove an existing plugin
+function! s:remove_module(moduleName, removedPluginPath)
     if !plugin_manager#utils#ensure_vim_directory()
       return
     endif
     
     let l:header = ['Remove Plugin:', '-------------', '', 'Removing ' . a:moduleName . ' from ' . a:removedPluginPath . '...']
     call plugin_manager#ui#open_sidebar(l:header)
+    
+    " Back up module information before removing it
+    let l:modules = plugin_manager#utils#parse_gitmodules()
+    let l:module_info = {}
+    
+    " Find module information by path
+    for [l:name, l:module] in items(l:modules)
+      if has_key(l:module, 'path') && l:module.path ==# a:removedPluginPath
+        let l:module_info = l:module
+        break
+      endif
+    endfor
+    
+    " If we found the module info, save it for later reporting
+    if !empty(l:module_info)
+      call plugin_manager#ui#update_sidebar([
+            \ 'Found module information:',
+            \ '- Name: ' . l:module_info.name,
+            \ '- URL: ' . l:module_info.url
+            \ ], 1)
+    endif
     
     " Execute deinit command with better error handling
     let l:result = system('git submodule deinit -f "' . a:removedPluginPath . '" 2>&1')
@@ -510,7 +630,12 @@ function! plugin_manager#modules#list()
     call plugin_manager#ui#update_sidebar(['Committing changes...'], 1)
     
     " Commit changes - create a forced commit even if nothing staged
-    let l:result = system('git add -A && git commit -m "Removed ' . a:moduleName . ' module" || git commit --allow-empty -m "Removed ' . a:moduleName . ' module" 2>&1')
+    let l:commit_msg = "Removed " . a:moduleName . " module"
+    if !empty(l:module_info)
+      let l:commit_msg .= " (" . l:module_info.url . ")"
+    endif
+    
+    let l:result = system('git add -A && git commit -m "' . l:commit_msg . '" || git commit --allow-empty -m "' . l:commit_msg . '" 2>&1')
     if v:shell_error != 0
       let l:error_lines = ['Warning during commit (plugin still removed):']
       call extend(l:error_lines, split(l:result, "\n"))
@@ -519,11 +644,14 @@ function! plugin_manager#modules#list()
       call plugin_manager#ui#update_sidebar(['Changes committed successfully.'], 1)
     endif
     
+    " Force refresh the cache after removal
+    call plugin_manager#utils#refresh_modules_cache()
+    
     call plugin_manager#ui#update_sidebar(['Plugin removal completed.'], 1)
-  endfunction
+endfunction
   
-  " Backup configuration to remote repositories
-  function! plugin_manager#modules#backup()
+" Backup configuration to remote repositories
+function! plugin_manager#modules#backup()
     if !plugin_manager#utils#ensure_vim_directory()
       return
     endif
@@ -565,10 +693,10 @@ function! plugin_manager#modules#list()
     else
       call plugin_manager#ui#update_sidebar(['Backup completed successfully.'], 1)
     endif
-  endfunction
+endfunction
   
-  " Restore all plugins from .gitmodules
-  function! plugin_manager#modules#restore()
+" Restore all plugins from .gitmodules
+function! plugin_manager#modules#restore()
     if !plugin_manager#utils#ensure_vim_directory()
       return
     endif
@@ -617,10 +745,10 @@ function! plugin_manager#modules#list()
     
     " Generate helptags for all plugins
     call plugin_manager#modules#generate_helptags(0)
-  endfunction
+endfunction
   
-  " Reload a specific plugin or all Vim configuration
-  function! plugin_manager#modules#reload(...)
+" Reload a specific plugin or all Vim configuration
+function! plugin_manager#modules#reload(...)
     if !plugin_manager#utils#ensure_vim_directory()
       return
     endif
@@ -710,10 +838,10 @@ function! plugin_manager#modules#list()
         call plugin_manager#ui#update_sidebar(['Warning: Vimrc file not found at ' . g:plugin_manager_vimrc_path], 1)
       endif
     endif
-  endfunction
+endfunction
   
-  " Function to add a backup remote repository
-  function! plugin_manager#modules#add_remote_backup(...)
+" Function to add a backup remote repository
+function! plugin_manager#modules#add_remote_backup(...)
     if !plugin_manager#utils#ensure_vim_directory()
       return
     endif
@@ -758,4 +886,4 @@ function! plugin_manager#modules#list()
     call plugin_manager#ui#update_sidebar(['', 'Configured repositories:'], 1)
     let l:remotes = system('git remote -v')
     call plugin_manager#ui#update_sidebar(split(l:remotes, "\n"), 1)
-  endfunction
+endfunction

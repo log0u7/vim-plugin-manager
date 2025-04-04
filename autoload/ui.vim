@@ -18,10 +18,10 @@ function! plugin_manager#ui#open_sidebar(lines)
     
     " Update buffer content more efficiently
     call plugin_manager#ui#update_sidebar(a:lines, 0)
-  endfunction
+endfunction
   
-  " Update the sidebar content with better performance
-  function! plugin_manager#ui#update_sidebar(lines, append)
+" Update the sidebar content with better performance
+function! plugin_manager#ui#update_sidebar(lines, append)
     " Find the sidebar buffer window
     let l:win_id = bufwinid(s:buffer_name)
     if l:win_id == -1
@@ -54,10 +54,10 @@ function! plugin_manager#ui#open_sidebar(lines)
     " Set back to non-modifiable and move cursor to top
     setlocal nomodifiable
     call cursor(1, 1)
-  endfunction
+endfunction
   
-  " Display usage instructions
-  function! plugin_manager#ui#usage()
+" Display usage instructions
+function! plugin_manager#ui#usage()
     let l:lines = [
           \ "PluginManager Commands:",
           \ "---------------------",
@@ -93,10 +93,10 @@ function! plugin_manager#ui#open_sidebar(lines)
           \ ]
     
     call plugin_manager#ui#open_sidebar(l:lines)
-  endfunction
+endfunction
   
-  " Function to toggle the Plugin Manager sidebar
-  function! plugin_manager#ui#toggle_sidebar()
+" Function to toggle the Plugin Manager sidebar
+function! plugin_manager#ui#toggle_sidebar()
    let l:win_id = bufwinid(s:buffer_name)
    if l:win_id != -1
      " Sidebar is visible, close it
@@ -105,4 +105,4 @@ function! plugin_manager#ui#open_sidebar(lines)
      " Open sidebar with usage info
      call plugin_manager#ui#usage()
    endif
-  endfunction
+endfunction
