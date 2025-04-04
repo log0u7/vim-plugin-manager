@@ -18,8 +18,8 @@ let s:update_in_progress = 0
       return
     endif
     
-    let l:lines = ['Installed Plugins:', '----------------', '', 'Name'.repeat(' ', 20).'Path'.repeat(' ', 30).'URL']
-    let l:lines += [repeat('-', 100)]
+    let l:lines = ['Installed Plugins:', '----------------', '', 'Name'.repeat(' ', 20).'Path'.repeat(' ', 36).'URL']
+    let l:lines += [repeat('-', 120)]
     
     " Sort modules by name
     let l:module_names = sort(keys(l:modules))
@@ -62,7 +62,7 @@ function! plugin_manager#modules#status()
     
     let l:lines = ['Submodule Status:', '----------------', '']
     call add(l:lines, 'Plugin'.repeat(' ', 16).'Commit'.repeat(' ', 12).'Branch'.repeat(' ', 10).'Last Updated'.repeat(' ', 12).'Status')
-    call add(l:lines, repeat('-', 100))
+    call add(l:lines, repeat('-', 120))
     
     " Sort modules by name
     let l:module_names = sort(keys(l:modules))
