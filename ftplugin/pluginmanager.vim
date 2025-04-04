@@ -1,6 +1,6 @@
 " ftplugin/pluginmanager.vim - Buffers config for PluginManager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.2
+" Version: 1.3
 
 " Ensure it's loaded once
 if exists("b:did_ftplugin")
@@ -31,43 +31,41 @@ nnoremap <buffer> R :call <SID>Reload()<CR>
 nnoremap <buffer> ? :call <SID>Usage()<CR>
 
 " Local call function for main plugin
-function! s:List()
-  call PluginManager("list")
-endfunction
-
-function! s:Update()
-  call PluginManager("update")
-endfunction
-
-function! s:GenerateHelptags()
-  call PluginManager("helptags")
-endfunction
-
-function! s:Status()
-  call PluginManager("status")
-endfunction
-
-function! s:Summary()
-  call PluginManager("summary")
-endfunction
-
-function! s:Backup()
-  call PluginManager("backup")
-endfunction
-
-function! s:Restore()
-  call PluginManager("restore")
-endfunction
-
-function! s:Reload()
-  call PluginManager("reload")
-endfunction
-
-function! s:Usage()
-  call PluginManager()
-endfunction
-
-
-
+  function! s:List()
+    call plugin_manager#main("list")
+  endfunction
+  
+  function! s:Update()
+    call plugin_manager#main("update")
+  endfunction
+  
+  function! s:GenerateHelptags()
+    call plugin_manager#main("helptags")
+  endfunction
+  
+  function! s:Status()
+    call plugin_manager#main("status")
+  endfunction
+  
+  function! s:Summary()
+    call plugin_manager#main("summary")
+  endfunction
+  
+  function! s:Backup()
+    call plugin_manager#main("backup")
+  endfunction
+  
+  function! s:Restore()
+    call plugin_manager#main("restore")
+  endfunction
+  
+  function! s:Reload()
+    call plugin_manager#main("reload")
+  endfunction
+  
+  function! s:Usage()
+    call plugin_manager#main()
+  endfunction
+  
 " Output Options
 let b:undo_ftplugin = "setlocal buftype< bufhidden< swapfile< wrap< buflisted< number< foldenable< updatetime<"
