@@ -3,8 +3,8 @@
 " Variable to prevent multiple concurrent updates
 let s:update_in_progress = 0
 
-" List all installed plugins
-function! plugin_manager#modules#list()
+" Improved list function with fixed column formatting
+  function! plugin_manager#modules#list()
     if !plugin_manager#utils#ensure_vim_directory()
       return
     endif
@@ -31,9 +31,10 @@ function! plugin_manager#modules#list()
         let l:path = l:module.path
         let l:url = l:module.url
         
-        " Format the output with aligned columns
-        let l:name_col = l:short_name . repeat(' ', max([0, 20 - len(l:short_name)]))
-        let l:path_col = l:path . repeat(' ', max([0, 30 - len(l:path)]))
+        " Format the output with properly aligned columns
+        " Ensure fixed width columns with proper spacing
+        let l:name_col = l:short_name . repeat(' ', max([0, 24 - len(l:short_name)]))
+        let l:path_col = l:path . repeat(' ', max([0, 40 - len(l:path)]))
         
         let l:status = has_key(l:module, 'exists') && l:module.exists ? '' : ' [MISSING]'
         
@@ -43,8 +44,8 @@ function! plugin_manager#modules#list()
     
     call plugin_manager#ui#open_sidebar(l:lines)
 endfunction
-  
-" Show the status of submodules with detailed information
+
+" Improved status function with fixed column formatting
 function! plugin_manager#modules#status()
     if !plugin_manager#utils#ensure_vim_directory()
       return
@@ -106,11 +107,12 @@ function! plugin_manager#modules#status()
           let l:status = 'AHEAD (' . l:ahead . ')'
         endif
         
-        " Format the output with aligned columns
+        " Format the output with properly aligned columns
+        " Ensure fixed width with proper spacing between columns 
         let l:name_col = l:module.short_name . repeat(' ', max([0, 20 - len(l:module.short_name)]))
-        let l:commit_col = l:commit . repeat(' ', max([0, 15 - len(l:commit)]))
-        let l:branch_col = l:branch . repeat(' ', max([0, 15 - len(l:branch)]))
-        let l:date_col = l:last_updated . repeat(' ', max([0, 20 - len(l:last_updated)]))
+        let l:commit_col = l:commit . repeat(' ', max([0, 16 - len(l:commit)]))
+        let l:branch_col = l:branch . repeat(' ', max([0, 16 - len(l:branch)]))
+        let l:date_col = l:last_updated . repeat(' ', max([0, 24 - len(l:last_updated)]))
         
         call add(l:lines, l:name_col . l:commit_col . l:branch_col . l:date_col . l:status)
       endif
