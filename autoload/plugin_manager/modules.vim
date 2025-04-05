@@ -117,11 +117,15 @@ function! plugin_manager#modules#status()
           let l:status = 'AHEAD (' . l:ahead . ')'
         endif
         
+        if len(l:short_name) > 20
+          let l:short_name = l:short_name[0:19]
+        endif
+
         " Format the output with properly aligned columns
         " Ensure fixed width with proper spacing between columns 
         let l:name_col = l:module.short_name . repeat(' ', max([0, 22 - len(l:module.short_name)]))
-        let l:commit_col = l:commit . repeat(' ', max([0, 16 - len(l:commit)]))
-        let l:branch_col = l:branch . repeat(' ', max([0, 16 - len(l:branch)]))
+        let l:commit_col = l:commit . repeat(' ', max([0, 20 - len(l:commit)]))
+        let l:branch_col = l:branch . repeat(' ', max([0, 14 - len(l:branch)]))
         let l:date_col = l:last_updated . repeat(' ', max([0, 30 - len(l:last_updated)]))
         
         call add(l:lines, l:name_col . l:commit_col . l:branch_col . l:date_col . l:status)
