@@ -318,3 +318,140 @@ function! plugin_manager#utils#check_module_updates(module_path)
   
   return l:result
 endfunction
+
+" Process plugin specification block from .vimrc
+function! plugin_manager#utils#process_plugin_block(start_line, end_line)
+  let l:header = ['Processing Plugin Block:', '----------------------', '']
+  call plugin_manager#ui#open_sidebar(l:header)
+  
+  let l:vimrc_path = expand(g:plugin_manager_vimrc_path)
+  if !filereadable(l:vimrc_path)
+    call plugin_manager#ui#update_sidebar(['Error: vimrc file not found at ' . l:vimrc_path], 1)
+    return
+  endif
+  
+  let l:lines = readfile(l:vimrc_path)
+  let l:process_lines = l:lines[a:start_line-1:a:end_line-1]
+  
+  let l:plugins_to_install = []
+  let l:current_plugin = {}
+  let l:in_plugin_def = 0
+  
+  for l:line in l:process_lines
+    " Skip empty lines and comments
+    if l:line =~ '^\s*$' || l:line =~ '^\s*"'
+      continue
+    endif
+    
+    " Check for PluginBegin
+    if l:line =~ '^\s*PluginBegin'
+      continue
+    endif
+    
+    " Check for PluginEnd
+    if l:line =~ '^\s*PluginEnd'
+      continue
+    endif
+    
+    " Check for Plugin definition
+    let l:plugin_match = matchlist(l:line, '^\s*Plugin\s\+[''"].\{-}[''"]')
+    if !empty(l:plugin_match)
+      " Start new plugin definition
+      if !empty(l:current_plugin)
+        call add(l:plugins_to_install, l:current_plugin)
+      endif
+      
+      let l:current_plugin = {'line': l:line, 'options': {}}
+      let l:in_plugin_def = 1
+      
+      " Extract plugin URL or shortname
+      let l:url_match = matchlist(l:line, '^\s*Plugin\s\+[''"]\(.\{-}\)[''"]')
+      if !empty(l:url_match)
+        let l:current_plugin.url = l:url_match[1]
+      endif
+      
+      " Check for inline options
+      let l:options_match = matchlist(l:line, '^\s*Plugin\s\+[''"].\{-}[''"],\s*{\(.\{-}\)}')
+      if !empty(l:options_match)
+        let l:options_str = l:options_match[1]
+        let l:current_plugin.options = s:parse_plugin_options(l:options_str)
+      endif
+    endif
+  endfor
+  
+  " Add last plugin if exists
+  if !empty(l:current_plugin)
+    call add(l:plugins_to_install, l:current_plugin)
+  endif
+  
+  " Install plugins
+  call plugin_manager#ui#update_sidebar(['Found ' . len(l:plugins_to_install) . ' plugins to install...'], 1)
+  
+  for l:plugin in l:plugins_to_install
+    let l:url = l:plugin.url
+    let l:options = l:plugin.options
+    
+    " Convert options to plugin_manager options
+    let l:pm_options = {}
+    
+    " Handle 'dir' option
+    if has_key(l:options, 'dir')
+      let l:pm_options.dir = l:options.dir
+    endif
+    
+    " Handle 'branch' option
+    if has_key(l:options, 'branch')
+      let l:pm_options.branch = l:options.branch
+    endif
+    
+    " Handle 'tag' option
+    if has_key(l:options, 'tag')
+      let l:pm_options.tag = l:options.tag
+    endif
+    
+    " Handle 'exec' option
+    if has_key(l:options, 'exec')
+      let l:exec_value = l:options.exec
+      " Check if it's a string
+      if type(l:exec_value) == v:t_string
+        let l:pm_options.exec = l:exec_value
+      endif
+    endif
+    
+    " Handle 'load' option
+    if has_key(l:options, 'load')
+      let l:pm_options.load = l:options.load
+    endif
+    
+    " Install the plugin
+    call plugin_manager#ui#update_sidebar(['Installing: ' . l:url], 1)
+    call plugin_manager#modules#add(l:url, l:pm_options)
+  endfor
+  
+  call plugin_manager#ui#update_sidebar(['Plugin block processing completed.'], 1)
+endfunction
+
+" Parse options from string to dictionary
+function! s:parse_plugin_options(options_str)
+  let l:options = {}
+  
+  " Split by commas, but respect nested structures
+  let l:option_parts = split(a:options_str, ',')
+  
+  for l:part in l:option_parts
+    let l:kv_match = matchlist(l:part, '[''"]\?\(\w\+\)[''"]\?\s*:\s*\(.\{-}\)\s*$')
+    if !empty(l:kv_match)
+      let l:key = trim(l:kv_match[1])
+      let l:value = trim(l:kv_match[2])
+      
+      " Remove quotes from string values
+      if l:value =~ '^[''"].*[''"]$'
+        let l:value = l:value[1:-2]
+      endif
+      
+      let l:options[l:key] = l:value
+    endif
+  endfor
+  
+  return l:options
+endfunction

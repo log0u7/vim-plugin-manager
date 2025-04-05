@@ -124,6 +124,17 @@ The plugin provides the following commands:
 
 :PluginManagerToggle             Toggle the plugin manager sidebar
 
+:PluginBegin                    Start a plugin declaration block
+:Plugin <plugin> [options]      Declare a plugin to install
+                                <plugin> can be a URL or 'username/repo'
+                                [options] can be a dictionary with these keys:
+                                  'dir': custom directory name
+                                  'branch': git branch to checkout
+                                  'tag': git tag to checkout
+                                  'exec': command to execute after installation
+                                  'load': 'start' or 'opt' for plugin loading
+:PluginEnd                      Process and install all declared plugins
+
 ===============================================================================
 5. USAGE EXAMPLES                                     *plugin-manager-examples*
 
@@ -178,6 +189,17 @@ Reload a specific plugin:
 Reload all Vim configuration:
 >
     :PluginManager reload
+<
+Declare multiple plugins at once:
+>
+    PluginBegin
+    Plugin 'tpope/vim-fugitive'
+    Plugin 'preservim/nerdtree', {'load': 'opt'}
+    Plugin 'tpope/vim-surround'
+    Plugin 'junegunn/fzf', {'dir': '~/.fzf', 'exec': './install --all'}
+    Plugin 'fatih/vim-go', {'tag': '*'} 
+    Plugin 'neoclide/coc.nvim', {'branch': 'release'}
+    PluginEnd
 <
 ===============================================================================
 6. KEYBOARD SHORTCUTS                                *plugin-manager-shortcuts*
