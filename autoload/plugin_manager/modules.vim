@@ -19,7 +19,7 @@ let s:update_in_progress = 0
       return
     endif
     
-    let l:lines = [l:header, repeat('-', len(l:header)), '', 'Name'.repeat(' ', 20).'Path'.repeat(' ', 36).'URL']
+    let l:lines = [l:header, repeat('-', len(l:header)), '', 'Name'.repeat(' ', 20).'Path'.repeat(' ', 38).'URL']
     let l:lines += [repeat('-', 120)]
     
     " Sort modules by name
@@ -35,7 +35,7 @@ let s:update_in_progress = 0
         " Format the output with properly aligned columns
         " Ensure fixed width columns with proper spacing
         let l:name_col = l:short_name . repeat(' ', max([0, 24 - len(l:short_name)]))
-        let l:path_col = l:path . repeat(' ', max([0, 40 - len(l:path)]))
+        let l:path_col = l:path . repeat(' ', max([0, 42 - len(l:path)]))
         
         let l:status = has_key(l:module, 'exists') && l:module.exists ? '' : ' [MISSING]'
         
