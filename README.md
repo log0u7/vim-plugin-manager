@@ -71,10 +71,20 @@ Or after opening vim :
 " Install a plugin to start/ directory (auto-loaded) using full URL
 :PluginManager add https://github.com/tpope/vim-fugitive.git
 
-" Install with a custom name
+" Install with options (new format)
+:PluginManager add tpope/vim-surround {'dir':'surround', 'load':'start', 'branch':'main'}
+
+" Install as an optional plugin with a specific tag
+:PluginManager add tpope/vim-commentary {'load':'opt', 'tag':'v1.3'}
+
+" Install a plugin and run a command after installation
+:PluginManager add junegunn/fzf {'exec':'./install --all'}
+
+" For backward compatibility:
+" Install with a custom name (old format)
 :PluginManager add tpope/vim-surround surround
 
-" Install as an optional plugin (need to :packadd to use)
+" Install as an optional plugin (old format)
 :PluginManager add tpope/vim-commentary commentary opt
 
 " Install a plugin from a custom URL (non-GitHub)
@@ -211,6 +221,21 @@ if has('feature')
 endif
 ```
 
+### Using Plugin Options
+
+The options system allows for flexible plugin installation almost like [junegunn/vim-plug](https://github.com/junegunn/vim-plug/):
+
+```vim
+" Install a plugin and specify a branch
+:PluginManager add tpope/vim-fugitive {'branch': 'main'}
+
+" Install a plugin to a specific directory and specific tag
+:PluginManager add junegunn/fzf {'dir': 'myfzf', 'tag': 'v0.24.0'}
+
+" Install a plugin and execute a command after installation
+:PluginManager add junegunn/fzf {'exec': './install --all'}
+```
+
 ### Managing Plugin Updates
 
 When updating plugins, PluginManager will stash any local changes in the plugin repositories. If you've made custom modifications to plugins, consider using a different approach like git patches.
@@ -242,7 +267,8 @@ For detailed documentation, use the `:help plugin-manager` command after install
 ## License
 
 PluginManager is released under the MIT License.
-Copyright (c) 2025 G.K.E. <gke@6admin.io>
+
+Copyright (c) 2018 - 2025 G.K.E. <gke@6admin.io>
 
 ## About
 

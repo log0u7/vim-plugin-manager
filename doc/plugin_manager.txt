@@ -87,11 +87,22 @@ The plugin provides the following commands:
 
 :PluginManager                   Show usage information
 
-:PluginManager add <plugin> [name] [opt]
+:PluginManager add <plugin> [options]
                                 Install a new plugin
                                 <plugin> can be a URL or 'username/repo'
-                                [name] optional custom name for the plugin
-                                [opt] if specified, installs as optional plugin
+                                [options] can be a dictionary with these keys:
+                                  'dir': custom directory name (default: plugin name)
+                                  'load': 'start' or 'opt' (default: 'start')
+                                  'branch': git branch to checkout
+                                  'tag': git tag to checkout
+                                  'exec': command to execute after installation
+
+                                For backward compatibility:
+                                PluginManager add <plugin> [modulename] [opt]
+
+:PluginManager add <local_path>    Install a plugin from a local directory
+                                The local directory is copied to the plugins 
+                                directory, excluding any .git folder if present.
 
 :PluginManager remove <plugin> [-f]
                                 Remove a plugin
@@ -117,6 +128,17 @@ The plugin provides the following commands:
 
 :PluginManagerToggle             Toggle the plugin manager sidebar
 
+:PluginBegin                    Start a plugin declaration block
+:Plugin <plugin> [options]      Declare a plugin to install
+                                <plugin> can be a URL or 'username/repo'
+                                [options] can be a dictionary with these keys:
+                                  'dir': custom directory name
+                                  'branch': git branch to checkout
+                                  'tag': git tag to checkout
+                                  'exec': command to execute after installation
+                                  'load': 'start' or 'opt' for plugin loading
+:PluginEnd                      Process and install all declared plugins
+
 ===============================================================================
 5. USAGE EXAMPLES                                     *plugin-manager-examples*
 
@@ -135,6 +157,18 @@ Install an optional (lazy-loaded) plugin:
 Install a plugin from a custom URL:
 >
     :PluginManager add https://gitlab.com/user/repo.git
+<
+Install a plugin from a local directory:
+>
+    :PluginManager add ~/projects/my-vim-plugin
+<
+Install a plugin with custom options:
+>
+    :PluginManager add tpope/vim-fugitive {'dir':'fugitive', 'load':'start', 'branch':'main'}
+<
+Install a plugin with a specific tag and run a command:
+>
+    :PluginManager add junegunn/fzf {'tag':'0.24.0', 'exec':'./install --all'}
 <
 Update all plugins:
 >
@@ -163,6 +197,18 @@ Reload a specific plugin:
 Reload all Vim configuration:
 >
     :PluginManager reload
+<
+Declare multiple plugins at once:
+>
+    PluginBegin
+    Plugin 'tpope/vim-fugitive'
+    Plugin 'preservim/nerdtree', {'load': 'opt'}
+    Plugin 'tpope/vim-surround'
+    Plugin 'junegunn/fzf', {'dir': '~/.fzf', 'exec': './install --all'}
+    Plugin 'fatih/vim-go', {'tag': '*'} 
+    Plugin 'neoclide/coc.nvim', {'branch': 'release'}
+    Plugin '~/projects/my-vim-plugin'  " Local plugin from filesystem
+    PluginEnd
 <
 ===============================================================================
 6. KEYBOARD SHORTCUTS                                *plugin-manager-shortcuts*
