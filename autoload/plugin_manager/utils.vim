@@ -213,8 +213,6 @@ function! plugin_manager#utils#refresh_modules_cache()
     return plugin_manager#utils#parse_gitmodules()
 endfunction
 
-" Utility function to check if a module has updates available
-" Returns a dictionary with comprehensive status information
 function! plugin_manager#utils#check_module_updates(module_path)
   let l:result = {
     \ 'behind': 0, 
@@ -241,42 +239,78 @@ function! plugin_manager#utils#check_module_updates(module_path)
   let l:branch = system('cd "' . a:module_path . '" && git symbolic-ref --short HEAD 2>/dev/null || echo "detached"')
   let l:result.branch = substitute(l:branch, '\n', '', 'g')
   
-  " Fetch updates from remote repository
-  call system('cd "' . a:module_path . '" && git fetch origin 2>/dev/null')
+  " Fetch updates from remote repository more aggressively
+  call system('cd "' . a:module_path . '" && git fetch origin --all 2>/dev/null')
   
-  " Get remote tracking information - for submodules this is often the target branch
-  let l:remote_info = system('cd "' . a:module_path . '" && git config -f ../.gitmodules submodule.' . fnamemodify(a:module_path, ':t') . '.branch 2>/dev/null || echo "master"')
+  " First try to find remote branch from .gitmodules
+  let l:remote_info = system('cd "' . a:module_path . '" && git config -f ../.gitmodules submodule.' . fnamemodify(a:module_path, ':t') . '.branch 2>/dev/null || echo ""')
   let l:remote_branch = substitute(l:remote_info, '\n', '', 'g')
-  let l:result.remote_branch = 'origin/' . l:remote_branch
+  
+  " If not found in .gitmodules, try to determine from the current branch's upstream
+  if empty(l:remote_branch) && l:result.branch != "detached"
+    let l:upstream_info = system('cd "' . a:module_path . '" && git rev-parse --abbrev-ref ' . l:result.branch . '@{upstream} 2>/dev/null || echo ""')
+    let l:remote_branch = substitute(l:upstream_info, '\n', '', 'g')
+    " If upstream exists but doesn't include 'origin/', prepend it
+    if !empty(l:remote_branch) && l:remote_branch !~ '^origin/'
+      let l:remote_branch = 'origin/' . l:remote_branch
+    endif
+  endif
+  
+  " If still not found, try to determine from standard branches
+  if empty(l:remote_branch)
+    " Check if origin/main exists
+    let l:main_exists = system('cd "' . a:module_path . '" && git show-ref --verify --quiet refs/remotes/origin/main 2>/dev/null; echo $?')
+    if trim(l:main_exists) == "0"
+      let l:remote_branch = 'origin/main'
+    else
+      " Check if origin/master exists
+      let l:master_exists = system('cd "' . a:module_path . '" && git show-ref --verify --quiet refs/remotes/origin/master 2>/dev/null; echo $?')
+      if trim(l:master_exists) == "0"
+        let l:remote_branch = 'origin/master'
+      endif
+    endif
+  endif
+  
+  " Default to origin/master if all attempts failed
+  if empty(l:remote_branch)
+    let l:remote_branch = 'origin/master'
+  endif
+  
+  let l:result.remote_branch = l:remote_branch
   
   " Get the latest commit on the remote branch
   let l:remote_commit = system('cd "' . a:module_path . '" && git rev-parse ' . l:result.remote_branch . ' 2>/dev/null || echo "N/A"')
   let l:result.remote_commit = substitute(l:remote_commit, '\n', '', 'g')
   
+  " Direct check if remote commit is different from current commit
+  if l:result.current_commit != "N/A" && l:result.remote_commit != "N/A" && l:result.current_commit != l:result.remote_commit
+    " Get the merge base to determine the common ancestor
+    let l:merge_base = system('cd "' . a:module_path . '" && git merge-base HEAD ' . l:result.remote_branch . ' 2>/dev/null || echo "N/A"')
+    let l:merge_base = substitute(l:merge_base, '\n', '', 'g')
+    
+    " Count commits ahead/behind
+    let l:behind_check = system('cd "' . a:module_path . '" && git rev-list --count HEAD..' . l:result.remote_branch . ' 2>/dev/null || echo "0"')
+    let l:behind = substitute(l:behind_check, '\n', '', 'g')
+    if l:behind =~ '^\d\+$'
+      let l:result.behind = str2nr(l:behind)
+    endif
+    
+    let l:ahead_check = system('cd "' . a:module_path . '" && git rev-list --count ' . l:result.remote_branch . '..HEAD 2>/dev/null || echo "0"')
+    let l:ahead = substitute(l:ahead_check, '\n', '', 'g')
+    if l:ahead =~ '^\d\+$'
+      let l:result.ahead = str2nr(l:ahead)
+    endif
+    
+    " Force has_updates flag if the current and remote commits are different
+    let l:result.has_updates = (l:result.behind > 0 || l:result.current_commit != l:result.remote_commit)
+  endif
+  
   " For submodules, we primarily care about commit differences, not branch names
-  " If current branch is not detached and doesn't match remote branch, note this
-  if l:result.branch != "detached" && l:result.branch != l:remote_branch
+  " If current branch is not detached and doesn't match remote branch name, note this
+  let l:remote_branch_name = substitute(l:result.remote_branch, '^origin/', '', '')
+  if l:result.branch != "detached" && l:result.branch != l:remote_branch_name
     let l:result.different_branch = 1
   endif
-  
-  " Count commits ahead/behind for the current HEAD vs remote
-  let l:behind_check = system('cd "' . a:module_path . '" && git rev-list --count HEAD..' . l:result.remote_branch . ' 2>/dev/null || echo "0"')
-  let l:behind = substitute(l:behind_check, '\n', '', 'g')
-  
-  let l:ahead_check = system('cd "' . a:module_path . '" && git rev-list --count ' . l:result.remote_branch . '..HEAD 2>/dev/null || echo "0"')
-  let l:ahead = substitute(l:ahead_check, '\n', '', 'g')
-  
-  " Convert to numbers if possible
-  if l:behind =~ '^\d\+$'
-    let l:result.behind = str2nr(l:behind)
-  endif
-  
-  if l:ahead =~ '^\d\+$'
-    let l:result.ahead = str2nr(l:ahead)
-  endif
-  
-  " Determine if there are updates
-  let l:result.has_updates = (l:result.behind > 0)
   
   " Check for local changes while ignoring helptags files
   let l:changes = system('cd "' . a:module_path . '" && git status -s -- . ":(exclude)doc/tags" ":(exclude)**/tags" 2>/dev/null')
