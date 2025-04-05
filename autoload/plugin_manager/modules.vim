@@ -28,13 +28,15 @@ let s:update_in_progress = 0
     for l:name in l:module_names
       let l:module = l:modules[l:name]
       if has_key(l:module, 'is_valid') && l:module.is_valid
-        
-        if len(l:module.short_name) > 22
-          let l:short_name = l:module.short_name[0:21]
+        let l:short_name = l:module.short_name
+        let l:path = l:module.path
+
+        if len(l:short_name) > 22
+          let l:short_name = l:short_name[0:21]
         endif
 
-        if len(l:module.path) > 40
-          let l:path = l:module.path[0:39]
+        if len(path) > 40
+          let l:path = path[0:39]
         endif 
 
         " Format the output with properly aligned columns
@@ -77,6 +79,7 @@ function! plugin_manager#modules#status()
     for l:name in l:module_names
       let l:module = l:modules[l:name]
       if has_key(l:module, 'is_valid') && l:module.is_valid
+        let l:short_name = l:module.short_name
         
         " Get current commit
         let l:commit = system('cd "' . l:module.path . '" && git rev-parse --short HEAD 2>/dev/null || echo "N/A"')
@@ -112,9 +115,9 @@ function! plugin_manager#modules#status()
         elseif l:ahead != '0' && l:ahead != '?'
           let l:status = 'AHEAD (' . l:ahead . ')'
         endif
-        
-        if len(l:module.short_name) > 20
-          let l:short_name = l:module.short_name[0:19]
+
+        if len(l:short_name) > 20
+          let l:short_name = l:short_name[0:19]
         endif
 
         " Format the output with properly aligned columns
