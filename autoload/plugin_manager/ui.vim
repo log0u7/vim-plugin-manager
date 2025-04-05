@@ -61,41 +61,43 @@ endfunction
   
 " Display usage instructions
 function! plugin_manager#ui#usage()
-    let l:lines = [
-          \ "PluginManager Commands:",
-          \ "---------------------",
-          \ "add <plugin_url> [opt]       - Add a new plugin",
-          \ "remove [plugin_name] [-f]    - Remove a plugin",
-          \ "backup                       - Backup configuration",
-          \ "reload [plugin]              - Reload configuration",        
-          \ "list                         - List installed plugins",
-          \ "status                       - Show status of submodules",
-          \ "update [plugin_name|all]     - Update all plugins or a specific one",
-          \ "helptags [plugin_name]       - Generate plugins helptags, optionally for a specific plugin",
-          \ "summary                      - Show summary of changes",
-          \ "restore                      - Reinstall all modules",
-          \ "",
-          \ "Sidebar Keyboard Shortcuts:",
-          \ "-------------------------",
-          \ "q - Close the sidebar",
-          \ "l - List installed plugins",
-          \ "u - Update all plugins",
-          \ "h - Generate helptags for all plugins",
-          \ "s - Show status of submodules",
-          \ "S - Show summary of changes",        
-          \ "b - Backup configuration",
-          \ "r - Restore all plugins",
-          \ "R - Reload configuration",
-          \ "? - Show this help",
-          \ "",
-          \ "Configuration:",
-          \ "-------------",
-          \ "g:plugin_manager_vim_dir = \"" . g:plugin_manager_vim_dir . "\"",
-          \ "g:plugin_manager_plugins_dir = \"" . g:plugin_manager_plugins_dir . "\"",
-          \ "g:plugin_manager_vimrc_path = \"" . expand(g:plugin_manager_vimrc_path) . "\""
-          \ ]
-    
-    call plugin_manager#ui#open_sidebar(l:lines)
+  let l:lines = [
+        \ "PluginManager Commands:",
+        \ "---------------------",
+        \ "add <plugin_url> [options]    - Add a new plugin with options",
+        \ "                                Options: {'dir':'name', 'load':'start|opt', 'branch':'branch',",
+        \ "                                          'tag':'tag', 'exec':'cmd'}",
+        \ "remove [plugin_name] [-f]     - Remove a plugin",
+        \ "backup                        - Backup configuration",
+        \ "reload [plugin]               - Reload configuration",        
+        \ "list                          - List installed plugins",
+        \ "status                        - Show status of submodules",
+        \ "update [plugin_name|all]      - Update all plugins or a specific one",
+        \ "helptags [plugin_name]        - Generate plugins helptags, optionally for a specific plugin",
+        \ "summary                       - Show summary of changes",
+        \ "restore                       - Reinstall all modules",
+        \ "",
+        \ "Sidebar Keyboard Shortcuts:",
+        \ "-------------------------",
+        \ "q - Close the sidebar",
+        \ "l - List installed plugins",
+        \ "u - Update all plugins",
+        \ "h - Generate helptags for all plugins",
+        \ "s - Show status of submodules",
+        \ "S - Show summary of changes",        
+        \ "b - Backup configuration",
+        \ "r - Restore all plugins",
+        \ "R - Reload configuration",
+        \ "? - Show this help",
+        \ "",
+        \ "Configuration:",
+        \ "-------------",
+        \ "g:plugin_manager_vim_dir = \"" . g:plugin_manager_vim_dir . "\"",
+        \ "g:plugin_manager_plugins_dir = \"" . g:plugin_manager_plugins_dir . "\"",
+        \ "g:plugin_manager_vimrc_path = \"" . expand(g:plugin_manager_vimrc_path) . "\""
+        \ ]
+  
+  call plugin_manager#ui#open_sidebar(l:lines)
 endfunction
   
 " Function to toggle the Plugin Manager sidebar

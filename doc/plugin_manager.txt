@@ -87,11 +87,18 @@ The plugin provides the following commands:
 
 :PluginManager                   Show usage information
 
-:PluginManager add <plugin> [name] [opt]
+:PluginManager add <plugin> [options]
                                 Install a new plugin
                                 <plugin> can be a URL or 'username/repo'
-                                [name] optional custom name for the plugin
-                                [opt] if specified, installs as optional plugin
+                                [options] can be a dictionary with these keys:
+                                  'dir': custom directory name (default: plugin name)
+                                  'load': 'start' or 'opt' (default: 'start')
+                                  'branch': git branch to checkout
+                                  'tag': git tag to checkout
+                                  'exec': command to execute after installation
+
+                                For backward compatibility:
+                                PluginManager add <plugin> [modulename] [opt]
 
 :PluginManager remove <plugin> [-f]
                                 Remove a plugin
@@ -135,6 +142,14 @@ Install an optional (lazy-loaded) plugin:
 Install a plugin from a custom URL:
 >
     :PluginManager add https://gitlab.com/user/repo.git
+<
+Install a plugin with custom options:
+>
+    :PluginManager add tpope/vim-fugitive {'dir':'fugitive', 'load':'start', 'branch':'main'}
+<
+Install a plugin with a specific tag and run a command:
+>
+    :PluginManager add junegunn/fzf {'tag':'0.24.0', 'exec':'./install --all'}
 <
 Update all plugins:
 >

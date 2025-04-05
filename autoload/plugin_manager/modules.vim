@@ -508,64 +508,185 @@ endfunction
   
 " Handle 'add' command
 function! plugin_manager#modules#add(...)
-    if a:0 < 1
-      let l:lines = ["Add Plugin Usage:", "---------------", "", "Usage: PluginManager add <plugin> [modulename] [opt]"]
-      call plugin_manager#ui#open_sidebar(l:lines)
-      return 1
+  if a:0 < 1
+    let l:lines = ["Add Plugin Usage:", "---------------", "", 
+          \ "Usage: PluginManager add <plugin> [options]", "",
+          \ "Options format: {'dir':'custom_dir', 'load':'start|opt', 'branch':'branch_name',",
+          \ "                 'tag':'tag_name', 'exec':'command_to_exec'}",
+          \ "",
+          \ "Example: PluginManager add tpope/vim-fugitive {'dir':'fugitive', 'load':'start', 'branch':'main'}", "",
+          \ "For backward compatibility:", 
+          \ "PluginManager add <plugin> [modulename] [opt]"]
+    call plugin_manager#ui#open_sidebar(l:lines)
+    return 1
+  endif
+  
+  let l:pluginInput = a:1
+  let l:moduleUrl = plugin_manager#utils#convert_to_full_url(l:pluginInput)
+  
+  " Check if URL is valid
+  if empty(l:moduleUrl)
+    let l:lines = ["Invalid Plugin Format:", "--------------------", "", l:pluginInput . " is not a valid plugin name or URL.", "Use format 'user/repo' or complete URL."]
+    call plugin_manager#ui#open_sidebar(l:lines)
+    return 1
+  endif
+  
+  " Check if repository exists
+  if !plugin_manager#utils#repository_exists(l:moduleUrl)
+    let l:lines = ["Repository Not Found:", "--------------------", "", "Repository not found: " . l:moduleUrl]
+    
+    " If it was a short name, suggest using a full URL
+    if l:pluginInput =~ g:pm_shortNameRegexp
+      call add(l:lines, "This plugin was not found on " . g:plugin_manager_default_git_host . ".")
+      call add(l:lines, "Try using a full URL to the repository if it's hosted elsewhere.")
     endif
     
-    let l:pluginInput = a:1
-    let l:moduleUrl = plugin_manager#utils#convert_to_full_url(l:pluginInput)
-    
-    " Check if URL is valid
-    if empty(l:moduleUrl)
-      let l:lines = ["Invalid Plugin Format:", "--------------------", "", l:pluginInput . " is not a valid plugin name or URL.", "Use format 'user/repo' or complete URL."]
-      call plugin_manager#ui#open_sidebar(l:lines)
-      return 1
-    endif
-    
-    " Check if repository exists
-    if !plugin_manager#utils#repository_exists(l:moduleUrl)
-      let l:lines = ["Repository Not Found:", "--------------------", "", "Repository not found: " . l:moduleUrl]
+    call plugin_manager#ui#open_sidebar(l:lines)
+    return 1
+  endif
+  
+  " If we got here, the repository exists
+  let l:moduleName = fnamemodify(l:moduleUrl, ':t:r')  " Remove .git from the end if present
+  
+  " Initialize options with defaults
+  let l:options = {
+        \ 'dir': '',
+        \ 'load': 'start',
+        \ 'branch': '',
+        \ 'tag': '',
+        \ 'exec': ''
+        \ }
+  
+  " Check if options were provided
+  if a:0 >= 2
+    " Check if the second argument is a dictionary (new format) or string (old format)
+    if type(a:2) == v:t_dict
+      " New format with options dictionary
+      let l:provided_options = a:2
       
-      " If it was a short name, suggest using a full URL
-      if l:pluginInput =~ g:pm_shortNameRegexp
-        call add(l:lines, "This plugin was not found on " . g:plugin_manager_default_git_host . ".")
-        call add(l:lines, "Try using a full URL to the repository if it's hosted elsewhere.")
-      endif
-      
-      call plugin_manager#ui#open_sidebar(l:lines)
-      return 1
-    endif
-    
-    " If we got here, the repository exists
-    let l:moduleName = fnamemodify(l:moduleUrl, ':t:r')  " Remove .git from the end if present
-    
-    " Check if a custom module name was provided
-    let l:installDir = ""
-    
-    " Fix: Better parameter handling
-    let l:customName = a:0 >= 2 ? a:2 : ""
-    let l:isOptional = a:0 >= 3 && a:3 != ""
-    
-    if l:isOptional
-      " Install in opt directory
-      if !empty(l:customName)
-        let l:installDir = g:plugin_manager_plugins_dir . "/" . g:plugin_manager_opt_dir . "/" . l:customName
-      else
-        let l:installDir = g:plugin_manager_plugins_dir . "/" . g:plugin_manager_opt_dir . "/" . l:moduleName
-      endif
+      " Update options with provided values
+      for [l:key, l:val] in items(l:provided_options)
+        if has_key(l:options, l:key)
+          let l:options[l:key] = l:val
+        endif
+      endfor
     else
-      " Install in start directory
-      if !empty(l:customName)
-        let l:installDir = g:plugin_manager_plugins_dir . "/" . g:plugin_manager_start_dir . "/" . l:customName
-      else
-        let l:installDir = g:plugin_manager_plugins_dir . "/" . g:plugin_manager_start_dir . "/" . l:moduleName
+      " Old format with separate arguments
+      " Custom name was provided as second argument
+      let l:options.dir = a:2
+      
+      " Optional loading was provided as third argument
+      if a:0 >= 3 && a:3 != ""
+        let l:options.load = 'opt'
       endif
     endif
-    
-    call s:add_module(l:moduleUrl, l:installDir)
-    return 0
+  endif
+  
+  " Determine install directory
+  let l:installDir = ""
+  
+  " Set custom directory name if provided, otherwise use plugin name
+  let l:dirName = !empty(l:options.dir) ? l:options.dir : l:moduleName
+  
+  " Set load dir based on options
+  let l:loadDir = l:options.load == 'opt' ? g:plugin_manager_opt_dir : g:plugin_manager_start_dir
+  
+  " Construct full installation path
+  let l:installDir = g:plugin_manager_plugins_dir . "/" . l:loadDir . "/" . l:dirName
+  
+  " Call the installation function with all options
+  call s:add_module(l:moduleUrl, l:installDir, l:options)
+  return 0
+endfunction
+
+" Add a new plugin
+function! s:add_module(moduleUrl, installDir, options)
+  if !plugin_manager#utils#ensure_vim_directory()
+    return
+  endif
+  
+  let l:header = ['Add Plugin:', '----------', '', 'Installing ' . a:moduleUrl . ' in ' . a:installDir . '...']
+  call plugin_manager#ui#open_sidebar(l:header)
+  
+  " Check if module directory exists and create if needed
+  let l:parentDir = fnamemodify(a:installDir, ':h')
+  if !isdirectory(l:parentDir)
+    call mkdir(l:parentDir, 'p')
+  endif
+
+  " Ensure the path is relative to vim directory
+  let l:relativeInstallDir = substitute(a:installDir, '^' . g:plugin_manager_vim_dir . '/', '', '')
+  
+  " Fix: Check if submodule already exists
+  let l:gitmoduleCheck = system('grep -c "' . l:relativeInstallDir . '" .gitmodules 2>/dev/null')
+  if shellescape(l:gitmoduleCheck) != 0
+    call plugin_manager#ui#update_sidebar(['Error: Plugin already installed at this location :'. l:relativeInstallDir], 1)
+    return
+  end
+  
+  " Execute git submodule add command
+  let l:result = system('git submodule add "' . a:moduleUrl . '" "' . l:relativeInstallDir . '"')
+  if v:shell_error != 0
+    let l:error_lines = ['Error installing plugin:']
+    call extend(l:error_lines, split(l:result, "\n"))
+    call plugin_manager#ui#update_sidebar(l:error_lines, 1)
+    return
+  endif
+  
+  " Process branch and tag options if provided
+  if !empty(a:options.branch)
+    call plugin_manager#ui#update_sidebar(['Checking out branch: ' . a:options.branch . '...'], 1)
+    let l:branch_result = system('cd "' . l:relativeInstallDir . '" && git checkout ' . a:options.branch)
+    if v:shell_error != 0
+      call plugin_manager#ui#update_sidebar(['Warning: Failed to checkout branch: ' . a:options.branch, 
+            \ l:branch_result], 1)
+    endif
+  elseif !empty(a:options.tag)
+    call plugin_manager#ui#update_sidebar(['Checking out tag: ' . a:options.tag . '...'], 1)
+    let l:tag_result = system('cd "' . l:relativeInstallDir . '" && git checkout ' . a:options.tag)
+    if v:shell_error != 0
+      call plugin_manager#ui#update_sidebar(['Warning: Failed to checkout tag: ' . a:options.tag, 
+            \ l:tag_result], 1)
+    endif
+  endif
+  
+  " Execute custom command if provided
+  if !empty(a:options.exec)
+    call plugin_manager#ui#update_sidebar(['Executing command: ' . a:options.exec . '...'], 1)
+    let l:exec_result = system('cd "' . l:relativeInstallDir . '" && ' . a:options.exec)
+    if v:shell_error != 0
+      call plugin_manager#ui#update_sidebar(['Warning: Command execution failed:', 
+            \ l:exec_result], 1)
+    else
+      call plugin_manager#ui#update_sidebar(['Command executed successfully.'], 1)
+    endif
+  endif
+  
+  call plugin_manager#ui#update_sidebar(['Committing changes...'], 1)
+  
+  " Create a more informative commit message
+  let l:commit_msg = "Added " . a:moduleUrl . " module"
+  if !empty(a:options.branch)
+    let l:commit_msg .= " (branch: " . a:options.branch . ")"
+  elseif !empty(a:options.tag)
+    let l:commit_msg .= " (tag: " . a:options.tag . ")"
+  endif
+  
+  let l:result = system('git commit -m "' . l:commit_msg . '"')
+  let l:result_lines = []
+  if v:shell_error != 0
+    let l:result_lines += ['Error committing changes:']
+    let l:result_lines += split(l:result, "\n")
+  else
+    let l:result_lines += ['Plugin installed successfully.', 'Generating helptags...']
+    if s:generate_helptag(a:installDir)
+      let l:result_lines += ['Helptags generated successfully.']
+    else
+      let l:result_lines += ['No documentation directory found.']
+    endif
+  endif
+  
+  call plugin_manager#ui#update_sidebar(l:result_lines, 1)
 endfunction
   
 " Add a new plugin
