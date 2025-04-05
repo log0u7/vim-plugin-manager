@@ -28,12 +28,9 @@ let s:update_in_progress = 0
     for l:name in l:module_names
       let l:module = l:modules[l:name]
       if has_key(l:module, 'is_valid') && l:module.is_valid
-        let l:short_name = l:module.short_name
-        let l:path = l:module.path
-        let l:url = l:module.url
         
-        if len(l:short_name) > 22
-          let l:short_name = l:short_name[0:21]
+        if len(l:module.short_name) > 22
+          let l:module.short_name = l:module.short_name[0:21]
         endif
 
         if len(l:path) > 40
@@ -42,12 +39,12 @@ let s:update_in_progress = 0
 
         " Format the output with properly aligned columns
         " Ensure fixed width columns with proper spacing
-        let l:name_col = l:short_name . repeat(' ', max([0, 24 - len(l:short_name)]))
-        let l:path_col = l:path . repeat(' ', max([0, 42 - len(l:path)]))
+        let l:name_col = l:module.short_name . repeat(' ', max([0, 24 - len(l:module.short_name)]))
+        let l:path_col = l:module.path . repeat(' ', max([0, 42 - len(l:module.path)]))
         
         let l:status = has_key(l:module, 'exists') && l:module.exists ? '' : ' [MISSING]'
         
-        call add(l:lines, l:name_col . l:path_col . l:url . l:status)
+        call add(l:lines, l:name_col . l:path_col . l:module.url . l:status)
       endif
     endfor
     
@@ -80,26 +77,25 @@ function! plugin_manager#modules#status()
     for l:name in l:module_names
       let l:module = l:modules[l:name]
       if has_key(l:module, 'is_valid') && l:module.is_valid
-        let l:path = l:module.path
         
         " Get current commit
-        let l:commit = system('cd "' . l:path . '" && git rev-parse --short HEAD 2>/dev/null || echo "N/A"')
+        let l:commit = system('cd "' . l:module.path . '" && git rev-parse --short HEAD 2>/dev/null || echo "N/A"')
         let l:commit = substitute(l:commit, '\n', '', 'g')
         
         " Get current branch
-        let l:branch = system('cd "' . l:path . '" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "N/A"')
+        let l:branch = system('cd "' . l:module.path . '" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "N/A"')
         let l:branch = substitute(l:branch, '\n', '', 'g')
         
         " Get last commit date
-        let l:last_updated = system('cd "' . l:path . '" && git log -1 --format=%cd --date=relative 2>/dev/null || echo "N/A"')
+        let l:last_updated = system('cd "' . l:module.path . '" && git log -1 --format=%cd --date=relative 2>/dev/null || echo "N/A"')
         let l:last_updated = substitute(l:last_updated, '\n', '', 'g')
         
         " Check if there are uncommitted changes
-        let l:changes = system('cd "' . l:path . '" && git status -s 2>/dev/null')
+        let l:changes = system('cd "' . l:module.path . '" && git status -s 2>/dev/null')
         let l:has_changes = !empty(l:changes)
         
         " Check if behind/ahead of remote
-        let l:behind_ahead = system('cd "' . l:path . '" && git rev-list --count --left-right @{upstream}...HEAD 2>/dev/null || echo "?"')
+        let l:behind_ahead = system('cd "' . l:module.path . '" && git rev-list --count --left-right @{upstream}...HEAD 2>/dev/null || echo "?"')
         let l:behind_ahead = substitute(l:behind_ahead, '\n', '', 'g')
         let l:behind_ahead_parts = split(l:behind_ahead, '\t')
         let l:behind = len(l:behind_ahead_parts) >= 1 ? l:behind_ahead_parts[0] : '?'
@@ -107,7 +103,7 @@ function! plugin_manager#modules#status()
         
         " Determine status
         let l:status = 'OK'
-        if !isdirectory(l:path)
+        if !isdirectory(l:module.path)
           let l:status = 'MISSING'
         elseif l:has_changes
           let l:status = 'LOCAL CHANGES'
@@ -117,8 +113,8 @@ function! plugin_manager#modules#status()
           let l:status = 'AHEAD (' . l:ahead . ')'
         endif
         
-        if len(l:short_name) > 20
-          let l:short_name = l:short_name[0:19]
+        if len(l:module.short_name) > 20
+          let l:module.short_name = l:short_name[0:19]
         endif
 
         " Format the output with properly aligned columns
