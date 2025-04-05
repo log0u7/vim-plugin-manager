@@ -71,7 +71,7 @@ function! plugin_manager#modules#status()
     endif
     
     let l:lines = [l:header, repeat('-', len(l:header)), '']
-    call add(l:lines, 'Plugin'.repeat(' ', 16).'Commit'.repeat(' ', 12).'Branch'.repeat(' ', 10).'Last Updated'.repeat(' ', 12).'Status')
+    call add(l:lines, 'Plugin'.repeat(' ', 16).'Commit'.repeat(' ', 14).'Branch'.repeat(' ', 8).'Last Updated'.repeat(' ', 16).'Status')
     call add(l:lines, repeat('-', 120))
     
     " Sort modules by name
