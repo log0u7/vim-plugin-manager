@@ -225,41 +225,69 @@ endfunction
   
 " Update plugins
 function! plugin_manager#modules#update(...)
-    " Prevent multiple concurrent update calls
-    if exists('s:update_in_progress') && s:update_in_progress
-      return
-    endif
-    let s:update_in_progress = 1
+  " Prevent multiple concurrent update calls
+  if exists('s:update_in_progress') && s:update_in_progress
+    return
+  endif
+  let s:update_in_progress = 1
+
+  if !plugin_manager#utils#ensure_vim_directory()
+    let s:update_in_progress = 0
+    return
+  endif
   
-    if !plugin_manager#utils#ensure_vim_directory()
-      let s:update_in_progress = 0
-      return
-    endif
+  " Use the gitmodules cache
+  let l:modules = plugin_manager#utils#parse_gitmodules()
+  let l:title = 'Updating Plugins:'
+  if empty(l:modules)
+    let l:lines = [l:title, repeat('-', len(l:title)), '', 'No plugins to update (.gitmodules not found)']
+    call plugin_manager#ui#open_sidebar(l:lines)
+    let s:update_in_progress = 0
+    return
+  endif
+  
+  " Initialize once before executing commands
+  let l:header = [l:title, repeat('-', len(l:title)), '']
+  
+  " Check if a specific module was specified
+  let l:specific_module = a:0 > 0 ? a:1 : 'all'
+  
+  " List to track modules that have been updated
+  let l:updated_modules = []
+  
+  if l:specific_module == 'all'
+    let l:initial_message = l:header + ['Checking for updates on all plugins...']
+    call plugin_manager#ui#open_sidebar(l:initial_message)
     
-    " Use the gitmodules cache
-    let l:modules = plugin_manager#utils#parse_gitmodules()
-    let l:title = 'Updating Plugins:'
-    if empty(l:modules)
-      let l:lines = [l:title, repeat('-', len(l:title)), '', 'No plugins to update (.gitmodules not found)']
-      call plugin_manager#ui#open_sidebar(l:lines)
-      let s:update_in_progress = 0
-      return
-    endif
+    " Stash local changes in submodules first
+    call plugin_manager#ui#update_sidebar(['Stashing local changes in submodules...'], 1)
+    call system('git submodule foreach --recursive "git stash -q || true"')
+
+    " Fetch updates from remote repositories without applying them yet
+    call plugin_manager#ui#update_sidebar(['Fetching updates from remote repositories...'], 1)
+    call system('git submodule foreach --recursive "git fetch origin"')
     
-    " Initialize once before executing commands
-    let l:header = [l:title, repeat('-', len(l:title)), '']
+    " Check which modules have updates available
+    let l:modules_with_updates = []
+    for [l:name, l:module] in items(l:modules)
+      if l:module.is_valid && isdirectory(l:module.path)
+        let l:behind_ahead = system('cd "' . l:module.path . '" && git rev-list --count --left-right @{upstream}...HEAD 2>/dev/null || echo "?"')
+        let l:behind_ahead = substitute(l:behind_ahead, '\n', '', 'g')
+        let l:behind_ahead_parts = split(l:behind_ahead, '\t')
+        let l:behind = len(l:behind_ahead_parts) >= 1 ? l:behind_ahead_parts[0] : '?'
+        
+        " Check if there are updates available (module is behind remote)
+        if l:behind != '0' && l:behind != '?'
+          call add(l:modules_with_updates, l:module)
+        endif
+      endif
+    endfor
     
-    " Check if a specific module was specified
-    let l:specific_module = a:0 > 0 ? a:1 : 'all'
-    
-    if l:specific_module == 'all'
-      let l:initial_message = l:header + ['Updating all plugins...']
-      call plugin_manager#ui#open_sidebar(l:initial_message)
+    if empty(l:modules_with_updates)
+      call plugin_manager#ui#update_sidebar(['All plugins are already up-to-date.'], 1)
+    else
+      call plugin_manager#ui#update_sidebar(['Found ' . len(l:modules_with_updates) . ' plugins with updates available. Updating...'], 1)
       
-      " Stash local changes in submodules first
-      call plugin_manager#ui#update_sidebar(['Stashing local changes in submodules...'], 1)
-      call system('git submodule foreach --recursive "git stash -q || true"')
-  
       " Execute update commands
       call system('git submodule sync')
       let l:updateResult = system('git submodule update --remote --merge --force')
@@ -269,34 +297,54 @@ function! plugin_manager#modules#update(...)
       if !empty(l:gitStatus)
         call system('git commit -am "Update Modules"')
       endif
+      
+      " Record which modules were updated
+      let l:updated_modules = l:modules_with_updates
+    endif
+  else
+    " Update a specific module - use find_module function
+    let l:module_info = plugin_manager#utils#find_module(l:specific_module)
+    
+    if empty(l:module_info)
+      call plugin_manager#ui#open_sidebar(l:header + ['Error: Module "' . l:specific_module . '" not found.'])
+      let s:update_in_progress = 0
+      return
+    endif
+    
+    let l:module = l:module_info.module
+    let l:module_path = l:module.path
+    let l:module_name = l:module.short_name
+    
+    let l:initial_message = l:header + ['Checking for updates on plugin: ' . l:module_name . ' (' . l:module_path . ')...']
+    call plugin_manager#ui#open_sidebar(l:initial_message)
+    
+    " Check if directory exists
+    if !isdirectory(l:module_path)
+      call plugin_manager#ui#update_sidebar(['Error: Module directory "' . l:module_path . '" not found.', 
+            \ 'Try running "PluginManager restore" to reinstall missing modules.'], 1)
+      let s:update_in_progress = 0
+      return
+    endif
+    
+    " Stash local changes in the specific submodule
+    call plugin_manager#ui#update_sidebar(['Stashing local changes in module...'], 1)
+    call system('cd "' . l:module_path . '" && git stash -q || true')
+    
+    " Fetch updates from remote repository without applying them yet
+    call plugin_manager#ui#update_sidebar(['Fetching updates from remote repository...'], 1)
+    call system('cd "' . l:module_path . '" && git fetch origin')
+    
+    " Check if there are updates available
+    let l:behind_ahead = system('cd "' . l:module_path . '" && git rev-list --count --left-right @{upstream}...HEAD 2>/dev/null || echo "?"')
+    let l:behind_ahead = substitute(l:behind_ahead, '\n', '', 'g')
+    let l:behind_ahead_parts = split(l:behind_ahead, '\t')
+    let l:behind = len(l:behind_ahead_parts) >= 1 ? l:behind_ahead_parts[0] : '?'
+    
+    " Check if there are updates available (module is behind remote)
+    if l:behind == '0' || l:behind == '?'
+      call plugin_manager#ui#update_sidebar(['Plugin "' . l:module_name . '" is already up-to-date.'], 1)
     else
-      " Update a specific module - use find_module function
-      let l:module_info = plugin_manager#utils#find_module(l:specific_module)
-      
-      if empty(l:module_info)
-        call plugin_manager#ui#open_sidebar(l:header + ['Error: Module "' . l:specific_module . '" not found.'])
-        let s:update_in_progress = 0
-        return
-      endif
-      
-      let l:module = l:module_info.module
-      let l:module_path = l:module.path
-      let l:module_name = l:module.short_name
-      
-      let l:initial_message = l:header + ['Updating plugin: ' . l:module_name . ' (' . l:module_path . ')...']
-      call plugin_manager#ui#open_sidebar(l:initial_message)
-      
-      " Check if directory exists
-      if !isdirectory(l:module_path)
-        call plugin_manager#ui#update_sidebar(['Error: Module directory "' . l:module_path . '" not found.', 
-              \ 'Try running "PluginManager restore" to reinstall missing modules.'], 1)
-        let s:update_in_progress = 0
-        return
-      endif
-      
-      " Stash local changes in the specific submodule
-      call plugin_manager#ui#update_sidebar(['Stashing local changes in module...'], 1)
-      call system('cd "' . l:module_path . '" && git stash -q || true')
+      call plugin_manager#ui#update_sidebar(['Updates available for plugin "' . l:module_name . '". Updating...'], 1)
       
       " Update only this module
       call system('git submodule sync -- "' . l:module_path . '"')
@@ -307,69 +355,66 @@ function! plugin_manager#modules#update(...)
       if !empty(l:gitStatus)
         call system('git commit -am "Update Module: ' . l:module_name . '"')
       endif
+      
+      " Add to list of updated modules
+      call add(l:updated_modules, l:module)
     endif
-    
-    " Update with results
-    let l:update_lines = []
-    if !empty(l:updateResult)
-      let l:update_lines += ['', 'Update details:', '']
-      let l:update_lines += split(l:updateResult, "\n")
-    endif
-    
+  endif
+  
+  " Update with results
+  let l:update_lines = []
+  if !empty(l:updated_modules)
     " Show what was updated
-    let l:update_lines += ['', 'Checking for updates...']
-    let l:updated_modules = []
-    
-    " Use git log to determine what was updated
-    if l:specific_module == 'all'
-      " Check all modules
-      for [l:name, l:module] in items(l:modules)
-        if l:module.is_valid && isdirectory(l:module.path)
-          let l:log = system('cd "' . l:module.path . '" && git log -1 --format="%h %s" 2>/dev/null')
-          if !empty(l:log)
-            call add(l:updated_modules, l:module.short_name . ': ' . substitute(l:log, '\n', '', 'g'))
-          endif
-        endif
-      endfor
-    else
-      " Check only the specific module
-      if isdirectory(l:module_path)
-        let l:log = system('cd "' . l:module_path . '" && git log -1 --format="%h %s" 2>/dev/null')
-        if !empty(l:log)
-          call add(l:updated_modules, l:module_name . ': ' . substitute(l:log, '\n', '', 'g'))
-        endif
+    let l:update_lines += ['', 'Updated plugins:']
+    for l:module in l:updated_modules
+      let l:log = system('cd "' . l:module.path . '" && git log -1 --format="%h %s" 2>/dev/null')
+      if !empty(l:log)
+        call add(l:update_lines, l:module.short_name . ': ' . substitute(l:log, '\n', '', 'g'))
+      else
+        call add(l:update_lines, l:module.short_name)
       endif
-    endif
-    
-    if !empty(l:updated_modules)
-      let l:update_lines += ['Latest commits:']
-      let l:update_lines += l:updated_modules
-    endif
+    endfor
     
     " Add update success message
-    if l:specific_module == 'all'
-      let l:update_lines += ['', 'All plugins updated successfully.']
-    else
-      let l:update_lines += ['', 'Plugin "' . l:module_name . '" updated successfully.']
-    endif
+    let l:update_lines += ['', 'Update completed successfully.']
     
     " Update sidebar with results
     call plugin_manager#ui#update_sidebar(l:update_lines, 1)
     
-    " Generate helptags
-    if l:specific_module == 'all'
-      " Call with flag to indicate NOT to create a header - use our existing sidebar
-      call plugin_manager#modules#generate_helptags(0)
+    " Generate helptags only for updated modules
+    call plugin_manager#ui#update_sidebar(['', 'Generating helptags for updated plugins:'], 1)
+    let l:helptags_generated = 0
+    let l:generated_plugins = []
+    
+    for l:module in l:updated_modules
+      let l:plugin_path = l:module.path
+      let l:docPath = l:plugin_path . '/doc'
+      if isdirectory(l:docPath)
+        execute 'helptags ' . l:docPath
+        let l:helptags_generated = 1
+        call add(l:generated_plugins, "Generated helptags for " . l:module.short_name)
+      endif
+    endfor
+    
+    let l:helptags_result = []
+    if l:helptags_generated
+      call extend(l:helptags_result, l:generated_plugins)
+      call add(l:helptags_result, "Helptags generation completed.")
     else
-      " Generate helptags only for the specific module
-      call plugin_manager#modules#generate_helptags(0, l:specific_module)
+      call add(l:helptags_result, "No documentation directories found in updated plugins.")
     endif
     
-    " Force refresh the cache after updates
-    call plugin_manager#utils#refresh_modules_cache()
-    
-    " Reset update in progress flag
-    let s:update_in_progress = 0
+    call plugin_manager#ui#update_sidebar(l:helptags_result, 1)
+  else
+    " No updates performed
+    call plugin_manager#ui#update_sidebar(['', 'No plugins were updated.'], 1)
+  endif
+  
+  " Force refresh the cache after updates
+  call plugin_manager#utils#refresh_modules_cache()
+  
+  " Reset update in progress flag
+  let s:update_in_progress = 0
 endfunction
   
 " Handle 'add' command
