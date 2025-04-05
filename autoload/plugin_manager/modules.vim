@@ -140,15 +140,17 @@ function! plugin_manager#modules#summary()
       return
     endif
     
+    let l:header = 'Submodule Summary'
+
     " Check if .gitmodules exists
     if !filereadable('.gitmodules')
-      let l:lines = ['Submodule Summary:', '----------------', '', 'No submodules found (.gitmodules not found)']
+      let l:lines = [l:header, repeat('-', len(l:header)), '', 'No submodules found (.gitmodules not found)']
       call plugin_manager#ui#open_sidebar(l:lines)
       return
     endif
     
     let l:output = system('git submodule summary')
-    let l:lines = ['Submodule Summary:', '----------------', '']
+    let l:lines = [l:header, repeat('-', len(l:header)), '']
     call extend(l:lines, split(l:output, "\n"))
     
     call plugin_manager#ui#open_sidebar(l:lines)
@@ -176,8 +178,9 @@ function! plugin_manager#modules#generate_helptags(...)
       
     " Initialize output only if creating a new header
     if l:create_header
-      let l:header = ['Generating Helptags:', '------------------', '', 'Generating helptags:']
-      call plugin_manager#ui#open_sidebar(l:header)
+      let l:header = 'Generating Helptags:'
+      let l:line = [l:header, repeat('-', len(l:header)), '', 'Generating helptags:']
+      call plugin_manager#ui#open_sidebar(l:line)
     else
       " If we're not creating a new header, just add a separator line
       call plugin_manager#ui#update_sidebar(['', 'Generating helptags:'], 1)
@@ -235,16 +238,16 @@ function! plugin_manager#modules#update(...)
     
     " Use the gitmodules cache
     let l:modules = plugin_manager#utils#parse_gitmodules()
-    
+    let l:title = 'Updating Plugins:'
     if empty(l:modules)
-      let l:lines = ['Updating Plugins:', '----------------', '', 'No plugins to update (.gitmodules not found)']
+      let l:lines = [l:title, repeat('-', len(l:title)), '', 'No plugins to update (.gitmodules not found)']
       call plugin_manager#ui#open_sidebar(l:lines)
       let s:update_in_progress = 0
       return
     endif
     
     " Initialize once before executing commands
-    let l:header = ['Updating Plugins:', '----------------', '']
+    let l:header = [l:header, repeat('-', len(l:header)), '']
     
     " Check if a specific module was specified
     let l:specific_module = a:0 > 0 ? a:1 : 'all'
