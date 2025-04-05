@@ -33,8 +33,8 @@ let s:update_in_progress = 0
           let l:module.short_name = l:module.short_name[0:21]
         endif
 
-        if len(l:path) > 40
-          let l:path = l:path[0:39]
+        if len(l:module.path) > 40
+          let l:module.path = l:module.path[0:39]
         endif 
 
         " Format the output with properly aligned columns
@@ -114,7 +114,7 @@ function! plugin_manager#modules#status()
         endif
         
         if len(l:module.short_name) > 20
-          let l:module.short_name = l:short_name[0:19]
+          let l:module.short_name = l:module.short_name[0:19]
         endif
 
         " Format the output with properly aligned columns
