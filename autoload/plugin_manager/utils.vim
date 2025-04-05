@@ -212,3 +212,39 @@ function! plugin_manager#utils#refresh_modules_cache()
     let g:pm_gitmodules_mtime = 0
     return plugin_manager#utils#parse_gitmodules()
 endfunction
+
+" Utility function to check if a module has updates available
+" Returns a dictionary with 'behind' and 'ahead' counts
+function! plugin_manager#utils#check_module_updates(module_path)
+  let l:result = {'behind': 0, 'ahead': 0, 'has_updates': 0}
+  
+  " Check if the directory exists
+  if !isdirectory(a:module_path)
+    return l:result
+  endif
+  
+  " Fetch updates from remote repository
+  call system('cd "' . a:module_path . '" && git fetch origin 2>/dev/null')
+  
+  " Check how many commits we are behind (remote has commits we don't)
+  let l:behind_check = system('cd "' . a:module_path . '" && git rev-list --count HEAD..FETCH_HEAD 2>/dev/null || echo "0"')
+  let l:behind = substitute(l:behind_check, '\n', '', 'g')
+  
+  " Check how many commits we are ahead (we have commits remote doesn't)
+  let l:ahead_check = system('cd "' . a:module_path . '" && git rev-list --count FETCH_HEAD..HEAD 2>/dev/null || echo "0"')
+  let l:ahead = substitute(l:ahead_check, '\n', '', 'g')
+  
+  " Convert to numbers if possible
+  if l:behind =~ '^\d\+$'
+    let l:result.behind = str2nr(l:behind)
+  endif
+  
+  if l:ahead =~ '^\d\+$'
+    let l:result.ahead = str2nr(l:ahead)
+  endif
+  
+  " Determine if there are updates
+  let l:result.has_updates = (l:result.behind > 0)
+  
+  return l:result
+endfunction

@@ -54,121 +54,102 @@ let s:update_in_progress = 0
 endfunction
 
 " Improved status function with fixed column formatting
-" Fonction plugin_manager#modules#status() améliorée
-function! plugin_manager#modules#status()
-  if !plugin_manager#utils#ensure_vim_directory()
-    return
-  endif
+  function! plugin_manager#modules#status()
+    if !plugin_manager#utils#ensure_vim_directory()
+      return
+    endif
+    
+    " Use the gitmodules cache
+    let l:modules = plugin_manager#utils#parse_gitmodules()
+    let l:header = 'Submodule Status:'
   
-  " Use the gitmodules cache
-  let l:modules = plugin_manager#utils#parse_gitmodules()
-  let l:header = 'Submodule Status:'
-
-  if empty(l:modules)
-    let l:lines = [l:header, repeat('-', len(l:header)), '', 'No submodules found (.gitmodules not found)']
-    call plugin_manager#ui#open_sidebar(l:lines)
-    return
-  endif
-  
-  let l:lines = [l:header, repeat('-', len(l:header)), '']
-  call add(l:lines, 'Plugin'.repeat(' ', 16).'Commit'.repeat(' ', 14).'Branch'.repeat(' ', 8).'Last Updated'.repeat(' ', 18).'Status')
-  call add(l:lines, repeat('-', 120))
-  
-  " Fetch updates to ensure we have up-to-date status information
-  call plugin_manager#ui#update_sidebar(['Fetching updates from remote repositories...'], 1)
-  call system('git submodule foreach --recursive "git fetch -q origin 2>/dev/null || true"')
-  call plugin_manager#ui#update_sidebar(['Status information:'], 1)
-  
-  " Sort modules by name
-  let l:module_names = sort(keys(l:modules))
-  
-  for l:name in l:module_names
-    let l:module = l:modules[l:name]
-    if has_key(l:module, 'is_valid') && l:module.is_valid
-      let l:short_name = l:module.short_name
-      
-      " Initialiser le statut à 'OK' par défaut
-      let l:status = 'OK'
-      
-      " Initialiser les autres informations comme N/A au cas où la vérification échoue
-      let l:commit = 'N/A'
-      let l:branch = 'N/A'
-      let l:last_updated = 'N/A'
-      
-      " Vérifie si le module existe
-      if !isdirectory(l:module.path)
-        let l:status = 'MISSING'
-      else
-        " Continuer avec toutes les vérifications pour ce module existant
+    if empty(l:modules)
+      let l:lines = [l:header, repeat('-', len(l:header)), '', 'No submodules found (.gitmodules not found)']
+      call plugin_manager#ui#open_sidebar(l:lines)
+      return
+    endif
+    
+    let l:lines = [l:header, repeat('-', len(l:header)), '']
+    call add(l:lines, 'Plugin'.repeat(' ', 16).'Commit'.repeat(' ', 14).'Branch'.repeat(' ', 8).'Last Updated'.repeat(' ', 18).'Status')
+    call add(l:lines, repeat('-', 120))
+    
+    " Fetch updates to ensure we have up-to-date status information
+    call plugin_manager#ui#update_sidebar(['Fetching updates from remote repositories...'], 1)
+    call system('git submodule foreach --recursive "git fetch -q origin 2>/dev/null || true"')
+    call plugin_manager#ui#update_sidebar(['Status information:'], 1)
+    
+    " Sort modules by name
+    let l:module_names = sort(keys(l:modules))
+    
+    for l:name in l:module_names
+      let l:module = l:modules[l:name]
+      if has_key(l:module, 'is_valid') && l:module.is_valid
+        let l:short_name = l:module.short_name
         
-        " Get current commit
-        let l:commit = system('cd "' . l:module.path . '" && git rev-parse --short HEAD 2>/dev/null || echo "N/A"')
-        let l:commit = substitute(l:commit, '\n', '', 'g')
+        " Initialize status to 'OK' by default
+        let l:status = 'OK'
         
-        " Get current branch
-        let l:branch = system('cd "' . l:module.path . '" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "N/A"')
-        let l:branch = substitute(l:branch, '\n', '', 'g')
+        " Initialize other information as N/A in case checks fail
+        let l:commit = 'N/A'
+        let l:branch = 'N/A'
+        let l:last_updated = 'N/A'
         
-        " Get last commit date
-        let l:last_updated = system('cd "' . l:module.path . '" && git log -1 --format=%cd --date=relative 2>/dev/null || echo "N/A"')
-        let l:last_updated = substitute(l:last_updated, '\n', '', 'g')
-        
-        " Check if there are uncommitted changes
-        let l:changes = system('cd "' . l:module.path . '" && git status -s 2>/dev/null')
-        let l:has_changes = !empty(l:changes)
-        
-        " Amélioration: Vérifier d'abord si la branche a un upstream configuré
-        let l:has_upstream = system('cd "' . l:module.path . '" && git rev-parse --abbrev-ref @{upstream} 2>/dev/null')
-        let l:has_upstream = v:shell_error == 0
-        
-        if l:has_upstream
-          " Check if behind/ahead of remote en utilisant une approche plus robuste
-          " Utilisez une technique qui fonctionnera même pour différentes versions de git
-          let l:behind_cmd = 'cd "' . l:module.path . '" && git rev-list --count HEAD..@{upstream} 2>/dev/null || echo "?"'
-          let l:ahead_cmd = 'cd "' . l:module.path . '" && git rev-list --count @{upstream}..HEAD 2>/dev/null || echo "?"'
-          
-          let l:behind = substitute(system(l:behind_cmd), '\n', '', 'g')
-          let l:ahead = substitute(system(l:ahead_cmd), '\n', '', 'g')
-          
-          " Determine status
-          if l:has_changes
-            let l:status = 'LOCAL CHANGES'
-          elseif l:behind != '0' && l:behind != '?'
-            if l:ahead != '0' && l:ahead != '?'
-              let l:status = 'DIVERGED (BEHIND ' . l:behind . ', AHEAD ' . l:ahead . ')'
-            else
-              let l:status = 'BEHIND (' . l:behind . ')'
-            endif
-          elseif l:ahead != '0' && l:ahead != '?'
-            let l:status = 'AHEAD (' . l:ahead . ')'
-          endif
+        " Check if module exists
+        if !isdirectory(l:module.path)
+          let l:status = 'MISSING'
         else
-          " Si pas d'upstream, on ne peut pas vérifier BEHIND/AHEAD
+          " Continue with all checks for existing modules
+          
+          " Get current commit
+          let l:commit = system('cd "' . l:module.path . '" && git rev-parse --short HEAD 2>/dev/null || echo "N/A"')
+          let l:commit = substitute(l:commit, '\n', '', 'g')
+          
+          " Get current branch
+          let l:branch = system('cd "' . l:module.path . '" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "N/A"')
+          let l:branch = substitute(l:branch, '\n', '', 'g')
+          
+          " Get last commit date
+          let l:last_updated = system('cd "' . l:module.path . '" && git log -1 --format=%cd --date=relative 2>/dev/null || echo "N/A"')
+          let l:last_updated = substitute(l:last_updated, '\n', '', 'g')
+          
+          " Check if there are uncommitted changes
+          let l:changes = system('cd "' . l:module.path . '" && git status -s 2>/dev/null')
+          let l:has_changes = !empty(l:changes)
+          
+          " Use the new utility function to check for updates
+          let l:update_status = plugin_manager#utils#check_module_updates(l:module.path)
+          
+          " Determine status based on local changes and update status
           if l:has_changes
             let l:status = 'LOCAL CHANGES'
-          else
-            let l:status = 'NO UPSTREAM'
+          elseif l:update_status.behind > 0
+            if l:update_status.ahead > 0
+              let l:status = 'DIVERGED (BEHIND ' . l:update_status.behind . ', AHEAD ' . l:update_status.ahead . ')'
+            else
+              let l:status = 'BEHIND (' . l:update_status.behind . ')'
+            endif
+          elseif l:update_status.ahead > 0
+            let l:status = 'AHEAD (' . l:update_status.ahead . ')'
           endif
         endif
-      endif
-      
-      if len(l:short_name) > 20
-        let l:short_name = l:short_name[0:19]
-      endif
-
-      " Format the output with properly aligned columns
-      " Ensure fixed width with proper spacing between columns 
-      let l:name_col = l:short_name . repeat(' ', max([0, 22 - len(l:short_name)]))
-      let l:commit_col = l:commit . repeat(' ', max([0, 20 - len(l:commit)]))
-      let l:branch_col = l:branch . repeat(' ', max([0, 14 - len(l:branch)]))
-      let l:date_col = l:last_updated . repeat(' ', max([0, 30 - len(l:last_updated)]))
-      
-      call add(l:lines, l:name_col . l:commit_col . l:branch_col . l:date_col . l:status)
-    endif
-  endfor
+        
+        if len(l:short_name) > 20
+          let l:short_name = l:short_name[0:19]
+        endif
   
-  call plugin_manager#ui#open_sidebar(l:lines)
-endfunction
+        " Format the output with properly aligned columns
+        " Ensure fixed width with proper spacing between columns 
+        let l:name_col = l:short_name . repeat(' ', max([0, 22 - len(l:short_name)]))
+        let l:commit_col = l:commit . repeat(' ', max([0, 20 - len(l:commit)]))
+        let l:branch_col = l:branch . repeat(' ', max([0, 14 - len(l:branch)]))
+        let l:date_col = l:last_updated . repeat(' ', max([0, 30 - len(l:last_updated)]))
+        
+        call add(l:lines, l:name_col . l:commit_col . l:branch_col . l:date_col . l:status)
+      endif
+    endfor
+    
+    call plugin_manager#ui#open_sidebar(l:lines)
+  endfunction
   
 " Show a summary of submodule changes
 function! plugin_manager#modules#summary()
@@ -307,13 +288,11 @@ function! plugin_manager#modules#update(...)
     let l:modules_with_updates = []
     for [l:name, l:module] in items(l:modules)
       if l:module.is_valid && isdirectory(l:module.path)
-        let l:behind_ahead = system('cd "' . l:module.path . '" && git rev-list --count --left-right @{upstream}...HEAD 2>/dev/null || echo "?"')
-        let l:behind_ahead = substitute(l:behind_ahead, '\n', '', 'g')
-        let l:behind_ahead_parts = split(l:behind_ahead, '\t')
-        let l:behind = len(l:behind_ahead_parts) >= 1 ? l:behind_ahead_parts[0] : '?'
+        " Use the utility function to check for updates
+        let l:update_status = plugin_manager#utils#check_module_updates(l:module.path)
         
-        " Check if there are updates available (module is behind remote)
-        if l:behind != '0' && l:behind != '?'
+        " If module has updates, add it to the list
+        if l:update_status.has_updates
           call add(l:modules_with_updates, l:module)
         endif
       endif
@@ -370,14 +349,11 @@ function! plugin_manager#modules#update(...)
     call plugin_manager#ui#update_sidebar(['Fetching updates from remote repository...'], 1)
     call system('cd "' . l:module_path . '" && git fetch origin')
     
-    " Check if there are updates available
-    let l:behind_ahead = system('cd "' . l:module_path . '" && git rev-list --count --left-right @{upstream}...HEAD 2>/dev/null || echo "?"')
-    let l:behind_ahead = substitute(l:behind_ahead, '\n', '', 'g')
-    let l:behind_ahead_parts = split(l:behind_ahead, '\t')
-    let l:behind = len(l:behind_ahead_parts) >= 1 ? l:behind_ahead_parts[0] : '?'
+    " Use the utility function to check for updates
+    let l:update_status = plugin_manager#utils#check_module_updates(l:module_path)
     
-    " Check if there are updates available (module is behind remote)
-    if l:behind == '0' || l:behind == '?'
+    " If module has no updates, it's up to date
+    if !l:update_status.has_updates
       call plugin_manager#ui#update_sidebar(['Plugin "' . l:module_name . '" is already up-to-date.'], 1)
     else
       call plugin_manager#ui#update_sidebar(['Updates available for plugin "' . l:module_name . '". Updating...'], 1)
