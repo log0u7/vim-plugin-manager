@@ -267,7 +267,8 @@ For detailed documentation, use the `:help plugin-manager` command after install
 ## License
 
 PluginManager is released under the MIT License.
-Copyright (c) 2025 G.K.E. <gke@6admin.io>
+
+Copyright (c) 2018 - 2025 G.K.E. <gke@6admin.io>
 
 ## About
 
