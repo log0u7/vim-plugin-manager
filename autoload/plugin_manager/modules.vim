@@ -119,17 +119,25 @@ endfunction
           " Use the new utility function to check for updates
           let l:update_status = plugin_manager#utils#check_module_updates(l:module.path)
           
-          " Determine status based on local changes and update status
-          if l:has_changes
-            let l:status = 'LOCAL CHANGES'
+          " Determine status combining local changes and remote status
+          if l:update_status.behind > 0 && l:update_status.ahead > 0
+            " DIVERGED state has highest priority
+            let l:status = 'DIVERGED (BEHIND ' . l:update_status.behind . ', AHEAD ' . l:update_status.ahead . ')'
+            if l:has_changes
+              let l:status .= ' + LOCAL CHANGES'
+            endif
           elseif l:update_status.behind > 0
-            if l:update_status.ahead > 0
-              let l:status = 'DIVERGED (BEHIND ' . l:update_status.behind . ', AHEAD ' . l:update_status.ahead . ')'
-            else
-              let l:status = 'BEHIND (' . l:update_status.behind . ')'
+            let l:status = 'BEHIND (' . l:update_status.behind . ')'
+            if l:has_changes
+              let l:status .= ' + LOCAL CHANGES'
             endif
           elseif l:update_status.ahead > 0
             let l:status = 'AHEAD (' . l:update_status.ahead . ')'
+            if l:has_changes
+              let l:status .= ' + LOCAL CHANGES'
+            endif
+          elseif l:has_changes
+            let l:status = 'LOCAL CHANGES'
           endif
         endif
         
@@ -149,7 +157,7 @@ endfunction
     endfor
     
     call plugin_manager#ui#open_sidebar(l:lines)
-  endfunction
+endfunction
   
 " Show a summary of submodule changes
 function! plugin_manager#modules#summary()
