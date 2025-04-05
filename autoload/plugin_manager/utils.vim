@@ -214,40 +214,98 @@ function! plugin_manager#utils#refresh_modules_cache()
 endfunction
 
 " Utility function to check if a module has updates available
-" Returns a dictionary with 'behind', 'ahead', 'has_updates', and 'has_changes' information
+" Returns a dictionary with comprehensive status information
 function! plugin_manager#utils#check_module_updates(module_path)
-  let l:result = {'behind': 0, 'ahead': 0, 'has_updates': 0, 'has_changes': 0}
+  let l:result = {
+    \ 'behind': 0, 
+    \ 'ahead': 0, 
+    \ 'has_updates': 0, 
+    \ 'has_changes': 0,
+    \ 'branch': 'N/A',
+    \ 'remote_branch': 'N/A',
+    \ 'different_branch': 0
+  \ }
   
   " Check if the directory exists
   if !isdirectory(a:module_path)
     return l:result
   endif
   
+  " Get current branch
+  let l:branch = system('cd "' . a:module_path . '" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "N/A"')
+  let l:result.branch = substitute(l:branch, '\n', '', 'g')
+  
   " Fetch updates from remote repository
   call system('cd "' . a:module_path . '" && git fetch origin 2>/dev/null')
   
-  " Check how many commits we are behind (remote has commits we don't)
-  let l:behind_check = system('cd "' . a:module_path . '" && git rev-list --count HEAD..FETCH_HEAD 2>/dev/null || echo "0"')
-  let l:behind = substitute(l:behind_check, '\n', '', 'g')
+  " Check if we have a configured upstream branch
+  let l:has_upstream = system('cd "' . a:module_path . '" && git rev-parse --abbrev-ref @{upstream} 2>/dev/null')
+  let l:has_upstream = v:shell_error == 0
   
-  " Check how many commits we are ahead (we have commits remote doesn't)
-  let l:ahead_check = system('cd "' . a:module_path . '" && git rev-list --count FETCH_HEAD..HEAD 2>/dev/null || echo "0"')
-  let l:ahead = substitute(l:ahead_check, '\n', '', 'g')
-  
-  " Convert to numbers if possible
-  if l:behind =~ '^\d\+$'
-    let l:result.behind = str2nr(l:behind)
-  endif
-  
-  if l:ahead =~ '^\d\+$'
-    let l:result.ahead = str2nr(l:ahead)
+  if l:has_upstream
+    " Get the name of the upstream branch
+    let l:upstream = system('cd "' . a:module_path . '" && git rev-parse --abbrev-ref @{upstream} 2>/dev/null')
+    let l:result.remote_branch = substitute(l:upstream, '\n', '', 'g')
+    
+    " Check if local and remote branch names differ (excluding remote name)
+    let l:remote_branch_name = substitute(l:result.remote_branch, '^[^/]\+/', '', '')
+    let l:result.different_branch = (l:result.branch != l:remote_branch_name)
+    
+    " Check for updates using the upstream branch if branches match
+    if !l:result.different_branch
+      " Check how many commits we are behind
+      let l:behind_check = system('cd "' . a:module_path . '" && git rev-list --count HEAD..@{upstream} 2>/dev/null || echo "0"')
+      let l:behind = substitute(l:behind_check, '\n', '', 'g')
+      
+      " Check how many commits we are ahead
+      let l:ahead_check = system('cd "' . a:module_path . '" && git rev-list --count @{upstream}..HEAD 2>/dev/null || echo "0"')
+      let l:ahead = substitute(l:ahead_check, '\n', '', 'g')
+      
+      " Convert to numbers if possible
+      if l:behind =~ '^\d\+$'
+        let l:result.behind = str2nr(l:behind)
+      endif
+      
+      if l:ahead =~ '^\d\+$'
+        let l:result.ahead = str2nr(l:ahead)
+      endif
+    endif
+  else
+    " No upstream branch configured, use FETCH_HEAD as fallback
+    " Get the default remote branch (what would be checked out on clone)
+    let l:default_branch = system('cd "' . a:module_path . '" && git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || echo "unknown"')
+    let l:default_branch = substitute(l:default_branch, '\n', '', 'g')
+    let l:default_branch = substitute(l:default_branch, '^origin/', '', '')
+    let l:result.remote_branch = 'origin/' . l:default_branch
+    
+    " Mark as different branch if not on default branch
+    let l:result.different_branch = (l:result.branch != l:default_branch && l:default_branch != "unknown")
+    
+    " Only compare with FETCH_HEAD if on the default branch
+    if !l:result.different_branch
+      " Check how many commits we are behind
+      let l:behind_check = system('cd "' . a:module_path . '" && git rev-list --count HEAD..FETCH_HEAD 2>/dev/null || echo "0"')
+      let l:behind = substitute(l:behind_check, '\n', '', 'g')
+      
+      " Check how many commits we are ahead
+      let l:ahead_check = system('cd "' . a:module_path . '" && git rev-list --count FETCH_HEAD..HEAD 2>/dev/null || echo "0"')
+      let l:ahead = substitute(l:ahead_check, '\n', '', 'g')
+      
+      " Convert to numbers if possible
+      if l:behind =~ '^\d\+$'
+        let l:result.behind = str2nr(l:behind)
+      endif
+      
+      if l:ahead =~ '^\d\+$'
+        let l:result.ahead = str2nr(l:ahead)
+      endif
+    endif
   endif
   
   " Determine if there are updates
   let l:result.has_updates = (l:result.behind > 0)
   
   " Check for local changes while ignoring helptags files
-  " Use git status with pathspec exclusion for tag files
   let l:changes = system('cd "' . a:module_path . '" && git status -s -- . ":(exclude)doc/tags" ":(exclude)**/tags" 2>/dev/null')
   let l:result.has_changes = !empty(l:changes)
   

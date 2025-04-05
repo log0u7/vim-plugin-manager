@@ -112,16 +112,20 @@ endfunction
           let l:last_updated = system('cd "' . l:module.path . '" && git log -1 --format=%cd --date=relative 2>/dev/null || echo "N/A"')
           let l:last_updated = substitute(l:last_updated, '\n', '', 'g')
           
-          " Check if there are uncommitted changes
-          let l:changes = system('cd "' . l:module.path . '" && git status -s 2>/dev/null')
-          let l:has_changes = !empty(l:changes)
-          
           " Use the new utility function to check for updates
           let l:update_status = plugin_manager#utils#check_module_updates(l:module.path)
           
+          " Get local changes status from the utility function
+          let l:has_changes = l:update_status.has_changes
+          
           " Determine status combining local changes and remote status
-          if l:update_status.behind > 0 && l:update_status.ahead > 0
-            " DIVERGED state has highest priority
+          if l:update_status.different_branch
+            let l:status = 'DIFFERENT BRANCH (local: ' . l:update_status.branch . ', remote: ' . l:update_status.remote_branch . ')'
+            if l:has_changes
+              let l:status .= ' + LOCAL CHANGES'
+            endif
+          elseif l:update_status.behind > 0 && l:update_status.ahead > 0
+            " DIVERGED state has highest priority after different branch
             let l:status = 'DIVERGED (BEHIND ' . l:update_status.behind . ', AHEAD ' . l:update_status.ahead . ')'
             if l:has_changes
               let l:status .= ' + LOCAL CHANGES'
@@ -157,7 +161,7 @@ endfunction
     endfor
     
     call plugin_manager#ui#open_sidebar(l:lines)
-endfunction
+  endfunction
   
 " Show a summary of submodule changes
 function! plugin_manager#modules#summary()
@@ -318,20 +322,37 @@ function! plugin_manager#modules#update(...)
     
     " Check which modules have updates available
     let l:modules_with_updates = []
+    let l:modules_on_diff_branch = []
+    
     for [l:name, l:module] in items(l:modules)
       if l:module.is_valid && isdirectory(l:module.path)
         " Use the utility function to check for updates
         let l:update_status = plugin_manager#utils#check_module_updates(l:module.path)
         
-        " If module has updates, add it to the list
-        if l:update_status.has_updates
+        " If module is on a different branch, add to special list
+        if l:update_status.different_branch
+          call add(l:modules_on_diff_branch, {'module': l:module, 'status': l:update_status})
+        " If module has updates and is on the same branch as remote, add to update list
+        elseif l:update_status.has_updates
           call add(l:modules_with_updates, l:module)
         endif
       endif
     endfor
     
+    " Report on modules with different branches
+    if !empty(l:modules_on_diff_branch)
+      let l:branch_lines = ['', 'The following plugins are on different branches than their remotes:']
+      for l:item in l:modules_on_diff_branch
+        call add(l:branch_lines, '- ' . l:item.module.short_name . 
+              \ ' (local: ' . l:item.status.branch . 
+              \ ', remote: ' . l:item.status.remote_branch . ')')
+      endfor
+      call add(l:branch_lines, 'These plugins will not be updated automatically to preserve your branch choice.')
+      call plugin_manager#ui#update_sidebar(l:branch_lines, 1)
+    endif
+    
     if empty(l:modules_with_updates)
-      call plugin_manager#ui#update_sidebar(['All plugins are already up-to-date.'], 1)
+      call plugin_manager#ui#update_sidebar(['All plugins (on matching branches) are up-to-date.'], 1)
     else
       call plugin_manager#ui#update_sidebar(['Found ' . len(l:modules_with_updates) . ' plugins with updates available. Updating...'], 1)
       
@@ -394,6 +415,19 @@ function! plugin_manager#modules#update(...)
     
     " Use the utility function to check for updates
     let l:update_status = plugin_manager#utils#check_module_updates(l:module_path)
+    
+    " Check if we're on a different branch
+    if l:update_status.different_branch
+      call plugin_manager#ui#update_sidebar([
+            \ 'Plugin "' . l:module_name . '" is on a different branch than remote:', 
+            \ '- Local branch: ' . l:update_status.branch,
+            \ '- Remote branch: ' . l:update_status.remote_branch,
+            \ 'To preserve your branch choice, the plugin will not be updated automatically.',
+            \ 'To update anyway, you can manually checkout the remote branch first.'
+            \ ], 1)
+      let s:update_in_progress = 0
+      return
+    endif
     
     " If module has no updates, it's up to date
     if !l:update_status.has_updates
