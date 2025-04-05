@@ -247,7 +247,7 @@ function! plugin_manager#modules#update(...)
     endif
     
     " Initialize once before executing commands
-    let l:header = [l:header, repeat('-', len(l:header)), '']
+    let l:header = [l:title, repeat('-', len(l:title)), '']
     
     " Check if a specific module was specified
     let l:specific_module = a:0 > 0 ? a:1 : 'all'
