@@ -100,6 +100,10 @@ The plugin provides the following commands:
                                 For backward compatibility:
                                 PluginManager add <plugin> [modulename] [opt]
 
+:PluginManager add <local_path>    Install a plugin from a local directory
+                                The local directory is copied to the plugins 
+                                directory, excluding any .git folder if present.
+
 :PluginManager remove <plugin> [-f]
                                 Remove a plugin
                                 Use -f to force removal without confirmation
@@ -154,6 +158,10 @@ Install a plugin from a custom URL:
 >
     :PluginManager add https://gitlab.com/user/repo.git
 <
+Install a plugin from a local directory:
+>
+    :PluginManager add ~/projects/my-vim-plugin
+<
 Install a plugin with custom options:
 >
     :PluginManager add tpope/vim-fugitive {'dir':'fugitive', 'load':'start', 'branch':'main'}
@@ -199,6 +207,7 @@ Declare multiple plugins at once:
     Plugin 'junegunn/fzf', {'dir': '~/.fzf', 'exec': './install --all'}
     Plugin 'fatih/vim-go', {'tag': '*'} 
     Plugin 'neoclide/coc.nvim', {'branch': 'release'}
+    Plugin '~/projects/my-vim-plugin'  " Local plugin from filesystem
     PluginEnd
 <
 ===============================================================================

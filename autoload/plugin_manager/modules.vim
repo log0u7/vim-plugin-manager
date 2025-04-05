@@ -512,9 +512,10 @@ function! plugin_manager#modules#add(...)
     let l:lines = ["Add Plugin Usage:", "---------------", "", 
           \ "Usage: PluginManager add <plugin> [options]", "",
           \ "Options format: {'dir':'custom_dir', 'load':'start|opt', 'branch':'branch_name',",
-          \ "                 'tag':'tag_name', 'exec':'command_to_exec'}",
+          \ "                 'tag':'tag_name', 'exec':'command_to_exec'}", 
           \ "",
           \ "Example: PluginManager add tpope/vim-fugitive {'dir':'fugitive', 'load':'start', 'branch':'main'}", "",
+          \ "Local plugin: PluginManager add ~/path/to/local/plugin", "",
           \ "For backward compatibility:", 
           \ "PluginManager add <plugin> [modulename] [opt]"]
     call plugin_manager#ui#open_sidebar(l:lines)
@@ -524,15 +525,18 @@ function! plugin_manager#modules#add(...)
   let l:pluginInput = a:1
   let l:moduleUrl = plugin_manager#utils#convert_to_full_url(l:pluginInput)
   
-  " Check if URL is valid
+  " Check if URL is valid or if it's a local path
   if empty(l:moduleUrl)
-    let l:lines = ["Invalid Plugin Format:", "--------------------", "", l:pluginInput . " is not a valid plugin name or URL.", "Use format 'user/repo' or complete URL."]
+    let l:lines = ["Invalid Plugin Format:", "--------------------", "", l:pluginInput . " is not a valid plugin name, URL, or local path.", "Use format 'user/repo', complete URL, or local path."]
     call plugin_manager#ui#open_sidebar(l:lines)
     return 1
   endif
   
-  " Check if repository exists
-  if !plugin_manager#utils#repository_exists(l:moduleUrl)
+  " Check if it's a local path
+  let l:isLocalPath = l:moduleUrl =~ '^local:'
+  
+  " For remote plugins, check if repository exists
+  if !l:isLocalPath && !plugin_manager#utils#repository_exists(l:moduleUrl)
     let l:lines = ["Repository Not Found:", "--------------------", "", "Repository not found: " . l:moduleUrl]
     
     " If it was a short name, suggest using a full URL
@@ -545,8 +549,17 @@ function! plugin_manager#modules#add(...)
     return 1
   endif
   
-  " If we got here, the repository exists
-  let l:moduleName = fnamemodify(l:moduleUrl, ':t:r')  " Remove .git from the end if present
+  " Extract the actual path for local plugins
+  if l:isLocalPath
+    let l:localPath = substitute(l:moduleUrl, '^local:', '', '')
+  endif
+  
+  " Get module name - for local paths, use the directory name
+  if l:isLocalPath
+    let l:moduleName = fnamemodify(l:localPath, ':t')
+  else
+    let l:moduleName = fnamemodify(l:moduleUrl, ':t:r')  " Remove .git from the end if present
+  endif
   
   " Initialize options with defaults
   let l:options = {
@@ -594,9 +607,121 @@ function! plugin_manager#modules#add(...)
   " Construct full installation path
   let l:installDir = g:plugin_manager_plugins_dir . "/" . l:loadDir . "/" . l:dirName
   
-  " Call the installation function with all options
-  call s:add_module(l:moduleUrl, l:installDir, l:options)
+  " Call the appropriate installation function based on whether it's a local path
+  if l:isLocalPath
+    call s:add_local_module(l:localPath, l:installDir, l:options)
+  else
+    call s:add_module(l:moduleUrl, l:installDir, l:options)
+  endif
+  
   return 0
+endfunction
+
+" Function to install local plugins
+function! s:add_local_module(localPath, installDir, options)
+  if !plugin_manager#utils#ensure_vim_directory()
+    return
+  endif
+  
+  let l:header = ['Add Local Plugin:', '----------------', '', 'Installing from ' . a:localPath . ' to ' . a:installDir . '...']
+  call plugin_manager#ui#open_sidebar(l:header)
+  
+  " Check if local path exists
+  if !isdirectory(a:localPath)
+    call plugin_manager#ui#update_sidebar(['Error: Local directory "' . a:localPath . '" not found'], 1)
+    return
+  endif
+  
+  " Check if module directory exists and create if needed
+  let l:parentDir = fnamemodify(a:installDir, ':h')
+  if !isdirectory(l:parentDir)
+    call mkdir(l:parentDir, 'p')
+  endif
+  
+  " Ensure the installation directory doesn't already exist
+  if isdirectory(a:installDir)
+    call plugin_manager#ui#update_sidebar(['Error: Destination directory "' . a:installDir . '" already exists'], 1)
+    return
+  endif
+  
+  " Create the destination directory
+  call mkdir(a:installDir, 'p')
+  
+  " Copy the files, excluding .git directory if it exists
+  let l:copy_result = ''
+  let l:copy_success = 0
+  
+  " Try using rsync first (most reliable with .git exclusion)
+  if executable('rsync')
+    call plugin_manager#ui#update_sidebar(['Copying files using rsync...'], 1)
+    let l:rsync_command = 'rsync -a --exclude=".git" ' . shellescape(a:localPath . '/') . ' ' . shellescape(a:installDir . '/')
+    let l:copy_result = system(l:rsync_command)
+    let l:copy_success = v:shell_error == 0
+  endif
+  
+  " If rsync failed or isn't available, try platform-specific methods
+  if !l:copy_success
+    if has('win32') || has('win64')
+      " Windows: try robocopy or xcopy
+      if executable('robocopy')
+        call plugin_manager#ui#update_sidebar(['Copying files using robocopy...'], 1)
+        let l:copy_result = system('robocopy ' . shellescape(a:localPath) . ' ' . shellescape(a:installDir) . ' /E /XD .git')
+        " Note: robocopy returns non-zero for successful operations with info codes
+        let l:copy_success = v:shell_error < 8  
+      else
+        call plugin_manager#ui#update_sidebar(['Copying files using xcopy...'], 1)
+        let l:copy_result = system('xcopy ' . shellescape(a:localPath) . '\* ' . shellescape(a:installDir) . ' /E /I /Y /EXCLUDE:.git')
+        let l:copy_success = v:shell_error == 0
+      endif
+    else
+      " Unix: use cp with find to exclude .git
+      call plugin_manager#ui#update_sidebar(['Copying files using cp/find...'], 1)
+      let l:copy_cmd = 'cd ' . shellescape(a:localPath) . ' && find . -type d -name ".git" -prune -o -type f -print | xargs -I{} cp --parents {} ' . shellescape(a:installDir)
+      let l:copy_result = system(l:copy_cmd)
+      let l:copy_success = v:shell_error == 0
+      
+      " If that fails, try simple cp with manual .git removal after
+      if !l:copy_success
+        call plugin_manager#ui#update_sidebar(['Trying simple copy method...'], 1)
+        let l:copy_result = system('cp -R ' . shellescape(a:localPath) . '/* ' . shellescape(a:installDir))
+        let l:copy_success = v:shell_error == 0
+        
+        " If successful, remove .git if it was copied
+        if l:copy_success && isdirectory(a:installDir . '/.git')
+          let l:rm_result = system('rm -rf ' . shellescape(a:installDir . '/.git'))
+        endif
+      endif
+    endif
+  endif
+  
+  if !l:copy_success
+    let l:error_lines = ['Error copying files:']
+    call extend(l:error_lines, split(l:copy_result, "\n"))
+    call plugin_manager#ui#update_sidebar(l:error_lines, 1)
+    return
+  endif
+  
+  call plugin_manager#ui#update_sidebar(['Files copied successfully.'], 1)
+  
+  " Execute custom command if provided
+  if !empty(a:options.exec)
+    call plugin_manager#ui#update_sidebar(['Executing command: ' . a:options.exec . '...'], 1)
+    let l:exec_result = system('cd "' . a:installDir . '" && ' . a:options.exec)
+    if v:shell_error != 0
+      call plugin_manager#ui#update_sidebar(['Warning: Command execution failed:', 
+            \ l:exec_result], 1)
+    else
+      call plugin_manager#ui#update_sidebar(['Command executed successfully.'], 1)
+    endif
+  endif
+  
+  " Generate helptags if doc directory exists
+  call plugin_manager#ui#update_sidebar(['Local plugin installed successfully.', 'Generating helptags...'], 1)
+  if s:generate_helptag(a:installDir)
+    call plugin_manager#ui#update_sidebar(['Helptags generated successfully.'], 1)
+  else
+    call plugin_manager#ui#update_sidebar(['No documentation directory found.'], 1)
+  endif
 endfunction
 
 " Add a new plugin

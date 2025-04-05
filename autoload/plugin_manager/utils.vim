@@ -59,19 +59,45 @@ function! plugin_manager#utils#execute_with_sidebar(title, cmd)
     return l:output
 endfunction
   
-" Convert short name to full URL
+" Function to detect if a path is a local path
+function! plugin_manager#utils#is_local_path(path)
+  " Starts with '~' (home path)
+  if a:path =~ '^\~\/'
+    return 1
+  endif
+    
+  " Absolute path (starts with '/' or drive letter on Windows)
+  if a:path =~ '^\/\|^[A-Za-z]:[\\\/]'
+    return 1
+  endif
+    
+  " Relative path that exists locally
+  let l:expanded_path = expand(a:path)
+  if isdirectory(l:expanded_path)
+    return 1
+  endif
+    
+  return 0
+endfunction
+  
+" Modified version of convert_to_full_url to handle local paths
 function! plugin_manager#utils#convert_to_full_url(shortName)
-    " If it's already a URL, return it as is
+    " If it's a local path
+    if plugin_manager#utils#is_local_path(a:shortName)
+      return 'local:' . expand(a:shortName)
+    endif
+      
+    " If it's already a URL, return as is
     if a:shortName =~ g:pm_urlRegexp
       return a:shortName
     endif
-    
-    " Check if it's a user/repo format
+      
+    " If it's a user/repo format
     if a:shortName =~ g:pm_shortNameRegexp
       return 'https://' . g:plugin_manager_default_git_host . '/' . a:shortName . '.git'
     endif
-    
-    " Return empty string for calling function to handle not a valid format
+      
+    " Return empty string for unrecognized format
     return ''
 endfunction
   
