@@ -91,6 +91,30 @@ Or after opening vim :
 :PluginManager add https://gitlab.com/user/repo.git
 ```
 
+### Declarative Plugin Configuration in vimrc
+
+You can define all your plugins in your vimrc file using the declarative syntax. This is especially helpful for managing multiple plugins and ensuring your setup is reproducible:
+
+```vim
+" In your vimrc file:
+PluginBegin
+  " Basic syntax: Plugin 'username/repo'
+  Plugin 'tpope/vim-fugitive'
+  Plugin 'tpope/vim-surround'
+
+  " With options:
+  Plugin 'preservim/nerdtree', {'load': 'opt'}
+  Plugin 'junegunn/fzf', {'dir': 'fzf', 'exec': './install --all'}
+  Plugin 'fatih/vim-go', {'tag': 'v1.28'}
+  Plugin 'neoclide/coc.nvim', {'branch': 'release'}
+
+  " Local plugin (from filesystem):
+  Plugin '~/projects/my-vim-plugin'
+PluginEnd
+```
+
+When Vim loads your vimrc, all these plugins will be installed automatically if they don't exist yet. This allows you to easily manage your plugin collection and share your configuration with others.
+
 ### Removing Plugins
 
 ```vim
@@ -274,4 +298,4 @@ Copyright (c) 2018 - 2025 G.K.E. <gke@6admin.io>
 
 - Maintained by: G.K.E. <gke@6admin.io>
 - Source: https://github.com/username/vim-plugin-manager
-- Version: 1.2
+- Version: 1.3
