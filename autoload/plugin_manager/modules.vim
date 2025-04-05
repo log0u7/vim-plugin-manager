@@ -807,47 +807,76 @@ endfunction
   
 " Backup configuration to remote repositories
 function! plugin_manager#modules#backup()
-    if !plugin_manager#utils#ensure_vim_directory()
-      return
-    endif
-    
-    let l:header = ['Backup Configuration:', '--------------------', '', 'Checking git status...']
-    call plugin_manager#ui#open_sidebar(l:header)
-    
-    " Fix: Check if there are changes to commit
-    let l:gitStatus = system('git status -s')
-    let l:status_lines = []
-    if !empty(l:gitStatus)
-      let l:status_lines += ['Committing local changes...']
-      let l:commitResult = system('git commit -am "Automatic backup"')
-      let l:status_lines += split(l:commitResult, "\n")
+  if !plugin_manager#utils#ensure_vim_directory()
+    return
+  endif
+  
+  let l:header = ['Backup Configuration:', '--------------------', '', 'Checking git status...']
+  call plugin_manager#ui#open_sidebar(l:header)
+  
+  " Check if vimrc or init.vim exists in the vim directory
+  let l:vimrc_basename = fnamemodify(g:plugin_manager_vimrc_path, ':t')
+  let l:local_vimrc = g:plugin_manager_vim_dir . '/' . l:vimrc_basename
+  
+  " If vimrc doesn't exist in the vim directory or isn't a symlink, copy it
+  if !filereadable(l:local_vimrc) || (!has('win32') && !has('win64') && getftype(l:local_vimrc) != 'link')
+    if filereadable(g:plugin_manager_vimrc_path)
+      call plugin_manager#ui#update_sidebar(['Copying ' . l:vimrc_basename . ' file to vim directory for backup...'], 1)
+      
+      " Create a backup copy of the vimrc file
+      let l:copy_cmd = 'cp "' . g:plugin_manager_vimrc_path . '" "' . l:local_vimrc . '"'
+      let l:copy_result = system(l:copy_cmd)
+      
+      if v:shell_error != 0
+        call plugin_manager#ui#update_sidebar(['Error copying vimrc file: ' . l:copy_result], 1)
+      else
+        call plugin_manager#ui#update_sidebar([l:vimrc_basename . ' file copied successfully.'], 1)
+        
+        " Add the copied file to git
+        let l:git_add = system('git add "' . l:local_vimrc . '"')
+        if v:shell_error != 0
+          call plugin_manager#ui#update_sidebar(['Warning: Could not add ' . l:vimrc_basename . ' to git: ' . l:git_add], 1)
+        endif
+      endif
     else
-      let l:status_lines += ['No local changes to commit.']
+      call plugin_manager#ui#update_sidebar(['Warning: ' . l:vimrc_basename . ' file not found at ' . g:plugin_manager_vimrc_path], 1)
     endif
-    
-    call plugin_manager#ui#update_sidebar(l:status_lines, 1)
-    
-    " Push changes to all configured remotes
-    call plugin_manager#ui#update_sidebar(['Pushing changes to remote repositories...'], 1)
-    
-    " Fix: Check if any remotes exist
-    let l:remotesExist = system('git remote')
-    if empty(l:remotesExist)
-      call plugin_manager#ui#update_sidebar([
-            \ 'No remote repositories configured.',
-            \ 'Use PluginManagerRemote to add a remote repository.'
-            \ ], 1)
-      return
-    endif
-    
-    let l:pushResult = system('git push --all')
-    if v:shell_error != 0
-      let l:error_lines = ['Error pushing to remote:']
-      call extend(l:error_lines, split(l:pushResult, "\n"))
-      call plugin_manager#ui#update_sidebar(l:error_lines, 1)
-    else
-      call plugin_manager#ui#update_sidebar(['Backup completed successfully.'], 1)
-    endif
+  endif
+  
+  " Fix: Check if there are changes to commit
+  let l:gitStatus = system('git status -s')
+  let l:status_lines = []
+  if !empty(l:gitStatus)
+    let l:status_lines += ['Committing local changes...']
+    let l:commitResult = system('git commit -am "Automatic backup"')
+    let l:status_lines += split(l:commitResult, "\n")
+  else
+    let l:status_lines += ['No local changes to commit.']
+  endif
+  
+  call plugin_manager#ui#update_sidebar(l:status_lines, 1)
+  
+  " Push changes to all configured remotes
+  call plugin_manager#ui#update_sidebar(['Pushing changes to remote repositories...'], 1)
+  
+  " Fix: Check if any remotes exist
+  let l:remotesExist = system('git remote')
+  if empty(l:remotesExist)
+    call plugin_manager#ui#update_sidebar([
+          \ 'No remote repositories configured.',
+          \ 'Use PluginManagerRemote to add a remote repository.'
+          \ ], 1)
+    return
+  endif
+  
+  let l:pushResult = system('git push --all')
+  if v:shell_error != 0
+    let l:error_lines = ['Error pushing to remote:']
+    call extend(l:error_lines, split(l:pushResult, "\n"))
+    call plugin_manager#ui#update_sidebar(l:error_lines, 1)
+  else
+    call plugin_manager#ui#update_sidebar(['Backup completed successfully.'], 1)
+  endif
 endfunction
   
 " Restore all plugins from .gitmodules
