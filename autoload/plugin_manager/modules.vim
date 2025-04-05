@@ -120,7 +120,7 @@ endfunction
           
           " Determine status combining local changes and remote status
           if l:update_status.different_branch
-            let l:status = 'DIFFERENT BRANCH (local: ' . l:update_status.branch . ', remote: ' . l:update_status.remote_branch . ')'
+            let l:status = 'CUSTOM BRANCH (local: ' . l:update_status.branch . ', target: ' . l:update_status.remote_branch . ')'
             if l:has_changes
               let l:status .= ' + LOCAL CHANGES'
             endif
@@ -329,30 +329,30 @@ function! plugin_manager#modules#update(...)
         " Use the utility function to check for updates
         let l:update_status = plugin_manager#utils#check_module_updates(l:module.path)
         
-        " If module is on a different branch, add to special list
-        if l:update_status.different_branch
+        " If module is on a different branch and not in detached HEAD, add to special list
+        if l:update_status.different_branch && l:update_status.branch != "detached"
           call add(l:modules_on_diff_branch, {'module': l:module, 'status': l:update_status})
-        " If module has updates and is on the same branch as remote, add to update list
+        " If module has updates, add to update list
         elseif l:update_status.has_updates
           call add(l:modules_with_updates, l:module)
         endif
       endif
     endfor
     
-    " Report on modules with different branches
+    " Report on modules with custom branches
     if !empty(l:modules_on_diff_branch)
-      let l:branch_lines = ['', 'The following plugins are on different branches than their remotes:']
+      let l:branch_lines = ['', 'The following plugins are on custom branches:']
       for l:item in l:modules_on_diff_branch
         call add(l:branch_lines, '- ' . l:item.module.short_name . 
               \ ' (local: ' . l:item.status.branch . 
-              \ ', remote: ' . l:item.status.remote_branch . ')')
+              \ ', target: ' . l:item.status.remote_branch . ')')
       endfor
       call add(l:branch_lines, 'These plugins will not be updated automatically to preserve your branch choice.')
       call plugin_manager#ui#update_sidebar(l:branch_lines, 1)
     endif
     
     if empty(l:modules_with_updates)
-      call plugin_manager#ui#update_sidebar(['All plugins (on matching branches) are up-to-date.'], 1)
+      call plugin_manager#ui#update_sidebar(['All plugins are up-to-date.'], 1)
     else
       call plugin_manager#ui#update_sidebar(['Found ' . len(l:modules_with_updates) . ' plugins with updates available. Updating...'], 1)
       
@@ -416,14 +416,14 @@ function! plugin_manager#modules#update(...)
     " Use the utility function to check for updates
     let l:update_status = plugin_manager#utils#check_module_updates(l:module_path)
     
-    " Check if we're on a different branch
-    if l:update_status.different_branch
+    " Check if we're on a custom branch and user wants to maintain it
+    if l:update_status.different_branch && l:update_status.branch != "detached"
       call plugin_manager#ui#update_sidebar([
-            \ 'Plugin "' . l:module_name . '" is on a different branch than remote:', 
+            \ 'Plugin "' . l:module_name . '" is on a custom branch:', 
             \ '- Local branch: ' . l:update_status.branch,
-            \ '- Remote branch: ' . l:update_status.remote_branch,
+            \ '- Target branch: ' . l:update_status.remote_branch,
             \ 'To preserve your branch choice, the plugin will not be updated automatically.',
-            \ 'To update anyway, you can manually checkout the remote branch first.'
+            \ 'To update anyway, run: git submodule update --remote --force -- "' . l:module_path . '"'
             \ ], 1)
       let s:update_in_progress = 0
       return
