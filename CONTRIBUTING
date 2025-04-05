@@ -131,6 +131,7 @@ Understanding the project's structure will help you contribute effectively:
 .
 ├── autoload/
 │   └── plugin_manager/        # Core functionality modules
+│       ├── jobs.vim           # Asynchronous tasks management
 │       ├── modules.vim        # Plugin management features
 │       ├── ui.vim             # User interface components
 │       └── utils.vim          # Utility functions
@@ -141,7 +142,7 @@ Understanding the project's structure will help you contribute effectively:
 ├── syntax/                    # Syntax highlighting
 │   └── pluginmanager.vim      # Syntax definitions for the UI
 ├── README.md                  # Project overview and usage information
-├── CONTRIBUTING.md            # Contribution guidelines (this file)
+├── CONTRIBUTING               # Contribution guidelines (this file)
 └── LICENSE                    # License information
 ```
 
