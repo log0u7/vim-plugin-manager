@@ -11,14 +11,15 @@ let s:update_in_progress = 0
     
     " Use the gitmodules cache
     let l:modules = plugin_manager#utils#parse_gitmodules()
+    let l:header = 'Installed Plugins:' 
     
     if empty(l:modules)
-      let l:lines = ['Installed Plugins:', '----------------', '', 'No plugins installed (.gitmodules not found)']
+      let l:lines = [l:header, repeat('-', len(l:header)), '', 'No plugins installed (.gitmodules not found)']
       call plugin_manager#ui#open_sidebar(l:lines)
       return
     endif
     
-    let l:lines = ['Installed Plugins:', '----------------', '', 'Name'.repeat(' ', 20).'Path'.repeat(' ', 36).'URL']
+    let l:lines = [l:header, repeat('-', len(l:header)), '', 'Name'.repeat(' ', 20).'Path'.repeat(' ', 36).'URL']
     let l:lines += [repeat('-', 120)]
     
     " Sort modules by name
@@ -53,14 +54,15 @@ function! plugin_manager#modules#status()
     
     " Use the gitmodules cache
     let l:modules = plugin_manager#utils#parse_gitmodules()
-    
+    let l:header = 'Submodule Status:'
+
     if empty(l:modules)
-      let l:lines = ['Submodule Status:', '----------------', '', 'No submodules found (.gitmodules not found)']
+      let l:lines = [l:header, repeat('-', len(l:header)), '', 'No submodules found (.gitmodules not found)']
       call plugin_manager#ui#open_sidebar(l:lines)
       return
     endif
     
-    let l:lines = ['Submodule Status:', '----------------', '']
+    let l:lines = [l:header, repeat('-', len(l:header)), '']
     call add(l:lines, 'Plugin'.repeat(' ', 16).'Commit'.repeat(' ', 12).'Branch'.repeat(' ', 10).'Last Updated'.repeat(' ', 12).'Status')
     call add(l:lines, repeat('-', 120))
     
@@ -110,8 +112,8 @@ function! plugin_manager#modules#status()
         " Format the output with properly aligned columns
         " Ensure fixed width with proper spacing between columns 
         let l:name_col = l:module.short_name . repeat(' ', max([0, 22 - len(l:module.short_name)]))
-        let l:commit_col = l:commit . repeat(' ', max([0, 20 - len(l:commit)]))
-        let l:branch_col = l:branch . repeat(' ', max([0, 20 - len(l:branch)]))
+        let l:commit_col = l:commit . repeat(' ', max([0, 16 - len(l:commit)]))
+        let l:branch_col = l:branch . repeat(' ', max([0, 16 - len(l:branch)]))
         let l:date_col = l:last_updated . repeat(' ', max([0, 30 - len(l:last_updated)]))
         
         call add(l:lines, l:name_col . l:commit_col . l:branch_col . l:date_col . l:status)
