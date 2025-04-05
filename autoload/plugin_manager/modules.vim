@@ -30,17 +30,17 @@ let s:update_in_progress = 0
       if has_key(l:module, 'is_valid') && l:module.is_valid
         
         if len(l:module.short_name) > 22
-          let l:module.short_name = l:module.short_name[0:21]
+          let l:short_name = l:module.short_name[0:21]
         endif
 
         if len(l:module.path) > 40
-          let l:module.path = l:module.path[0:39]
+          let l:path = l:module.path[0:39]
         endif 
 
         " Format the output with properly aligned columns
         " Ensure fixed width columns with proper spacing
-        let l:name_col = l:module.short_name . repeat(' ', max([0, 24 - len(l:module.short_name)]))
-        let l:path_col = l:module.path . repeat(' ', max([0, 42 - len(l:module.path)]))
+        let l:name_col = l:short_name . repeat(' ', max([0, 24 - len(l:short_name)]))
+        let l:path_col = l:path . repeat(' ', max([0, 42 - len(l:path)]))
         
         let l:status = has_key(l:module, 'exists') && l:module.exists ? '' : ' [MISSING]'
         
@@ -114,12 +114,12 @@ function! plugin_manager#modules#status()
         endif
         
         if len(l:module.short_name) > 20
-          let l:module.short_name = l:module.short_name[0:19]
+          let l:short_name = l:module.short_name[0:19]
         endif
 
         " Format the output with properly aligned columns
         " Ensure fixed width with proper spacing between columns 
-        let l:name_col = l:module.short_name . repeat(' ', max([0, 22 - len(l:module.short_name)]))
+        let l:name_col = l:short_name . repeat(' ', max([0, 22 - len(l:short_name)]))
         let l:commit_col = l:commit . repeat(' ', max([0, 20 - len(l:commit)]))
         let l:branch_col = l:branch . repeat(' ', max([0, 14 - len(l:branch)]))
         let l:date_col = l:last_updated . repeat(' ', max([0, 30 - len(l:last_updated)]))
