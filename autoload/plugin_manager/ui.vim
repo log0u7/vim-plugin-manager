@@ -92,7 +92,7 @@ function! plugin_manager#ui#usage()
           \ "-------------",
           \ "g:plugin_manager_vim_dir = \"" . g:plugin_manager_vim_dir . "\"",
           \ "g:plugin_manager_plugins_dir = \"" . g:plugin_manager_plugins_dir . "\"",
-          \ "g:plugin_manager_vimrc_path = \"" . g:plugin_manager_vimrc_path . "\""
+          \ "g:plugin_manager_vimrc_path = \"" . expand(g:plugin_manager_vimrc_path) . "\""
           \ ]
     
     call plugin_manager#ui#open_sidebar(l:lines)
