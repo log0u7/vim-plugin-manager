@@ -32,6 +32,14 @@ let s:update_in_progress = 0
         let l:path = l:module.path
         let l:url = l:module.url
         
+        if len(l:short_name) > 22
+          let l:short_name = l:short_name[0:21]
+        endif
+
+        if len(l:path) > 40
+          let l:path = l:path[0:39]
+        endif 
+
         " Format the output with properly aligned columns
         " Ensure fixed width columns with proper spacing
         let l:name_col = l:short_name . repeat(' ', max([0, 24 - len(l:short_name)]))
