@@ -284,9 +284,33 @@ function! plugin_manager#modules#update(...)
     let l:initial_message = l:header + ['Checking for updates on all plugins...']
     call plugin_manager#ui#open_sidebar(l:initial_message)
     
-    " Stash local changes in submodules first
-    call plugin_manager#ui#update_sidebar(['Stashing local changes in submodules...'], 1)
-    call system('git submodule foreach --recursive "git stash -q || true"')
+    " Handle helptags files differently to avoid merge conflicts
+    call plugin_manager#ui#update_sidebar(['Preparing modules for update...'], 1)
+    
+    " First, remove any helptags files to avoid conflicts
+    call system('git submodule foreach --recursive "rm -f doc/tags doc/*/tags */tags 2>/dev/null || true"')
+    
+    " Stash any other local changes if needed
+    let l:any_changes = 0
+    
+    " Check if any module has local changes (after removing helptags)
+    for [l:name, l:module] in items(l:modules)
+      if l:module.is_valid && isdirectory(l:module.path)
+        let l:changes = system('cd "' . l:module.path . '" && git status -s 2>/dev/null')
+        if !empty(l:changes)
+          let l:any_changes = 1
+          break
+        endif
+      endif
+    endfor
+    
+    " Only stash if we found actual changes
+    if l:any_changes
+      call plugin_manager#ui#update_sidebar(['Stashing local changes in submodules...'], 1)
+      call system('git submodule foreach --recursive "git stash -q || true"')
+    else
+      call plugin_manager#ui#update_sidebar(['No local changes to stash...'], 1)
+    endif
 
     " Fetch updates from remote repositories without applying them yet
     call plugin_manager#ui#update_sidebar(['Fetching updates from remote repositories...'], 1)
@@ -349,9 +373,20 @@ function! plugin_manager#modules#update(...)
       return
     endif
     
-    " Stash local changes in the specific submodule
-    call plugin_manager#ui#update_sidebar(['Stashing local changes in module...'], 1)
-    call system('cd "' . l:module_path . '" && git stash -q || true')
+    " Handle helptags files and local changes
+    call plugin_manager#ui#update_sidebar(['Preparing module for update...'], 1)
+    
+    " First, remove any helptags files to avoid conflicts
+    call system('cd "' . l:module_path . '" && rm -f doc/tags doc/*/tags */tags 2>/dev/null || true')
+    
+    " Check if there are any remaining local changes
+    let l:changes = system('cd "' . l:module_path . '" && git status -s 2>/dev/null')
+    if !empty(l:changes)
+      call plugin_manager#ui#update_sidebar(['Stashing local changes...'], 1)
+      call system('cd "' . l:module_path . '" && git stash -q || true')
+    else
+      call plugin_manager#ui#update_sidebar(['No local changes to stash...'], 1)
+    endif
     
     " Fetch updates from remote repository without applying them yet
     call plugin_manager#ui#update_sidebar(['Fetching updates from remote repository...'], 1)

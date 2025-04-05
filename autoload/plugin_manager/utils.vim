@@ -214,9 +214,9 @@ function! plugin_manager#utils#refresh_modules_cache()
 endfunction
 
 " Utility function to check if a module has updates available
-" Returns a dictionary with 'behind' and 'ahead' counts
+" Returns a dictionary with 'behind', 'ahead', 'has_updates', and 'has_changes' information
 function! plugin_manager#utils#check_module_updates(module_path)
-  let l:result = {'behind': 0, 'ahead': 0, 'has_updates': 0}
+  let l:result = {'behind': 0, 'ahead': 0, 'has_updates': 0, 'has_changes': 0}
   
   " Check if the directory exists
   if !isdirectory(a:module_path)
@@ -245,6 +245,11 @@ function! plugin_manager#utils#check_module_updates(module_path)
   
   " Determine if there are updates
   let l:result.has_updates = (l:result.behind > 0)
+  
+  " Check for local changes while ignoring helptags files
+  " Use git status with pathspec exclusion for tag files
+  let l:changes = system('cd "' . a:module_path . '" && git status -s -- . ":(exclude)doc/tags" ":(exclude)**/tags" 2>/dev/null')
+  let l:result.has_changes = !empty(l:changes)
   
   return l:result
 endfunction
