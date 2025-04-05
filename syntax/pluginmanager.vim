@@ -39,6 +39,7 @@ syntax match PMOkStatus /\<OK\>/
 syntax match PMWarning /\<Warning\>\|\<BEHIND\>\|\<AHEAD\>/
 syntax match PMError /\<Error\>\|\<MISSING\>\|\<failed\>/
 syntax match PMChanged /\<LOCAL CHANGES\>/
+syntax match PMDiverged /\<DIVERGED\>/
 
 " Paths
 syntax match PMPath /\/\S\+\(\/\|\.\(vim\|txt\)\)\@=/
@@ -62,6 +63,7 @@ highlight default link PMOkStatus String
 highlight default link PMWarning Todo
 highlight default link PMError Error
 highlight default link PMChanged WarningMsg
+highlight default link PMDiverged Special  " Purple/Magenta color for diverged state
 highlight default link PMPath Directory
 
 let b:current_syntax = "pluginmanager"
