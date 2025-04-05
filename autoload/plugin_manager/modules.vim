@@ -842,7 +842,7 @@ function! plugin_manager#modules#reload(...)
       call plugin_manager#ui#update_sidebar(['Unloading plugins...'], 1)
       
       " Then reload vimrc file
-      if filereadable(g:plugin_manager_vimrc_path)
+      if filereadable(expand(g:plugin_manager_vimrc_path))
         call plugin_manager#ui#update_sidebar(['Sourcing ' . g:plugin_manager_vimrc_path . '...'], 1)
         
         " More effective reloading approach
