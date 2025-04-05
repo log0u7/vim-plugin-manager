@@ -38,7 +38,7 @@ syntax match PMOkStatus /\<OK\>/
 " Warning and error messages
 syntax match PMWarning /\<Warning\>\|\<BEHIND\>\|\<AHEAD\>/
 syntax match PMError /\<Error\>\|\<MISSING\>\|\<failed\>/
-syntax match PMChanged /\<LOCAL CHANGES\>/
+syntax match PMChanged /\<LOCAL CHANGES\>\|\<+ LOCAL CHANGES\>/
 syntax match PMDiverged /\<DIVERGED\>/
 
 " Paths
