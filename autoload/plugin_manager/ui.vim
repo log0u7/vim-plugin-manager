@@ -3,7 +3,7 @@
 " Buffer name
 let s:buffer_name = 'PluginManager'  
 
-" Job status section
+" Job status section - using dictionary to avoid duplicates
 let s:job_progress_lines = {}
 let s:job_progress_section_active = 0
 
@@ -92,6 +92,7 @@ function! plugin_manager#ui#update_job_progress(job_id, status_line)
       if i == l:progress_section_start + 1
         " This is the line right after the header
         let l:progress_section_end = i
+        break
       endif
     endif
   endfor
@@ -109,16 +110,23 @@ function! plugin_manager#ui#update_job_progress(job_id, status_line)
     let s:job_progress_section_active = 1
   endif
   
-  " Now find the end of the job progress section
-  let l:content_end = l:progress_section_end + 1
-  while l:content_end <= line('$') && getline(l:content_end) !~ '^[A-Z]'
+  " Now find the end of the job progress section (content section)
+  let l:content_start = l:progress_section_end + 1 
+  let l:content_end = l:content_start
+  
+  " Find where job content section ends (before next major header)
+  while l:content_end <= line('$') && getline(l:content_end) !~ '^[A-Z][a-z].*:$'
     let l:content_end += 1
   endwhile
-  let l:content_end -= 1
+  
+  " Adjust if we hit the end of the buffer
+  if l:content_end > line('$')
+    let l:content_end = line('$') + 1
+  endif
   
   " Delete existing progress lines
-  if l:progress_section_end + 1 <= l:content_end
-    execute (l:progress_section_end + 1) . ',' . l:content_end . 'delete _'
+  if l:content_start < l:content_end
+    execute l:content_start . ',' . (l:content_end - 1) . 'delete _'
   endif
   
   " Add updated progress lines
@@ -132,8 +140,12 @@ function! plugin_manager#ui#update_job_progress(job_id, status_line)
     if s:job_progress_section_active
       call add(l:progress_lines, 'No active jobs.')
     else
-      " Remove the section entirely
-      execute (l:progress_section_start) . ',' . (l:progress_section_end + 1) . 'delete _'
+      " Remove the section entirely (if it exists)
+      if l:progress_section_start > 0 && l:progress_section_end > 0
+        execute l:progress_section_start . ',' . (l:content_end - 1) . 'delete _'
+      endif
+      setlocal nomodifiable
+      return
     endif
   else
     let s:job_progress_section_active = 1
@@ -185,13 +197,17 @@ function! plugin_manager#ui#clear_job_progress()
   if l:progress_section_start > 0
     " Find the end of the job progress section
     let l:content_end = l:progress_section_end + 1
-    while l:content_end <= line('$') && getline(l:content_end) !~ '^[A-Z]'
+    while l:content_end <= line('$') && getline(l:content_end) !~ '^[A-Z][a-z].*:$'
       let l:content_end += 1
     endwhile
-    let l:content_end -= 1
+    
+    " Adjust if we hit the end of the buffer
+    if l:content_end > line('$')
+      let l:content_end = line('$') + 1
+    endif
     
     " Delete the entire section
-    execute l:progress_section_start . ',' . l:content_end . 'delete _'
+    execute l:progress_section_start . ',' . (l:content_end - 1) . 'delete _'
   endif
   
   " Restore modifiable state

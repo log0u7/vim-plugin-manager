@@ -9,24 +9,33 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
   - Implemented non-blocking operations for plugin installation, updates, and removal
   - Added job sequencing for chained command execution
   - Added graceful fallback to synchronous operations for older Vim versions
+  - Fixed initial UI blocking by immediately displaying progress indicators
+  - Improved job tracking with unique identifiers and proper lifecycle management
 - UI improvements with better progress indicators
   - Added real-time progress updates with spinners during long operations
   - Implemented dedicated job progress section in the sidebar
   - Added visual checkmarks and error indicators for operation results
   - Added proper job tracking with elapsed time display
+  - Fixed duplicate entries in job progress display
+  - Added batch processing for large operations to maintain UI responsiveness
 - Enhanced error reporting with detailed diagnostics
   - Improved error handling with specific failure messages
   - Better output formatting for command results
   - Individual status reporting for multi-step operations
 - New modular system for job handling in autoload/plugin_manager/jobs.vim
+  - Centralized job management with dictionary-based job storage
+  - Added automatic cleanup of completed jobs
+  - Improved memory management for long-running sessions
 
 ### Bug Fixes
 - Fixed inconsistent sidebar rendering on some terminal configurations
 - Resolved issues with plugin installation path handling on Windows systems
 - Fixed plugin reloading mechanism for certain plugin types
-- Removed locks that prevented concurrent operations in async mode
+- Fixed UI blocking during the beginning of asynchronous operations
+- Fixed duplicate progress lines in job status section
 - Improved cleanup of temporary job data after completion
 - Fixed progress display in terminal environments with limited Unicode support
+- Fixed section detection in the sidebar buffer for more reliable updates
 
 ## [1.3.0] - 2025-03-15
 ### Added
