@@ -3,14 +3,14 @@
 " Version: 1.4
 
 " Variables for job handling
-    let s:is_win = has('win32') || has('win64')
-    let s:job_list = {}  " Dictionary for faster access by ID
+" Using dictionary for faster access and avoiding duplicates
+    let s:job_list = {}  
     let s:next_job_id = 1
     
     " Check if async jobs are supported
     function! plugin_manager#jobs#is_async_supported()
       " Check for Neovim
-      if has('nvim-0.2') || (has('nvim') && exists('*jobwait') && !s:is_win)
+      if has('nvim-0.2') || (has('nvim') && exists('*jobwait') && !has('win32') && !has('win64'))
         return 1
       endif
       
@@ -42,7 +42,7 @@
         return -1
       endif
       
-      " Create unique job ID
+      " Create a unique job ID
       let l:job_id = s:next_job_id
       let s:next_job_id += 1
       
@@ -218,11 +218,16 @@
       endif
     endfunction
     
-    " Remove a specific job from tracking
+    " Check if any jobs are running
+    function! plugin_manager#jobs#is_running()
+      return !empty(s:job_list)
+    endfunction
+    
+    " Remove a specific job from the list
     function! plugin_manager#jobs#remove_job(job_id)
       if has_key(s:job_list, a:job_id)
         unlet s:job_list[a:job_id]
-        " Update job progress display only if there are no active jobs
+        " Update the job progress display only if no jobs remain
         if empty(s:job_list)
           call plugin_manager#ui#clear_job_progress()
         else
@@ -239,7 +244,7 @@
         
         let l:elapsed = reltimefloat(reltime(l:job.start_time))
         if l:status == 'completed' && has_key(l:job, 'end_time')
-          let l:elapsed = reltimefloat(reltime(l:job.start_time, l:job.end_time))
+          let l:elapsed = reltimefloat(l:job.end_time, l:job.start_time)
         endif
         
         let l:elapsed_str = printf("%.1fs", l:elapsed)
@@ -256,17 +261,6 @@
         
         call plugin_manager#ui#update_job_progress(l:id, l:status_line)
       endfor
-    endfunction
-    
-    " Check if any jobs are running
-    function! plugin_manager#jobs#is_running()
-      return !empty(s:job_list)
-    endfunction
-    
-    " Clean jobs - simplified since jobs are now removed individually
-    function! plugin_manager#jobs#clean_jobs()
-      " This function is kept for API compatibility
-      " Jobs are now removed individually when they complete
     endfunction
     
     " Display job progress in the sidebar
