@@ -1,6 +1,6 @@
 " syntax/pluginmanager.vim - Syntax coloration for PluginManager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.3
+" Version: 1.4
 
 " Ensure it's loaded once
 if exists("b:current_syntax")
@@ -34,13 +34,24 @@ syntax match PMUrl /https\?:\/\/\S\+/
 " Success messages and statuses
 syntax match PMSuccess /\<successfully\>\|\<completed\>/
 syntax match PMOkStatus /\<OK\>/
+syntax match PMCheckmark /✓/
 
 " Warning and error messages
 syntax match PMWarning /\<Warning\>\|\<BEHIND\>\|\<AHEAD\>/
-syntax match PMError /\<Error\>\|\<MISSING\>\|\<failed\>/
+syntax match PMError /\<Error\>\|\<MISSING\>\|\<failed\>\|\<errors\>/
+syntax match PMErrorX /✗/
 syntax match PMChanged /\<LOCAL CHANGES\>\|\<+ LOCAL CHANGES\>/
 syntax match PMDiverged /\<DIVERGED\>/
 syntax match PMBranch /\<DIFFERENT BRANCH\>/
+
+" Progress indicators
+syntax match PMProgressBar /\[=\+ *\]/
+syntax match PMPercentage /\d\+%/
+syntax match PMSpinner /[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/
+
+" Job progress section
+syntax match PMJobHeader /^Job Progress:$/
+syntax region PMJobSection start=/^Job Progress:$/ end=/^[A-Z]/ contains=PMSubHeader,PMSpinner,PMCheckmark,PMErrorX,PMSuccess,PMError
 
 " Paths
 syntax match PMPath /\/\S\+\(\/\|\.\(vim\|txt\)\)\@=/
@@ -61,11 +72,19 @@ highlight default link PMCommand Function
 highlight default link PMUrl Underlined
 highlight default link PMSuccess String
 highlight default link PMOkStatus String
+highlight default link PMCheckmark String  " Green
+highlight default link PMErrorX WarningMsg " Red
 highlight default link PMWarning Todo
 highlight default link PMError Error
 highlight default link PMChanged WarningMsg
 highlight default link PMDiverged Special  " Purple/Magenta color for diverged state
 highlight default link PMBranch PreProc    " Add the highlight for DIFFERENT BRANCH
 highlight default link PMPath Directory
+
+" Progress indicator highlighting
+highlight default link PMProgressBar MoreMsg
+highlight default link PMPercentage Type
+highlight default link PMSpinner Special
+highlight default link PMJobHeader Title
 
 let b:current_syntax = "pluginmanager"

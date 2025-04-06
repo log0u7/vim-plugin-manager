@@ -5,13 +5,28 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 ## [Unreleased] - v1.4
 ### Features
 - Asynchronous jobs for background plugin installations and updates
+  - Added compatibility checks for Vim 8+ and Neovim
+  - Implemented non-blocking operations for plugin installation, updates, and removal
+  - Added job sequencing for chained command execution
+  - Added graceful fallback to synchronous operations for older Vim versions
 - UI improvements with better progress indicators
+  - Added real-time progress updates with spinners during long operations
+  - Implemented dedicated job progress section in the sidebar
+  - Added visual checkmarks and error indicators for operation results
+  - Added proper job tracking with elapsed time display
 - Enhanced error reporting with detailed diagnostics
+  - Improved error handling with specific failure messages
+  - Better output formatting for command results
+  - Individual status reporting for multi-step operations
+- New modular system for job handling in autoload/plugin_manager/jobs.vim
 
 ### Bug Fixes
 - Fixed inconsistent sidebar rendering on some terminal configurations
 - Resolved issues with plugin installation path handling on Windows systems
 - Fixed plugin reloading mechanism for certain plugin types
+- Removed locks that prevented concurrent operations in async mode
+- Improved cleanup of temporary job data after completion
+- Fixed progress display in terminal environments with limited Unicode support
 
 ## [1.3.0] - 2025-03-15
 ### Added
