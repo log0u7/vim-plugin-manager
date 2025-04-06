@@ -21,44 +21,165 @@ A lightweight Vim/Neovim plugin manager that uses Git submodules and Vim 8's nat
 
 ## Installation
 
-### Starting from scratch
+### Prerequisites
 
-If you're starting a new Vim configuration:
+- Vim 8.0+ or Neovim
+- Git 2.40 or higher
+
+### Simple Installation
+
+1. **Initialize your Vim configuration as a Git repository** (if not already done):
 
 ```bash
-# Create and initialize your Vim configuration repository
-cd ~
-git init .vim
-
-# Create the necessary directories
-mkdir -p ~/.vim/pack/plugins/{start,opt}
+# If you don't already have a Git repository for your Vim configuration
+cd ~/.vim     # For Vim (or ~/.config/nvim for Neovim)
+git init
 ```
 
-### If you already have a Vim configuration
-
-If you already have a .vim directory that's a Git repository:
+2. **Add the plugin manager as a submodule**:
 
 ```bash
-cd ~/.vim
-```
-
-### Installing the plugin manager
-
-Add the plugin manager as a submodule:
-
-```bash
+# Add the plugin as a submodule directly to the appropriate location
 git submodule add https://github.com/yourusername/vim-plugin-manager.git ~/.vim/pack/plugins/start/vim-plugin-manager
 ```
 
-### Generate helptags
+3. **Generate helptags** (choose one method):
+
 ```bash
+# From the command line
 vim -c "helptags ~/.vim/pack/plugins/start/vim-plugin-manager/doc" -c q
 ```
 
-Or after opening vim :
+Or after opening Vim:
+
 ```vim
 :helptags ~/.vim/pack/plugins/start/vim-plugin-manager/doc
 ```
+
+That's it! The plugin manager will automatically create necessary directories when you install plugins.
+
+## Managing Your Configuration
+
+### Custom Plugin Configurations
+
+Since the plugin manager uses Git to manage your `.vim` directory, it can create and version control various subdirectories (like `.vim/plugin`, `.vim/ftdetect`, `.vim/ftplugin`, etc.) for its own configurations and mappings.
+
+A good practice is to create your own configuration files for each plugin you install. For example:
+
+```
+~/.vim/plugin/nerdtree_config.vim
+~/.vim/plugin/fzf_config.vim
+~/.vim/plugin/fugitive_config.vim
+```
+
+These files will be automatically included in backups when using `:PluginManager backup` since the plugin manager will commit all changes in your Vim configuration directory before pushing to remote repositories. This ensures that all your custom configurations, mappings, and settings are properly versioned and backed up.
+
+### Example Plugin Configurations
+
+Here are some examples for common plugins:
+
+**NERDTree Configuration** (`~/.vim/plugin/nerdtree_config.vim`):
+```vim
+" Custom NERDTree configuration
+let g:NERDTreeShowHidden = 1
+let g:NERDTreeMinimalUI = 1
+let g:NERDTreeIgnore = ['^\.git$', '^\.DS_Store$']
+nnoremap <leader>n :NERDTreeToggle<CR>
+```
+
+**FZF Configuration** (`~/.vim/plugin/fzf_config.vim`):
+```vim
+" Custom FZF configuration
+let g:fzf_layout = { 'down': '~40%' }
+nnoremap <leader>f :Files<CR>
+nnoremap <leader>b :Buffers<CR>
+nnoremap <leader>g :GFiles<CR>
+```
+
+**Fugitive Configuration** (`~/.vim/plugin/fugitive_config.vim`):
+```vim
+" Custom Fugitive configuration
+nnoremap <leader>gs :Git<CR>
+nnoremap <leader>gc :Git commit<CR>
+nnoremap <leader>gp :Git push<CR>
+```
+
+### Using .gitignore
+
+To exclude certain files from version control, create a `.gitignore` file in your Vim configuration directory:
+
+```bash
+# Create a .gitignore file
+touch ~/.vim/.gitignore
+```
+
+Add the following content to exclude temporary files, undo history, swap files, and helptags:
+
+```
+# Ignore undo history
+undodir/*
+# Ignore swap files
+*.swp
+*.swo
+.*.swp
+.*.swo
+swapdir/*
+# Ignore helptags
+doc/tags
+**/doc/tags
+# Ignore netrw history
+.netrwhist
+# Ignore session files
+session/*
+# Ignore local vimrc files
+.exrc
+.vimrc.local
+```
+
+Make sure to commit your `.gitignore` file:
+
+```bash
+git add .gitignore
+git commit -m "Add .gitignore for Vim configuration"
+```
+
+### Alternative: Creating Your Own Plugin Structure
+
+If you prefer, you can create your own plugin structure as a Git submodule:
+
+```bash
+# Create your custom Vim configuration repository
+mkdir ~/my-vim-config
+cd ~/my-vim-config
+git init
+
+# Create the standard Vim directory structure
+mkdir -p plugin ftplugin ftdetect syntax autoload doc colors after
+
+# Add your configurations to the appropriate directories
+# For example:
+touch plugin/mappings.vim
+touch plugin/settings.vim
+touch plugin/plugin_configs.vim
+
+# Commit your changes
+git add .
+git commit -m "Initial setup of my Vim configuration"
+
+# Push to your own repository (optional)
+git remote add origin https://github.com/yourusername/my-vim-config.git
+git push -u origin main
+
+# Now add this as a submodule to your Vim configuration
+# You can use either direct Git command:
+cd ~/.vim
+git submodule add https://github.com/yourusername/my-vim-config.git pack/personal/start/my-vim-config
+
+# Or use PluginManager itself:
+:PluginManager add https://github.com/yourusername/my-vim-config.git {'dir':'my-vim-config'}
+```
+
+This approach keeps your personal configurations organized and separate from the plugin manager and other plugins.
 
 ## Usage
 
@@ -159,7 +280,7 @@ When Vim loads your vimrc, all these plugins will be installed automatically if 
 ### Backup and Restore
 
 ```vim
-" Commit any changes to vimrc and new plugins added, then push to all remotes
+" Commit any changes to vimrc, custom configurations, and new plugins, then push to all remotes
 :PluginManager backup
 
 " Reinstall all plugins from .gitmodules
@@ -168,6 +289,14 @@ When Vim loads your vimrc, all these plugins will be installed automatically if 
 " Add a new backup repository
 :PluginManagerRemote https://github.com/yourusername/vim-config-backup.git
 ```
+
+The backup command will commit all changes in your Vim configuration directory, including:
+- Your custom plugin configurations in the `plugin/` directory
+- Any modifications to settings in `ftplugin/`, `syntax/`, `colors/`, etc.
+- New or modified mappings and commands
+- Any file not excluded by `.gitignore`
+
+Note that while your own configuration files are backed up, changes inside plugin submodules themselves won't be included in the backup - these are tracked separately as Git submodules pointing to specific commits.
 
 ### Interactive Interface
 
