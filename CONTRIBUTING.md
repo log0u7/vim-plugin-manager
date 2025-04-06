@@ -137,12 +137,17 @@ Understanding the project's structure will help you contribute effectively:
 │       └── utils.vim          # Utility functions
 ├── doc/                       # Documentation
 │   └── plugin_manager.txt     # Help documentation
+├── ftdetect/                  # Filetype detection
+│   └── pluginmanager.vim      # Filetype detection for PluginManager
+├── ftplugin/                  # Filetype plugin
+│   └── pluginmanager.vim      # Buffers config for PluginManager
 ├── plugin/                    # Plugin initialization
 │   └── plugin_manager.vim     # Entry point and command definitions
 ├── syntax/                    # Syntax highlighting
 │   └── pluginmanager.vim      # Syntax definitions for the UI
 ├── README.md                  # Project overview and usage information
-├── CONTRIBUTING               # Contribution guidelines (this file)
+├── CONTRIBUTING.md            # Contribution guidelines (this file)
+├── CHANGELOG.md               # History of changes and versions
 └── LICENSE                    # License information
 ```
 
