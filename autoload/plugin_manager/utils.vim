@@ -46,17 +46,34 @@ function! plugin_manager#utils#execute_with_sidebar(title, cmd)
     " Create or update sidebar window with initial message
     call plugin_manager#ui#open_sidebar(l:initial_message)
     
-    " Execute command and collect output
-    let l:output = system(a:cmd)
-    let l:output_lines = split(l:output, "\n")
-    
-    " Prepare final output - reuse header
-    let l:final_output = l:header + l:output_lines + ['', 'Press q to close this window...']
-    
-    " Update sidebar with final content - replace entire contents
+    " Check if we can use asynchronous execution
+    if plugin_manager#jobs#is_async_supported()
+      let l:callbacks = {
+            \ 'name': a:title,
+            \ 'on_exit': function('s:handle_command_output', [l:header])
+            \ }
+      call plugin_manager#jobs#start(a:cmd, l:callbacks)
+      return ''
+    else
+      " Execute command and collect output synchronously
+      let l:output = system(a:cmd)
+      let l:output_lines = split(l:output, "\n")
+      
+      " Prepare final output - reuse header
+      let l:final_output = l:header + l:output_lines + ['', 'Press q to close this window...']
+      
+      " Update sidebar with final content - replace entire contents
+      call plugin_manager#ui#update_sidebar(l:final_output, 0)
+      
+      return l:output
+    endif
+endfunction
+
+" Handle command output for asynchronous operations
+function! s:handle_command_output(header, status, output)
+    let l:output_lines = split(a:output, "\n")
+    let l:final_output = a:header + l:output_lines + ['', 'Press q to close this window...']
     call plugin_manager#ui#update_sidebar(l:final_output, 0)
-    
-    return l:output
 endfunction
   
 " Function to detect if a path is a local path
@@ -239,6 +256,7 @@ function! plugin_manager#utils#refresh_modules_cache()
     return plugin_manager#utils#parse_gitmodules()
 endfunction
 
+" Check for module updates - return detailed status information
 function! plugin_manager#utils#check_module_updates(module_path)
   let l:result = {
     \ 'behind': 0, 
