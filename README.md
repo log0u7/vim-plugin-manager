@@ -290,13 +290,42 @@ When Vim loads your vimrc, all these plugins will be installed automatically if 
 :PluginManagerRemote https://github.com/yourusername/vim-config-backup.git
 ```
 
-The backup command will commit all changes in your Vim configuration directory, including:
-- Your custom plugin configurations in the `plugin/` directory
-- Any modifications to settings in `ftplugin/`, `syntax/`, `colors/`, etc.
-- New or modified mappings and commands
-- Any file not excluded by `.gitignore`
+The backup command will:
+1. Copy your main configuration file (`.vimrc` or `init.vim`) into your `.vim` directory to ensure it's versioned along with everything else
+2. Commit all changes in your Vim configuration directory, including:
+   - Your custom plugin configurations in the `plugin/` directory
+   - Any modifications to settings in `ftplugin/`, `syntax/`, `colors/`, etc.
+   - New or modified mappings and commands
+   - Any file not excluded by `.gitignore`
 
 Note that while your own configuration files are backed up, changes inside plugin submodules themselves won't be included in the backup - these are tracked separately as Git submodules pointing to specific commits.
+
+**Important Security Note**: Never store sensitive information (API keys, GPG keys, tokens, passwords) in your versioned configuration files. Instead:
+
+1. Create separate configuration files for secrets:
+   ```
+   ~/.vim/plugin/fugitive-secrets.vim
+   ~/.vim/plugin/api-secrets.vim
+   ~/.vim/plugin/private-settings.vim
+   ```
+
+2. Exclude these files in your `.gitignore`:
+   ```
+   # Ignore secret configuration files
+   plugin/*-secrets.vim
+   plugin/private-*.vim
+   ```
+
+3. Or use a private repository if your entire configuration contains sensitive information
+
+
+4. You also can reference external files from your main configuration:
+```vim
+" In your .vimrc
+if filereadable(expand("~/api-secrets.vim"))
+  source ~/api-secrets.vim
+endif
+```
 
 ### Interactive Interface
 
