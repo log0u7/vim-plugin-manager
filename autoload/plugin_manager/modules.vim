@@ -4,248 +4,298 @@
 let s:update_in_progress = 0
 
 " Improved list function with fixed column formatting
-  function! plugin_manager#modules#list()
-    if !plugin_manager#utils#ensure_vim_directory()
-      return
-    endif
-    
+function! plugin_manager#modules#list()
+  if !plugin_manager#utils#ensure_vim_directory()
+    return
+  endif
+  
+  " Display initial UI immediately
+  let l:header = 'Installed Plugins:'
+  let l:lines = [l:header, repeat('-', len(l:header)), '', 'Loading plugins...']
+  call plugin_manager#ui#open_sidebar(l:lines)
+  
+  " Schedule the actual work with a slight delay to let UI render
+  function! s:load_plugins_list(timer)
     " Use the gitmodules cache
-    let l:modules = plugin_manager#utils#parse_gitmodules()
-    let l:header = 'Installed Plugins:' 
+    function! s:handle_modules_loaded(modules)
+      if empty(a:modules)
+        call plugin_manager#ui#update_sidebar([l:header, repeat('-', len(l:header)), '', 'No plugins installed (.gitmodules not found)'], 0)
+        return
+      endif
+      
+      let l:lines = [l:header, repeat('-', len(l:header)), '', 'Name'.repeat(' ', 20).'Path'.repeat(' ', 38).'URL']
+      let l:lines += [repeat('-', 120)]
+      
+      " Sort modules by name
+      let l:module_names = sort(keys(a:modules))
+      
+      " Schedule processing modules in batches
+      let s:modules_to_process = l:module_names
+      let s:modules_data = a:modules
+      let s:list_lines = l:lines
+      
+      call timer_start(10, function('s:process_list_batch'))
+    endfunction
     
-    if empty(l:modules)
-      let l:lines = [l:header, repeat('-', len(l:header)), '', 'No plugins installed (.gitmodules not found)']
-      call plugin_manager#ui#open_sidebar(l:lines)
-      return
-    endif
+    " Start asynchronous loading
+    call plugin_manager#utils#parse_gitmodules_async(function('s:handle_modules_loaded'))
+  endfunction
+  
+  " Process modules in batches to avoid UI freeze
+  function! s:process_list_batch(timer)
+    let l:batch_size = 10
+    let l:batch = []
     
-    let l:lines = [l:header, repeat('-', len(l:header)), '', 'Name'.repeat(' ', 20).'Path'.repeat(' ', 38).'URL']
-    let l:lines += [repeat('-', 120)]
+    " Take a batch of modules
+    while len(l:batch) < l:batch_size && !empty(s:modules_to_process)
+      call add(l:batch, remove(s:modules_to_process, 0))
+    endwhile
     
-    " Sort modules by name
-    let l:module_names = sort(keys(l:modules))
-    
-    for l:name in l:module_names
-      let l:module = l:modules[l:name]
+    " Process this batch
+    for l:name in l:batch
+      let l:module = s:modules_data[l:name]
       if has_key(l:module, 'is_valid') && l:module.is_valid
         let l:short_name = l:module.short_name
         let l:path = l:module.path
-
+        
         if len(l:short_name) > 22
           let l:short_name = l:short_name[0:21]
         endif
-
-        if len(path) > 40
-          let l:path = path[0:39]
-        endif 
-
+        
+        if len(l:path) > 40
+          let l:path = l:path[0:39]
+        endif
+        
         " Format the output with properly aligned columns
-        " Ensure fixed width columns with proper spacing
         let l:name_col = l:short_name . repeat(' ', max([0, 24 - len(l:short_name)]))
         let l:path_col = l:path . repeat(' ', max([0, 42 - len(l:path)]))
         
         let l:status = has_key(l:module, 'exists') && l:module.exists ? '' : ' [MISSING]'
         
-        call add(l:lines, l:name_col . l:path_col . l:module.url . l:status)
+        call add(s:list_lines, l:name_col . l:path_col . l:module.url . l:status)
       endif
     endfor
     
-    call plugin_manager#ui#open_sidebar(l:lines)
+    " Show progress
+    if !empty(s:modules_to_process)
+      let l:progress = (len(s:modules_data) - len(s:modules_to_process)) * 100 / len(s:modules_data)
+      call plugin_manager#ui#show_progress_bar(l:progress, 'Processing plugins list...')
+      call timer_start(10, function('s:process_list_batch'))
+    else
+      " All done, show final result
+      call plugin_manager#ui#open_sidebar(s:list_lines)
+      
+      " Clean up
+      unlet s:list_lines
+      unlet s:modules_data
+      unlet s:modules_to_process
+      
+      " Clear progress
+      call timer_start(500, {-> plugin_manager#ui#clear_job_progress()})
+    endif
+  endfunction
+  
+  " Start the process with a slight delay to allow UI to render
+  call timer_start(10, function('s:load_plugins_list'))
 endfunction
 
 " Improved status function with non-blocking operation
 function! plugin_manager#modules#status()
-    if !plugin_manager#utils#ensure_vim_directory()
+  if !plugin_manager#utils#ensure_vim_directory()
+    return
+  endif
+  
+  " Display initial UI immediately - don't block
+  let l:header = 'Submodule Status:'
+  let l:lines = [l:header, repeat('-', len(l:header)), '', 'Initializing...']
+  call plugin_manager#ui#open_sidebar(l:lines)
+  
+  " Schedule the loading of gitmodules to happen asynchronously
+  function! s:load_modules_async(timer)
+    " Use the gitmodules cache
+    let l:modules = plugin_manager#utils#parse_gitmodules()
+    
+    if empty(l:modules)
+      call plugin_manager#ui#open_sidebar([l:header, repeat('-', len(l:header)), '', 'No submodules found (.gitmodules not found)'])
       return
     endif
     
-    " Display initial UI immediately - don't block
-    let l:header = 'Submodule Status:'
-    let l:lines = [l:header, repeat('-', len(l:header)), '', 'Initializing...']
-    call plugin_manager#ui#open_sidebar(l:lines)
+    " Update UI with table header
+    let l:lines = [l:header, repeat('-', len(l:header)), '']
+    call add(l:lines, 'Plugin'.repeat(' ', 16).'Commit'.repeat(' ', 14).'Branch'.repeat(' ', 8).'Last Updated'.repeat(' ', 18).'Status')
+    call add(l:lines, repeat('-', 120))
+    call plugin_manager#ui#update_sidebar(l:lines, 0)
     
-    " Schedule the loading of gitmodules to happen asynchronously
-    function! s:load_modules_async(timer)
-      " Use the gitmodules cache
-      let l:modules = plugin_manager#utils#parse_gitmodules()
-      
-      if empty(l:modules)
-        call plugin_manager#ui#open_sidebar([l:header, repeat('-', len(l:header)), '', 'No submodules found (.gitmodules not found)'])
-        return
-      endif
-      
-      " Update UI with table header
-      let l:lines = [l:header, repeat('-', len(l:header)), '']
-      call add(l:lines, 'Plugin'.repeat(' ', 16).'Commit'.repeat(' ', 14).'Branch'.repeat(' ', 8).'Last Updated'.repeat(' ', 18).'Status')
-      call add(l:lines, repeat('-', 120))
-      call plugin_manager#ui#update_sidebar(l:lines, 0)
-      
-      " Start fetching updates asynchronously
-      let l:callbacks = {
-            \ 'name': 'Fetching repository updates',
-            \ 'on_exit': function('s:fetch_completed', [l:modules, l:header])
-            \ }
-      
-      call plugin_manager#jobs#start('git submodule foreach --recursive "git fetch -q origin 2>/dev/null || true"', l:callbacks)
-    endfunction
+    " Start fetching updates asynchronously
+    let l:callbacks = {
+          \ 'name': 'Fetching repository updates',
+          \ 'on_exit': function('s:fetch_completed', [l:modules, l:header])
+          \ }
     
-    " Callback after fetch completes
-    function! s:fetch_completed(modules, header, status, output)
-      call plugin_manager#ui#update_sidebar(['Modules found: ' . len(a:modules) . ', processing status...'], 1)
-      
-      " Sort modules by name for consistent display
-      let l:module_names = sort(keys(a:modules))
-      
-      " Use timer to avoid UI freeze
-      let s:processed_modules = []
-      let s:pending_modules = l:module_names
-      let s:modules_data = a:modules
-      let s:status_lines = []
-      let s:header = a:header
-      
-      " Start processing modules in small batches
-      call timer_start(10, function('s:process_module_batch'))
-    endfunction
-    
-    " Process modules in batches to avoid UI freeze
-    function! s:process_module_batch(timer)
-      " Take up to 3 modules at a time to process
-      let l:batch = []
-      let l:count = 0
-      while l:count < 3 && !empty(s:pending_modules)
-        let l:module_name = remove(s:pending_modules, 0)
-        call add(l:batch, l:module_name)
-        let l:count += 1
-      endwhile
-      
-      " Process this batch
-      for l:name in l:batch
-        let l:module = s:modules_data[l:name]
-        if has_key(l:module, 'is_valid') && l:module.is_valid
-          let l:status_line = s:format_module_status(l:module)
-          if !empty(l:status_line)
-            call add(s:status_lines, l:status_line)
-          endif
-        endif
-      endfor
-      
-      " Update UI with progress
-      let l:progress = (len(s:modules_data) - len(s:pending_modules)) * 100 / len(s:modules_data)
-      call plugin_manager#ui#show_progress_bar(l:progress, 'Processing module status: ' . len(s:pending_modules) . ' remaining')
-      
-      " If more modules to process, schedule another batch
-      if !empty(s:pending_modules)
-        call timer_start(10, function('s:process_module_batch'))
-      else
-        " All done, show final result
-        let l:final_lines = [s:header, repeat('-', len(s:header)), '']
-        call add(l:final_lines, 'Plugin'.repeat(' ', 16).'Commit'.repeat(' ', 14).'Branch'.repeat(' ', 8).'Last Updated'.repeat(' ', 18).'Status')
-        call add(l:final_lines, repeat('-', 120))
-        
-        " Sort status lines for consistent display
-        call sort(s:status_lines)
-        call extend(l:final_lines, s:status_lines)
-        
-        call plugin_manager#ui#open_sidebar(l:final_lines)
-        
-        " Clear job progress section when done
-        call timer_start(1000, {-> plugin_manager#ui#clear_job_progress()})
-      endif
-    endfunction
-    
-    " Format module status line
-    function! s:format_module_status(module)
-      let l:short_name = a:module.short_name
-      
-      " Initialize status to 'OK' by default
-      let l:status = 'OK'
-      
-      " Initialize other information as N/A in case checks fail
-      let l:commit = 'N/A'
-      let l:branch = 'N/A'
-      let l:last_updated = 'N/A'
-      
-      " Check if module exists
-      if !isdirectory(a:module.path)
-        let l:status = 'MISSING'
-      else
-        " Continue with all checks for existing modules
-        
-        " Get current commit
-        let l:commit = system('cd "' . a:module.path . '" && git rev-parse --short HEAD 2>/dev/null || echo "N/A"')
-        let l:commit = substitute(l:commit, '\n', '', 'g')
-        
-        " Get current branch
-        let l:branch = system('cd "' . a:module.path . '" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "N/A"')
-        let l:branch = substitute(l:branch, '\n', '', 'g')
-        
-        " Get last commit date
-        let l:last_updated = system('cd "' . a:module.path . '" && git log -1 --format=%cd --date=relative 2>/dev/null || echo "N/A"')
-        let l:last_updated = substitute(l:last_updated, '\n', '', 'g')
-        
-        " Use the utility function to check for updates
-        let l:update_status = plugin_manager#utils#check_module_updates(a:module.path)
-        
-        " Get local changes status from the utility function
-        let l:has_changes = l:update_status.has_changes
-        
-        " Determine status combining local changes and remote status
-        if l:update_status.different_branch
-          let l:status = 'CUSTOM BRANCH (local: ' . l:update_status.branch . ', target: ' . l:update_status.remote_branch . ')'
-          if l:has_changes
-            let l:status .= ' + LOCAL CHANGES'
-          endif
-        elseif l:update_status.behind > 0 && l:update_status.ahead > 0
-          " DIVERGED state has highest priority after different branch
-          let l:status = 'DIVERGED (BEHIND ' . l:update_status.behind . ', AHEAD ' . l:update_status.ahead . ')'
-          if l:has_changes
-            let l:status .= ' + LOCAL CHANGES'
-          endif
-        elseif l:update_status.behind > 0
-          let l:status = 'BEHIND (' . l:update_status.behind . ')'
-          if l:has_changes
-            let l:status .= ' + LOCAL CHANGES'
-          endif
-        elseif l:update_status.ahead > 0
-          let l:status = 'AHEAD (' . l:update_status.ahead . ')'
-          if l:has_changes
-            let l:status .= ' + LOCAL CHANGES'
-          endif
-        elseif l:has_changes
-          let l:status = 'LOCAL CHANGES'
-        endif
-      endif
-      
-      if len(l:short_name) > 20
-        let l:short_name = l:short_name[0:19]
-      endif
+    call plugin_manager#jobs#start('git submodule foreach --recursive "git fetch -q origin 2>/dev/null || true"', l:callbacks)
+  endfunction
   
-      " Format the output with properly aligned columns
-      " Ensure fixed width with proper spacing between columns 
-      let l:name_col = l:short_name . repeat(' ', max([0, 22 - len(l:short_name)]))
-      let l:commit_col = l:commit . repeat(' ', max([0, 20 - len(l:commit)]))
-      let l:branch_col = l:branch . repeat(' ', max([0, 14 - len(l:branch)]))
-      let l:date_col = l:last_updated . repeat(' ', max([0, 30 - len(l:last_updated)]))
-      
-      return l:name_col . l:commit_col . l:branch_col . l:date_col . l:status
-    endfunction
+  " Callback after fetch completes
+  function! s:fetch_completed(modules, header, status, output)
+    call plugin_manager#ui#update_sidebar(['Modules found: ' . len(a:modules) . ', processing status...'], 1)
     
-    " Start the asynchronous process
-    call timer_start(10, function('s:load_modules_async'))
+    " Sort modules by name for consistent display
+    let l:module_names = sort(keys(a:modules))
+    
+    " Use timer to avoid UI freeze
+    let s:processed_modules = []
+    let s:pending_modules = l:module_names
+    let s:modules_data = a:modules
+    let s:status_lines = []
+    let s:header = a:header
+    
+    " Start processing modules in small batches
+    call timer_start(10, function('s:process_module_batch'))
+  endfunction
+  
+  " Process modules in batches to avoid UI freeze
+  function! s:process_module_batch(timer)
+    " Take up to 3 modules at a time to process
+    let l:batch = []
+    let l:count = 0
+    while l:count < 3 && !empty(s:pending_modules)
+      let l:module_name = remove(s:pending_modules, 0)
+      call add(l:batch, l:module_name)
+      let l:count += 1
+    endwhile
+    
+    " Process this batch
+    for l:name in l:batch
+      let l:module = s:modules_data[l:name]
+      if has_key(l:module, 'is_valid') && l:module.is_valid
+        let l:status_line = s:format_module_status(l:module)
+        if !empty(l:status_line)
+          call add(s:status_lines, l:status_line)
+        endif
+      endif
+    endfor
+    
+    " Update UI with progress
+    let l:progress = (len(s:modules_data) - len(s:pending_modules)) * 100 / len(s:modules_data)
+    call plugin_manager#ui#show_progress_bar(l:progress, 'Processing module status: ' . len(s:pending_modules) . ' remaining')
+    
+    " If more modules to process, schedule another batch
+    if !empty(s:pending_modules)
+      call timer_start(10, function('s:process_module_batch'))
+    else
+      " All done, show final result
+      let l:final_lines = [s:header, repeat('-', len(s:header)), '']
+      call add(l:final_lines, 'Plugin'.repeat(' ', 16).'Commit'.repeat(' ', 14).'Branch'.repeat(' ', 8).'Last Updated'.repeat(' ', 18).'Status')
+      call add(l:final_lines, repeat('-', 120))
+      
+      " Sort status lines for consistent display
+      call sort(s:status_lines)
+      call extend(l:final_lines, s:status_lines)
+      
+      call plugin_manager#ui#open_sidebar(l:final_lines)
+      
+      " Clear job progress section when done
+      call timer_start(1000, {-> plugin_manager#ui#clear_job_progress()})
+    endif
+  endfunction
+  
+  " Format module status line
+  function! s:format_module_status(module)
+    let l:short_name = a:module.short_name
+    
+    " Initialize status to 'OK' by default
+    let l:status = 'OK'
+    
+    " Initialize other information as N/A in case checks fail
+    let l:commit = 'N/A'
+    let l:branch = 'N/A'
+    let l:last_updated = 'N/A'
+    
+    " Check if module exists
+    if !isdirectory(a:module.path)
+      let l:status = 'MISSING'
+    else
+      " Continue with all checks for existing modules
+      
+      " Get current commit
+      let l:commit = system('cd "' . a:module.path . '" && git rev-parse --short HEAD 2>/dev/null || echo "N/A"')
+      let l:commit = substitute(l:commit, '\n', '', 'g')
+      
+      " Get current branch
+      let l:branch = system('cd "' . a:module.path . '" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "N/A"')
+      let l:branch = substitute(l:branch, '\n', '', 'g')
+      
+      " Get last commit date
+      let l:last_updated = system('cd "' . a:module.path . '" && git log -1 --format=%cd --date=relative 2>/dev/null || echo "N/A"')
+      let l:last_updated = substitute(l:last_updated, '\n', '', 'g')
+      
+      " Use the utility function to check for updates
+      let l:update_status = plugin_manager#utils#check_module_updates(a:module.path)
+      
+      " Get local changes status from the utility function
+      let l:has_changes = l:update_status.has_changes
+      
+      " Determine status combining local changes and remote status
+      if l:update_status.different_branch
+        let l:status = 'CUSTOM BRANCH (local: ' . l:update_status.branch . ', target: ' . l:update_status.remote_branch . ')'
+        if l:has_changes
+          let l:status .= ' + LOCAL CHANGES'
+        endif
+      elseif l:update_status.behind > 0 && l:update_status.ahead > 0
+        " DIVERGED state has highest priority after different branch
+        let l:status = 'DIVERGED (BEHIND ' . l:update_status.behind . ', AHEAD ' . l:update_status.ahead . ')'
+        if l:has_changes
+          let l:status .= ' + LOCAL CHANGES'
+        endif
+      elseif l:update_status.behind > 0
+        let l:status = 'BEHIND (' . l:update_status.behind . ')'
+        if l:has_changes
+          let l:status .= ' + LOCAL CHANGES'
+        endif
+      elseif l:update_status.ahead > 0
+        let l:status = 'AHEAD (' . l:update_status.ahead . ')'
+        if l:has_changes
+          let l:status .= ' + LOCAL CHANGES'
+        endif
+      elseif l:has_changes
+        let l:status = 'LOCAL CHANGES'
+      endif
+    endif
+    
+    if len(l:short_name) > 20
+      let l:short_name = l:short_name[0:19]
+    endif
+
+    " Format the output with properly aligned columns
+    " Ensure fixed width with proper spacing between columns 
+    let l:name_col = l:short_name . repeat(' ', max([0, 22 - len(l:short_name)]))
+    let l:commit_col = l:commit . repeat(' ', max([0, 20 - len(l:commit)]))
+    let l:branch_col = l:branch . repeat(' ', max([0, 14 - len(l:branch)]))
+    let l:date_col = l:last_updated . repeat(' ', max([0, 30 - len(l:last_updated)]))
+    
+    return l:name_col . l:commit_col . l:branch_col . l:date_col . l:status
+  endfunction
+  
+  " Start the asynchronous process
+  call timer_start(10, function('s:load_modules_async'))
 endfunction
   
 " Show a summary of submodule changes
 function! plugin_manager#modules#summary()
-    if !plugin_manager#utils#ensure_vim_directory()
-      return
-    endif
-    
-    let l:header = 'Submodule Summary'
-
+  if !plugin_manager#utils#ensure_vim_directory()
+    return
+  endif
+  
+  " Display initial UI immediately
+  let l:header = 'Submodule Summary'
+  let l:lines = [l:header, repeat('-', len(l:header)), '', 'Generating summary...']
+  call plugin_manager#ui#open_sidebar(l:lines)
+  
+  " Schedule the actual work with a slight delay
+  function! s:load_summary(timer)
     " Check if .gitmodules exists
     if !filereadable('.gitmodules')
-      let l:lines = [l:header, repeat('-', len(l:header)), '', 'No submodules found (.gitmodules not found)']
-      call plugin_manager#ui#open_sidebar(l:lines)
+      call plugin_manager#ui#update_sidebar([l:header, repeat('-', len(l:header)), '', 'No submodules found (.gitmodules not found)'], 0)
       return
     endif
     
@@ -260,24 +310,31 @@ function! plugin_manager#modules#summary()
       let l:output = system('git submodule summary')
       let l:lines = [l:header, repeat('-', len(l:header)), '']
       call extend(l:lines, split(l:output, "\n"))
-      call plugin_manager#ui#open_sidebar(l:lines)
+      call plugin_manager#ui#update_sidebar(l:lines, 0)
     endif
+  endfunction
+  
+  " Start the process with a slight delay
+  call timer_start(10, function('s:load_summary'))
 endfunction
 
 function! s:handle_summary_output(header, output)
   let l:lines = [a:header, repeat('-', len(a:header)), '']
   call extend(l:lines, split(a:output, "\n"))
-  call plugin_manager#ui#open_sidebar(l:lines)
+  call plugin_manager#ui#update_sidebar(l:lines, 0)
+  
+  " Clear progress after a delay
+  call timer_start(1000, {-> plugin_manager#ui#clear_job_progress()})
 endfunction
   
 " Generate helptags for a specific plugin
 function! s:generate_helptag(pluginPath)
-    let l:docPath = a:pluginPath . '/doc'
-    if isdirectory(l:docPath)
-      execute 'helptags ' . l:docPath
-      return 1
-    endif
-    return 0
+  let l:docPath = a:pluginPath . '/doc'
+  if isdirectory(l:docPath)
+    execute 'helptags ' . l:docPath
+    return 1
+  endif
+  return 0
 endfunction
 
 " Generate helptags asynchronously
@@ -309,59 +366,108 @@ endfunction
   
 " Generate helptags for all installed plugins
 function! plugin_manager#modules#generate_helptags(...)
-    " Fix: Properly handle optional arguments
-    let l:create_header = a:0 > 0 ? a:1 : 1
-    let l:specific_module = a:0 > 1 ? a:2 : ''
-    
-    if !plugin_manager#utils#ensure_vim_directory()
-      return
-    endif
-      
-    " Initialize output only if creating a new header
-    if l:create_header
-      let l:header = 'Generating Helptags:'
-      let l:line = [l:header, repeat('-', len(l:header)), '', 'Generating helptags:']
-      call plugin_manager#ui#open_sidebar(l:line)
-    else
-      " If we're not creating a new header, just add a separator line
-      call plugin_manager#ui#update_sidebar(['', 'Generating helptags:'], 1)
-    endif
+  " Fix: Properly handle optional arguments
+  let l:create_header = a:0 > 0 ? a:1 : 1
+  let l:specific_module = a:0 > 1 ? a:2 : ''
   
+  if !plugin_manager#utils#ensure_vim_directory()
+    return
+  endif
+  
+  " Initialize output only if creating a new header
+  let l:header = 'Generating Helptags:'
+  
+  if l:create_header
+    let l:line = [l:header, repeat('-', len(l:header)), '', 'Initializing...']
+    call plugin_manager#ui#open_sidebar(l:line)
+  else
+    " If we're not creating a new header, just add a separator line
+    call plugin_manager#ui#update_sidebar(['', 'Initializing helptags generation...'], 1)
+  endif
+  
+  " Schedule the actual work
+  function! s:start_helptags_generation(timer)
     " Fix: Check if plugins directory exists
     let l:pluginsDir = g:plugin_manager_plugins_dir . '/'
-    let l:tagsGenerated = 0
-    let l:generated_plugins = []
     
-    if isdirectory(l:pluginsDir)
-      if !empty(l:specific_module)
-        " Find the specific plugin path
-        let l:plugin_pattern = l:pluginsDir . '*/*' . l:specific_module . '*'
-        for l:plugin in glob(l:plugin_pattern, 0, 1)
-          if s:generate_helptag(l:plugin)
-            let l:tagsGenerated = 1
-            call add(l:generated_plugins, "Generated helptags for " . fnamemodify(l:plugin, ':t'))
-          endif
-        endfor
-      else
-        " Generate helptags for all plugins
-        for l:plugin in glob(l:pluginsDir . '*/*', 0, 1)
-          if s:generate_helptag(l:plugin)
-            let l:tagsGenerated = 1
-            call add(l:generated_plugins, "Generated helptags for " . fnamemodify(l:plugin, ':t'))
-          endif
-        endfor
-      endif
+    if !isdirectory(l:pluginsDir)
+      call plugin_manager#ui#update_sidebar(['Error: Plugins directory not found: ' . l:pluginsDir], 1)
+      return
     endif
-  
-    let l:result_message = []
-    if l:tagsGenerated
-      call extend(l:result_message, l:generated_plugins)
-      call add(l:result_message, "Helptags generated successfully.")
+    
+    " Collect plugins to process
+    let s:plugins_for_helptags = []
+    let s:specific_module = l:specific_module
+    
+    if !empty(s:specific_module)
+      " Find the specific plugin path
+      let l:plugin_pattern = l:pluginsDir . '*/*' . s:specific_module . '*'
+      let s:plugins_for_helptags = glob(l:plugin_pattern, 0, 1)
     else
-      call add(l:result_message, "No documentation directories found.")
+      " Get all plugins
+      let s:plugins_for_helptags = glob(l:pluginsDir . '*/*', 0, 1)
     endif
     
-    call plugin_manager#ui#update_sidebar(l:result_message, 1)
+    " Start processing plugins in batches
+    let s:helptags_generated = 0
+    let s:plugins_processed = 0
+    let s:total_plugins = len(s:plugins_for_helptags)
+    
+    call plugin_manager#ui#update_sidebar(['Found ' . s:total_plugins . ' plugins to check for helptags...'], 1)
+    
+    if s:total_plugins > 0
+      call timer_start(10, function('s:process_helptags_batch'))
+    else
+      call plugin_manager#ui#update_sidebar(['No plugins found.'], 1)
+    endif
+  endfunction
+  
+  " Process helptags in batches
+  function! s:process_helptags_batch(timer)
+    let l:batch_size = 3
+    let l:processed_this_batch = 0
+    
+    " Take a batch of plugins
+    let l:batch = []
+    while len(l:batch) < l:batch_size && !empty(s:plugins_for_helptags)
+      call add(l:batch, remove(s:plugins_for_helptags, 0))
+    endwhile
+    
+    " Process this batch
+    for l:plugin in l:batch
+      if s:generate_helptag(l:plugin)
+        let s:helptags_generated += 1
+        call plugin_manager#ui#update_sidebar(['Generated helptags for ' . fnamemodify(l:plugin, ':t')], 1)
+      endif
+      let s:plugins_processed += 1
+    endfor
+    
+    " Show progress
+    let l:progress = s:plugins_processed * 100 / s:total_plugins
+    call plugin_manager#ui#show_progress_bar(l:progress, 'Generating helptags: ' . s:plugins_processed . '/' . s:total_plugins)
+    
+    " Continue or finish
+    if !empty(s:plugins_for_helptags)
+      call timer_start(10, function('s:process_helptags_batch'))
+    else
+      " All done
+      let l:result_message = []
+      if s:helptags_generated > 0
+        call add(l:result_message, 'Helptags generated for ' . s:helptags_generated . ' plugins.')
+        call add(l:result_message, 'Helptags generation completed successfully.')
+      else
+        call add(l:result_message, 'No documentation directories found.')
+      endif
+      
+      call plugin_manager#ui#update_sidebar(l:result_message, 1)
+      
+      " Clear progress
+      call timer_start(1000, {-> plugin_manager#ui#clear_job_progress()})
+    endif
+  endfunction
+  
+  " Start the process with a slight delay
+  call timer_start(10, function('s:start_helptags_generation'))
 endfunction
 
 " Update plugins with truly non-blocking operation
@@ -451,6 +557,7 @@ function! plugin_manager#modules#update(...)
     let s:modules_to_check = keys(s:update_modules)
     let s:checked_modules = 0
     let s:modules_count = len(s:modules_to_check)
+    let s:has_local_changes = 0
     
     " Start checking in batches
     call timer_start(10, function('s:check_changes_batch'))
@@ -605,6 +712,7 @@ function! plugin_manager#modules#update(...)
     if empty(s:modules_with_updates)
       call plugin_manager#ui#update_sidebar(['All plugins are up-to-date.'], 1)
       let s:update_in_progress = 0
+      call timer_start(1000, {-> plugin_manager#ui#clear_job_progress()})
       return
     endif
     
@@ -657,13 +765,11 @@ function! plugin_manager#modules#update(...)
         call add(l:update_lines, '')
         call add(l:update_lines, 'No plugins were updated.')
         call plugin_manager#ui#update_sidebar(l:update_lines, 1)
+        call timer_start(1000, {-> plugin_manager#ui#clear_job_progress()})
       endif
       
       " Reset update in progress flag
       let s:update_in_progress = 0
-      
-      " Clear job progress section when done
-      call timer_start(3000, {-> plugin_manager#ui#clear_job_progress()})
     endfunction
     
     " Run the update commands
@@ -688,6 +794,7 @@ function! plugin_manager#modules#update(...)
     if empty(l:module_info)
       call plugin_manager#ui#update_sidebar(['Error: Module "' . a:module_name . '" not found.'], 1)
       let s:update_in_progress = 0
+      call timer_start(1000, {-> plugin_manager#ui#clear_job_progress()})
       return
     endif
     
@@ -700,6 +807,7 @@ function! plugin_manager#modules#update(...)
       call plugin_manager#ui#update_sidebar(['Error: Module directory "' . l:module_path . '" not found.', 
             \ 'Try running "PluginManager restore" to reinstall missing modules.'], 1)
       let s:update_in_progress = 0
+      call timer_start(1000, {-> plugin_manager#ui#clear_job_progress()})
       return
     endif
     
@@ -744,6 +852,7 @@ function! plugin_manager#modules#update(...)
               \ 'To update anyway, run: git submodule update --remote --force -- "' . l:module_path . '"'
               \ ], 1)
         let s:update_in_progress = 0
+        call timer_start(1000, {-> plugin_manager#ui#clear_job_progress()})
         return
       endif
       
@@ -751,6 +860,7 @@ function! plugin_manager#modules#update(...)
       if !l:update_status.has_updates
         call plugin_manager#ui#update_sidebar(['Plugin "' . l:module_name . '" is already up-to-date.'], 1)
         let s:update_in_progress = 0
+        call timer_start(1000, {-> plugin_manager#ui#clear_job_progress()})
         return
       endif
       
@@ -803,13 +913,11 @@ function! plugin_manager#modules#update(...)
           call add(l:update_lines, '')
           call add(l:update_lines, 'Plugin update failed. See errors above.')
           call plugin_manager#ui#update_sidebar(l:update_lines, 1)
+          call timer_start(1000, {-> plugin_manager#ui#clear_job_progress()})
         endif
         
         " Reset update in progress flag
         let s:update_in_progress = 0
-        
-        " Clear job progress section when done
-        call timer_start(3000, {-> plugin_manager#ui#clear_job_progress()})
       endfunction
       
       " Run update commands
@@ -818,33 +926,6 @@ function! plugin_manager#modules#update(...)
     
     " Run the initial commands and continue
     call plugin_manager#jobs#run_sequence(l:commands, function('s:check_single_module_status'))
-  endfunction
-  
-  " Generate helptags asynchronously
-  function! s:generate_helptag_async(pluginPath)
-    let l:docPath = a:pluginPath . '/doc'
-    if !isdirectory(l:docPath)
-      call plugin_manager#ui#update_sidebar(['No documentation directory found.'], 1)
-      return
-    endif
-    
-    " Callback for helptags generation
-    function! s:helptags_callback(status, output) closure
-      if a:status == 0
-        call plugin_manager#ui#update_sidebar(['Helptags generated successfully.'], 1)
-      else
-        call plugin_manager#ui#update_sidebar(['Error generating helptags: ' . a:output], 1)
-      endif
-    endfunction
-    
-    " Use job system for helptags generation
-    let l:cmd = 'vim -c "helptags ' . l:docPath . '" -c q'
-    let l:callbacks = {
-          \ 'name': 'Generating helptags',
-          \ 'on_exit': function('s:helptags_callback')
-          \ }
-    
-    call plugin_manager#jobs#start(l:cmd, l:callbacks)
   endfunction
   
   " Generate helptags for multiple modules
@@ -923,97 +1004,115 @@ function! plugin_manager#modules#add(...)
     return 1
   endif
   
-  let l:pluginInput = a:1
-  let l:moduleUrl = plugin_manager#utils#convert_to_full_url(l:pluginInput)
+  " Show immediate UI response
+  let l:header = ['Add Plugin:', '----------', '', 'Initializing plugin installation...']
+  call plugin_manager#ui#open_sidebar(l:header)
   
-  " Check if URL is valid or if it's a local path
-  if empty(l:moduleUrl)
-    let l:lines = ["Invalid Plugin Format:", "--------------------", "", l:pluginInput . " is not a valid plugin name, URL, or local path.", "Use format 'user/repo', complete URL, or local path."]
-    call plugin_manager#ui#open_sidebar(l:lines)
-    return 1
-  endif
-  
-  " Check if it's a local path
-  let l:isLocalPath = l:moduleUrl =~ '^local:'
-  
-  " For remote plugins, check if repository exists
-  if !l:isLocalPath && !plugin_manager#utils#repository_exists(l:moduleUrl)
-    let l:lines = ["Repository Not Found:", "--------------------", "", "Repository not found: " . l:moduleUrl]
+  " Schedule the actual work
+  function! s:start_add_plugin(timer)
+    let l:pluginInput = a:1
+    let l:moduleUrl = plugin_manager#utils#convert_to_full_url(l:pluginInput)
     
-    " If it was a short name, suggest using a full URL
-    if l:pluginInput =~ g:pm_shortNameRegexp
-      call add(l:lines, "This plugin was not found on " . g:plugin_manager_default_git_host . ".")
-      call add(l:lines, "Try using a full URL to the repository if it's hosted elsewhere.")
+    " Check if URL is valid or if it's a local path
+    if empty(l:moduleUrl)
+      let l:lines = ["Invalid Plugin Format:", "--------------------", "", l:pluginInput . " is not a valid plugin name, URL, or local path.", "Use format 'user/repo', complete URL, or local path."]
+      call plugin_manager#ui#update_sidebar(l:lines, 0)
+      return 1
     endif
     
-    call plugin_manager#ui#open_sidebar(l:lines)
-    return 1
-  endif
-  
-  " Extract the actual path for local plugins
-  if l:isLocalPath
-    let l:localPath = substitute(l:moduleUrl, '^local:', '', '')
-  endif
-  
-  " Get module name - for local paths, use the directory name
-  if l:isLocalPath
-    let l:moduleName = fnamemodify(l:localPath, ':t')
-  else
-    let l:moduleName = fnamemodify(l:moduleUrl, ':t:r')  " Remove .git from the end if present
-  endif
-  
-  " Initialize options with defaults
-  let l:options = {
-        \ 'dir': '',
-        \ 'load': 'start',
-        \ 'branch': '',
-        \ 'tag': '',
-        \ 'exec': ''
-        \ }
-  
-  " Check if options were provided
-  if a:0 >= 2
-    " Check if the second argument is a dictionary (new format) or string (old format)
-    if type(a:2) == v:t_dict
-      " New format with options dictionary
-      let l:provided_options = a:2
+    " Check if it's a local path
+    let l:isLocalPath = l:moduleUrl =~ '^local:'
+    
+    " For remote plugins, check if repository exists
+    if !l:isLocalPath
+      call plugin_manager#ui#update_sidebar(['Checking repository: ' . l:moduleUrl . '...'], 1)
       
-      " Update options with provided values
-      for [l:key, l:val] in items(l:provided_options)
-        if has_key(l:options, l:key)
-          let l:options[l:key] = l:val
+      let l:check_result = plugin_manager#utils#repository_exists(l:moduleUrl)
+      if !l:check_result
+        let l:lines = ["Repository Not Found:", "--------------------", "", "Repository not found: " . l:moduleUrl]
+        
+        " If it was a short name, suggest using a full URL
+        if l:pluginInput =~ g:pm_shortNameRegexp
+          call add(l:lines, "This plugin was not found on " . g:plugin_manager_default_git_host . ".")
+          call add(l:lines, "Try using a full URL to the repository if it's hosted elsewhere.")
         endif
-      endfor
-    else
-      " Old format with separate arguments
-      " Custom name was provided as second argument
-      let l:options.dir = a:2
-      
-      " Optional loading was provided as third argument
-      if a:0 >= 3 && a:3 != ""
-        let l:options.load = 'opt'
+        
+        call plugin_manager#ui#update_sidebar(l:lines, 0)
+        return 1
       endif
     endif
-  endif
+    
+    " Extract the actual path for local plugins
+    if l:isLocalPath
+      let l:localPath = substitute(l:moduleUrl, '^local:', '', '')
+    endif
+    
+    " Get module name - for local paths, use the directory name
+    if l:isLocalPath
+      let l:moduleName = fnamemodify(l:localPath, ':t')
+    else
+      let l:moduleName = fnamemodify(l:moduleUrl, ':t:r')  " Remove .git from the end if present
+    endif
+    
+    " Initialize options with defaults
+    let l:options = {
+          \ 'dir': '',
+          \ 'load': 'start',
+          \ 'branch': '',
+          \ 'tag': '',
+          \ 'exec': ''
+          \ }
+    
+    " Check if options were provided
+    if a:0 >= 2
+      " Check if the second argument is a dictionary (new format) or string (old format)
+      if type(a:2) == v:t_dict
+        " New format with options dictionary
+        let l:provided_options = a:2
+        
+        " Update options with provided values
+        for [l:key, l:val] in items(l:provided_options)
+          if has_key(l:options, l:key)
+            let l:options[l:key] = l:val
+          endif
+        endfor
+      else
+        " Old format with separate arguments
+        " Custom name was provided as second argument
+        let l:options.dir = a:2
+        
+        " Optional loading was provided as third argument
+        if a:0 >= 3 && a:3 != ""
+          let l:options.load = 'opt'
+        endif
+      endif
+    endif
+    
+    " Determine install directory
+    let l:installDir = ""
+    
+    " Set custom directory name if provided, otherwise use plugin name
+    let l:dirName = !empty(l:options.dir) ? l:options.dir : l:moduleName
+    
+    " Set load dir based on options
+    let l:loadDir = l:options.load == 'opt' ? g:plugin_manager_opt_dir : g:plugin_manager_start_dir
+    
+    " Construct full installation path
+    let l:installDir = g:plugin_manager_plugins_dir . "/" . l:loadDir . "/" . l:dirName
+    
+    " Update UI with installation information
+    call plugin_manager#ui#update_sidebar(['Installing ' . (l:isLocalPath ? 'local' : 'remote') . ' plugin to ' . l:installDir], 1)
+    
+    " Call the appropriate installation function based on whether it's a local path
+    if l:isLocalPath
+      call s:add_local_module(l:localPath, l:installDir, l:options)
+    else
+      call s:add_module(l:moduleUrl, l:installDir, l:options)
+    endif
+  endfunction
   
-  " Determine install directory
-  let l:installDir = ""
-  
-  " Set custom directory name if provided, otherwise use plugin name
-  let l:dirName = !empty(l:options.dir) ? l:options.dir : l:moduleName
-  
-  " Set load dir based on options
-  let l:loadDir = l:options.load == 'opt' ? g:plugin_manager_opt_dir : g:plugin_manager_start_dir
-  
-  " Construct full installation path
-  let l:installDir = g:plugin_manager_plugins_dir . "/" . l:loadDir . "/" . l:dirName
-  
-  " Call the appropriate installation function based on whether it's a local path
-  if l:isLocalPath
-    call s:add_local_module(l:localPath, l:installDir, l:options)
-  else
-    call s:add_module(l:moduleUrl, l:installDir, l:options)
-  endif
+  " Start the process with a slight delay
+  call timer_start(10, function('s:start_add_plugin'))
   
   return 0
 endfunction
@@ -1025,7 +1124,7 @@ function! s:add_local_module(localPath, installDir, options)
   endif
   
   let l:header = ['Add Local Plugin:', '----------------', '', 'Installing from ' . a:localPath . ' to ' . a:installDir . '...']
-  call plugin_manager#ui#open_sidebar(l:header)
+  call plugin_manager#ui#update_sidebar(l:header, 0)
   
   " Check if local path exists
   if !isdirectory(a:localPath)
@@ -1128,7 +1227,7 @@ function! s:add_module(moduleUrl, installDir, options)
   endif
   
   let l:header = ['Add Plugin:', '----------', '', 'Installing ' . a:moduleUrl . ' in ' . a:installDir . '...']
-  call plugin_manager#ui#open_sidebar(l:header)
+  call plugin_manager#ui#update_sidebar(l:header, 0)
   
   " Check if module directory exists and create if needed
   let l:parentDir = fnamemodify(a:installDir, ':h')
@@ -1230,12 +1329,18 @@ endfunction
   
 " Handle 'remove' command
 function! plugin_manager#modules#remove(...)
-    if a:0 < 1
-      let l:lines = ["Remove Plugin Usage:", "-----------------", "", "Usage: PluginManager remove <modulename> [-f]"]
-      call plugin_manager#ui#open_sidebar(l:lines)
-      return 1
-    endif
-    
+  if a:0 < 1
+    let l:lines = ["Remove Plugin Usage:", "-----------------", "", "Usage: PluginManager remove <modulename> [-f]"]
+    call plugin_manager#ui#open_sidebar(l:lines)
+    return 1
+  endif
+  
+  " Show immediate UI feedback
+  let l:header = ['Remove Plugin:', '-------------', '', 'Initializing plugin removal...']
+  call plugin_manager#ui#open_sidebar(l:header)
+  
+  " Schedule the actual work
+  function! s:start_remove_plugin(timer)
     let l:moduleName = a:1
     let l:force_flag = a:0 >= 2 && a:2 == "-f"
     
@@ -1247,16 +1352,23 @@ function! plugin_manager#modules#remove(...)
       let l:module_path = l:module.path
       let l:module_name = l:module.short_name
       
+      call plugin_manager#ui#update_sidebar(['Found plugin: ' . l:module_name . ' (' . l:module_path . ')'], 1)
+      
       " Force flag provided or prompt for confirmation
       if l:force_flag
+        call plugin_manager#ui#update_sidebar(['Forcing removal without confirmation...'], 1)
         call s:remove_module(l:module_name, l:module_path)
       else
         let l:response = input("Are you sure you want to remove " . l:module_name . " (" . l:module_path . ")? [y/N] ")
         if l:response =~? '^y\(es\)\?$'
           call s:remove_module(l:module_name, l:module_path)
+        else
+          call plugin_manager#ui#update_sidebar(['Removal cancelled.'], 1)
         endif
       endif
     else
+      call plugin_manager#ui#update_sidebar(['Plugin not found in .gitmodules, checking filesystem...'], 1)
+      
       " Module not found in cache, fallback to filesystem search
       let l:removedPluginPath = ""
       
@@ -1267,13 +1379,18 @@ function! plugin_manager#modules#remove(...)
       if !empty(l:removedPluginPath) && isdirectory(l:removedPluginPath)
         let l:filesystem_name = fnamemodify(l:removedPluginPath, ':t')
         
+        call plugin_manager#ui#update_sidebar(['Found plugin in filesystem: ' . l:filesystem_name . ' (' . l:removedPluginPath . ')'], 1)
+        
         " Force flag provided or prompt for confirmation
         if l:force_flag
+          call plugin_manager#ui#update_sidebar(['Forcing removal without confirmation...'], 1)
           call s:remove_module(l:filesystem_name, l:removedPluginPath)
         else
           let l:response = input("Are you sure you want to remove " . l:filesystem_name . " (" . l:removedPluginPath . ")? [y/N] ")
           if l:response =~? '^y\(es\)\?$'
             call s:remove_module(l:filesystem_name, l:removedPluginPath)
+          else
+            call plugin_manager#ui#update_sidebar(['Removal cancelled.'], 1)
           endif
         endif
       else
@@ -1301,12 +1418,15 @@ function! plugin_manager#modules#remove(...)
           endif
         endif
         
-        call plugin_manager#ui#open_sidebar(l:lines)
-        return 1
+        call plugin_manager#ui#update_sidebar(l:lines, 0)
       endif
     endif
-    
-    return 0
+  endfunction
+  
+  " Start the process with a slight delay
+  call timer_start(10, function('s:start_remove_plugin'))
+  
+  return 0
 endfunction
   
 " Remove an existing plugin asynchronously
@@ -1316,7 +1436,7 @@ function! s:remove_module(moduleName, removedPluginPath)
   endif
   
   let l:header = ['Remove Plugin:', '-------------', '', 'Removing ' . a:moduleName . ' from ' . a:removedPluginPath . '...']
-  call plugin_manager#ui#open_sidebar(l:header)
+  call plugin_manager#ui#update_sidebar(l:header, 0)
   
   " Back up module information before removing it
   let l:modules = plugin_manager#utils#parse_gitmodules()
@@ -1423,107 +1543,119 @@ endfunction
   
 " Backup configuration to remote repositories
 function! plugin_manager#modules#backup()
-  if !plugin_manager#utils#ensure_vim_directory()
-    return
-  endif
-  
-  let l:header = ['Backup Configuration:', '--------------------', '', 'Checking git status...']
+  " Show immediate UI feedback
+  let l:header = ['Backup Configuration:', '--------------------', '', 'Initializing backup operation...']
   call plugin_manager#ui#open_sidebar(l:header)
   
-  " Create command sequence
-  let l:commands = []
-  
-  " 1. Check if vimrc or init.vim exists in the vim directory
-  let l:vimrc_basename = fnamemodify(g:plugin_manager_vimrc_path, ':t')
-  let l:local_vimrc = g:plugin_manager_vim_dir . '/' . l:vimrc_basename
-  
-  " If vimrc doesn't exist in the vim directory or isn't a symlink, copy it
-  if !filereadable(l:local_vimrc) || (!has('win32') && !has('win64') && getftype(l:local_vimrc) != 'link')
-    if filereadable(g:plugin_manager_vimrc_path)
-      call plugin_manager#ui#update_sidebar(['Copying ' . l:vimrc_basename . ' file to vim directory for backup...'], 1)
-      
-      call add(l:commands, {
-            \ 'cmd': 'cp "' . g:plugin_manager_vimrc_path . '" "' . l:local_vimrc . '"',
-            \ 'name': 'Copying vimrc file'
-            \ })
-            
-      call add(l:commands, {
-            \ 'cmd': 'git add "' . l:local_vimrc . '"',
-            \ 'name': 'Adding vimrc to git'
-            \ })
-    else
-      call plugin_manager#ui#update_sidebar(['Warning: ' . l:vimrc_basename . ' file not found at ' . g:plugin_manager_vimrc_path], 1)
-    endif
-  endif
-  
-  " 2. Commit local changes
-  call add(l:commands, {
-        \ 'cmd': 'git diff --quiet || git commit -am "Automatic backup"',
-        \ 'name': 'Committing local changes'
-        \ })
-  
-  " 3. Check if any remotes exist
-  let l:remotesExist = system('git remote')
-  if empty(l:remotesExist)
-    call plugin_manager#ui#update_sidebar([
-          \ 'No remote repositories configured.',
-          \ 'Use PluginManagerRemote to add a remote repository.'
-          \ ], 1)
-    return
-  endif
-  
-  " 4. Push changes to all configured remotes
-  call add(l:commands, {
-        \ 'cmd': 'git push --all',
-        \ 'name': 'Pushing to remote repositories'
-        \ })
-  
-  " Final callback function
-  function! s:handle_backup_completed(results) closure
-    let l:success = 1
-    let l:result_lines = ['Backup results:']
-    
-    for l:result in a:results
-      if l:result.status != 0
-        let l:success = 0
-        call add(l:result_lines, '✗ ' . l:result.name . ' failed')
-      else
-        call add(l:result_lines, '✓ ' . l:result.name . ' succeeded')
-      endif
-    endfor
-    
-    if l:success
-      call add(l:result_lines, '')
-      call add(l:result_lines, 'Backup completed successfully.')
-    else
-      call add(l:result_lines, '')
-      call add(l:result_lines, 'Backup completed with errors. See details above.')
-    endif
-    
-    call plugin_manager#ui#update_sidebar(l:result_lines, 1)
-    
-    " Clear job progress section when done
-    call timer_start(3000, {-> plugin_manager#ui#clear_job_progress()})
-  endfunction
-  
-  " Run the commands in sequence
-  call plugin_manager#jobs#run_sequence(l:commands, function('s:handle_backup_completed'))
-endfunction
-  
-" Restore all plugins from .gitmodules
-function! plugin_manager#modules#restore()
+  " Schedule the actual work
+  function! s:start_backup(timer)
     if !plugin_manager#utils#ensure_vim_directory()
       return
     endif
     
-    let l:header = ['Restore Plugins:', '---------------', '', 'Checking for .gitmodules file...']
-    call plugin_manager#ui#open_sidebar(l:header)
+    " Create command sequence
+    let l:commands = []
+    
+    " 1. Check if vimrc or init.vim exists in the vim directory
+    let l:vimrc_basename = fnamemodify(g:plugin_manager_vimrc_path, ':t')
+    let l:local_vimrc = g:plugin_manager_vim_dir . '/' . l:vimrc_basename
+    
+    " If vimrc doesn't exist in the vim directory or isn't a symlink, copy it
+    if !filereadable(l:local_vimrc) || (!has('win32') && !has('win64') && getftype(l:local_vimrc) != 'link')
+      if filereadable(g:plugin_manager_vimrc_path)
+        call plugin_manager#ui#update_sidebar(['Copying ' . l:vimrc_basename . ' file to vim directory for backup...'], 1)
+        
+        call add(l:commands, {
+              \ 'cmd': 'cp "' . g:plugin_manager_vimrc_path . '" "' . l:local_vimrc . '"',
+              \ 'name': 'Copying vimrc file'
+              \ })
+              
+        call add(l:commands, {
+              \ 'cmd': 'git add "' . l:local_vimrc . '"',
+              \ 'name': 'Adding vimrc to git'
+              \ })
+      else
+        call plugin_manager#ui#update_sidebar(['Warning: ' . l:vimrc_basename . ' file not found at ' . g:plugin_manager_vimrc_path], 1)
+      endif
+    endif
+    
+    " 2. Commit local changes
+    call add(l:commands, {
+          \ 'cmd': 'git diff --quiet || git commit -am "Automatic backup"',
+          \ 'name': 'Committing local changes'
+          \ })
+    
+    " 3. Check if any remotes exist
+    let l:remotesExist = system('git remote')
+    if empty(l:remotesExist)
+      call plugin_manager#ui#update_sidebar([
+            \ 'No remote repositories configured.',
+            \ 'Use PluginManagerRemote to add a remote repository.'
+            \ ], 1)
+      return
+    endif
+    
+    " 4. Push changes to all configured remotes
+    call add(l:commands, {
+          \ 'cmd': 'git push --all',
+          \ 'name': 'Pushing to remote repositories'
+          \ })
+    
+    " Final callback function
+    function! s:handle_backup_completed(results) closure
+      let l:success = 1
+      let l:result_lines = ['Backup results:']
+      
+      for l:result in a:results
+        if l:result.status != 0
+          let l:success = 0
+          call add(l:result_lines, '✗ ' . l:result.name . ' failed')
+        else
+          call add(l:result_lines, '✓ ' . l:result.name . ' succeeded')
+        endif
+      endfor
+      
+      if l:success
+        call add(l:result_lines, '')
+        call add(l:result_lines, 'Backup completed successfully.')
+      else
+        call add(l:result_lines, '')
+        call add(l:result_lines, 'Backup completed with errors. See details above.')
+      endif
+      
+      call plugin_manager#ui#update_sidebar(l:result_lines, 1)
+      
+      " Clear job progress section when done
+      call timer_start(3000, {-> plugin_manager#ui#clear_job_progress()})
+    endfunction
+    
+    " Run the commands in sequence
+    call plugin_manager#jobs#run_sequence(l:commands, function('s:handle_backup_completed'))
+  endfunction
+  
+  " Start the process with a slight delay
+  call timer_start(10, function('s:start_backup'))
+endfunction
+  
+" Restore all plugins from .gitmodules
+function! plugin_manager#modules#restore()
+  " Show immediate UI feedback
+  let l:header = ['Restore Plugins:', '---------------', '', 'Initializing plugin restore operation...']
+  call plugin_manager#ui#open_sidebar(l:header)
+  
+  " Schedule the actual work
+  function! s:start_restore(timer)
+    if !plugin_manager#utils#ensure_vim_directory()
+      return
+    endif
     
     " First, check if .gitmodules exists
     if !filereadable('.gitmodules')
       call plugin_manager#ui#update_sidebar(['Error: .gitmodules file not found!'], 1)
       return
     endif
+    
+    call plugin_manager#ui#update_sidebar(['Found .gitmodules file, preparing to restore plugins...'], 1)
     
     " Create command sequence
     let l:commands = []
@@ -1586,22 +1718,30 @@ function! plugin_manager#modules#restore()
     
     " Run the commands in sequence
     call plugin_manager#jobs#run_sequence(l:commands, function('s:handle_restore_completed'))
+  endfunction
+  
+  " Start the process with a slight delay
+  call timer_start(10, function('s:start_restore'))
 endfunction
   
 " Reload a specific plugin or all Vim configuration
 function! plugin_manager#modules#reload(...)
+  " Show immediate UI feedback
+  let l:header = ['Reload:', '-------', '', 'Initializing reload operation...']
+  call plugin_manager#ui#open_sidebar(l:header)
+  
+  " Schedule the actual work
+  function! s:start_reload(timer)
     if !plugin_manager#utils#ensure_vim_directory()
       return
     endif
-    
-    let l:header = ['Reload:', '-------', '']
     
     " Check if a specific module was specified
     let l:specific_module = a:0 > 0 ? a:1 : ''
     
     if !empty(l:specific_module)
       " Reload a specific module
-      call plugin_manager#ui#open_sidebar(l:header + ['Reloading plugin: ' . l:specific_module . '...'])
+      call plugin_manager#ui#update_sidebar(['Reloading plugin: ' . l:specific_module . '...'], 1)
       
       " Find the module path
       let l:grep_cmd = 'grep -A1 "path = .*' . l:specific_module . '" .gitmodules | grep "path =" | cut -d "=" -f2 | tr -d " "'
@@ -1612,6 +1752,8 @@ function! plugin_manager#modules#reload(...)
         call plugin_manager#ui#update_sidebar(['Error: Module "' . l:specific_module . '" not found.'], 1)
         return
       endif
+      
+      call plugin_manager#ui#update_sidebar(['Found plugin at: ' . l:module_path . ', reloading...'], 1)
       
       " A more effective approach to reload a plugin:
       " 1. Remove it from runtimepath
@@ -1656,7 +1798,7 @@ function! plugin_manager#modules#reload(...)
       call plugin_manager#ui#update_sidebar(['Plugin "' . l:specific_module . '" reloaded successfully.', 'Note: Some plugins may require restarting Vim for a complete reload.'], 1)
     else
       " Reload all Vim configuration
-      call plugin_manager#ui#open_sidebar(l:header + ['Reloading entire Vim configuration...'])
+      call plugin_manager#ui#update_sidebar(['Reloading entire Vim configuration...'], 1)
       
       " First unload all plugins
       call plugin_manager#ui#update_sidebar(['Unloading plugins...'], 1)
@@ -1679,29 +1821,41 @@ function! plugin_manager#modules#reload(...)
         call plugin_manager#ui#update_sidebar(['Warning: Vimrc file not found at ' . g:plugin_manager_vimrc_path], 1)
       endif
     endif
+    
+    " Clear job progress section when done
+    call timer_start(3000, {-> plugin_manager#ui#clear_job_progress()})
+  endfunction
+  
+  " Start the process with a slight delay
+  call timer_start(10, function('s:start_reload'))
 endfunction
   
 " Function to add a backup remote repository
 function! plugin_manager#modules#add_remote_backup(...)
+  " Show immediate UI feedback
+  let l:header = ['Add Remote Repository:', '---------------------', '', 'Initializing...']
+  call plugin_manager#ui#open_sidebar(l:header)
+  
+  " Schedule the actual work
+  function! s:start_add_remote(timer)
     if !plugin_manager#utils#ensure_vim_directory()
       return
     endif
     
     if a:0 < 1
       let l:lines = ["Remote Backup Usage:", "-------------------", "", "Usage: PluginManagerRemote <repository_url>"]
-      call plugin_manager#ui#open_sidebar(l:lines)
+      call plugin_manager#ui#update_sidebar(l:lines, 0)
       return
     endif
     
     let l:repoUrl = a:1
     if l:repoUrl !~ g:pm_urlRegexp
       let l:lines = ["Invalid URL:", "-----------", "", l:repoUrl . " is not a valid url"]
-      call plugin_manager#ui#open_sidebar(l:lines)
+      call plugin_manager#ui#update_sidebar(l:lines, 0)
       return
     endif
     
-    let l:header = ['Add Remote Repository:', '---------------------', '', 'Adding backup repository: ' . l:repoUrl]
-    call plugin_manager#ui#open_sidebar(l:header)
+    call plugin_manager#ui#update_sidebar(['Adding backup repository: ' . l:repoUrl], 1)
     
     " Check if remote origin exists
     let l:originExists = system('git remote | grep -c "^origin$" || echo 0')
@@ -1727,4 +1881,11 @@ function! plugin_manager#modules#add_remote_backup(...)
     call plugin_manager#ui#update_sidebar(['', 'Configured repositories:'], 1)
     let l:remotes = system('git remote -v')
     call plugin_manager#ui#update_sidebar(split(l:remotes, "\n"), 1)
+    
+    " Clear job progress section when done
+    call timer_start(3000, {-> plugin_manager#ui#clear_job_progress()})
+  endfunction
+  
+  " Start the process with a slight delay
+  call timer_start(10, function('s:start_add_remote'))
 endfunction
