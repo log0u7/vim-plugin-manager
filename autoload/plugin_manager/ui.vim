@@ -1,69 +1,66 @@
 " UI functions for vim-plugin-manager
-" Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.4
 
 " Buffer name
 let s:buffer_name = 'PluginManager'  
 
 " Job status section
-" Using dictionary for easier tracking and avoiding duplicates
 let s:job_progress_lines = {}
 let s:job_progress_section_active = 0
 
 " Open the sidebar window with optimized logic
 function! plugin_manager#ui#open_sidebar(lines)
-  " Check if sidebar buffer already exists
-  let l:buffer_exists = bufexists(s:buffer_name)
-  let l:win_id = bufwinid(s:buffer_name)
-  
-  if l:win_id != -1
-    " Sidebar window is already open, focus it
-    call win_gotoid(l:win_id)
-  else
-    " Create a new window on the right
-    execute 'silent! rightbelow ' . g:plugin_manager_sidebar_width . 'vnew ' . s:buffer_name
-    " Set the filetype to trigger ftplugin and syntax files
-    set filetype=pluginmanager
-  endif
-  
-  " Update buffer content more efficiently
-  call plugin_manager#ui#update_sidebar(a:lines, 0)
+    " Check if sidebar buffer already exists
+    let l:buffer_exists = bufexists(s:buffer_name)
+    let l:win_id = bufwinid(s:buffer_name)
+    
+    if l:win_id != -1
+      " Sidebar window is already open, focus it
+      call win_gotoid(l:win_id)
+    else
+      " Create a new window on the right
+      execute 'silent! rightbelow ' . g:plugin_manager_sidebar_width . 'vnew ' . s:buffer_name
+      " Set the filetype to trigger ftplugin and syntax files
+      set filetype=pluginmanager
+    endif
+    
+    " Update buffer content more efficiently
+    call plugin_manager#ui#update_sidebar(a:lines, 0)
 endfunction
   
 " Update the sidebar content with better performance
 function! plugin_manager#ui#update_sidebar(lines, append)
-  " Find the sidebar buffer window
-  let l:win_id = bufwinid(s:buffer_name)
-  if l:win_id == -1
-    " If the window doesn't exist, create it
-    call plugin_manager#ui#open_sidebar(a:lines)
-    return
-  endif
-  
-  " Focus the sidebar window
-  call win_gotoid(l:win_id)
-  
-  " Only change modifiable state once
-  setlocal modifiable
-  
-  " Update content based on append flag
-  if a:append && !empty(a:lines)
-    " More efficient append - don't write empty lines
-    if line('$') > 0 && getline('$') != ''
-      call append(line('$'), '')  " Add separator line
+    " Find the sidebar buffer window
+    let l:win_id = bufwinid(s:buffer_name)
+    if l:win_id == -1
+      " If the window doesn't exist, create it
+      call plugin_manager#ui#open_sidebar(a:lines)
+      return
     endif
-    call append(line('$'), a:lines)
-  else
-    " Replace existing content more efficiently
-    silent! %delete _
-    if !empty(a:lines)
-      call setline(1, a:lines)
+    
+    " Focus the sidebar window
+    call win_gotoid(l:win_id)
+    
+    " Only change modifiable state once
+    setlocal modifiable
+    
+    " Update content based on append flag
+    if a:append && !empty(a:lines)
+      " More efficient append - don't write empty lines
+      if line('$') > 0 && getline('$') != ''
+        call append(line('$'), '')  " Add separator line
+      endif
+      call append(line('$'), a:lines)
+    else
+      " Replace existing content more efficiently
+      silent! %delete _
+      if !empty(a:lines)
+        call setline(1, a:lines)
+      endif
     endif
-  endif
-  
-  " Set back to non-modifiable and move cursor to top
-  setlocal nomodifiable
-  call cursor(1, 1)
+    
+    " Set back to non-modifiable and move cursor to top
+    setlocal nomodifiable
+    call cursor(1, 1)
 endfunction
 
 " Update job progress indicators in the sidebar
@@ -95,7 +92,6 @@ function! plugin_manager#ui#update_job_progress(job_id, status_line)
       if i == l:progress_section_start + 1
         " This is the line right after the header
         let l:progress_section_end = i
-        break
       endif
     endif
   endfor
@@ -113,23 +109,16 @@ function! plugin_manager#ui#update_job_progress(job_id, status_line)
     let s:job_progress_section_active = 1
   endif
   
-  " Now find the end of the job progress section (content section)
-  let l:content_start = l:progress_section_end + 1 
-  let l:content_end = l:content_start
-  
-  " Find where job content section ends (before next major header)
-  while l:content_end <= line('$') && getline(l:content_end) !~ '^[A-Z][a-z].*:$'
+  " Now find the end of the job progress section
+  let l:content_end = l:progress_section_end + 1
+  while l:content_end <= line('$') && getline(l:content_end) !~ '^[A-Z]'
     let l:content_end += 1
   endwhile
-  
-  " Adjust if we hit the end of the buffer
-  if l:content_end > line('$')
-    let l:content_end = line('$') + 1
-  endif
+  let l:content_end -= 1
   
   " Delete existing progress lines
-  if l:content_start < l:content_end
-    execute l:content_start . ',' . (l:content_end - 1) . 'delete _'
+  if l:progress_section_end + 1 <= l:content_end
+    execute (l:progress_section_end + 1) . ',' . l:content_end . 'delete _'
   endif
   
   " Add updated progress lines
@@ -143,12 +132,8 @@ function! plugin_manager#ui#update_job_progress(job_id, status_line)
     if s:job_progress_section_active
       call add(l:progress_lines, 'No active jobs.')
     else
-      " Remove the section entirely (if it exists)
-      if l:progress_section_start > 0 && l:progress_section_end > 0
-        execute l:progress_section_start . ',' . (l:content_end - 1) . 'delete _'
-      endif
-      setlocal nomodifiable
-      return
+      " Remove the section entirely
+      execute (l:progress_section_start) . ',' . (l:progress_section_end + 1) . 'delete _'
     endif
   else
     let s:job_progress_section_active = 1
@@ -200,17 +185,13 @@ function! plugin_manager#ui#clear_job_progress()
   if l:progress_section_start > 0
     " Find the end of the job progress section
     let l:content_end = l:progress_section_end + 1
-    while l:content_end <= line('$') && getline(l:content_end) !~ '^[A-Z][a-z].*:$'
+    while l:content_end <= line('$') && getline(l:content_end) !~ '^[A-Z]'
       let l:content_end += 1
     endwhile
-    
-    " Adjust if we hit the end of the buffer
-    if l:content_end > line('$')
-      let l:content_end = line('$') + 1
-    endif
+    let l:content_end -= 1
     
     " Delete the entire section
-    execute l:progress_section_start . ',' . (l:content_end - 1) . 'delete _'
+    execute l:progress_section_start . ',' . l:content_end . 'delete _'
   endif
   
   " Restore modifiable state
@@ -281,12 +262,12 @@ endfunction
   
 " Function to toggle the Plugin Manager sidebar
 function! plugin_manager#ui#toggle_sidebar()
-  let l:win_id = bufwinid(s:buffer_name)
-  if l:win_id != -1
-    " Sidebar is visible, close it
-    execute 'bd ' . bufnr(s:buffer_name)
-  else
-    " Open sidebar with usage info
-    call plugin_manager#ui#usage()
-  endif
+   let l:win_id = bufwinid(s:buffer_name)
+   if l:win_id != -1
+     " Sidebar is visible, close it
+     execute 'bd ' . bufnr(s:buffer_name)
+   else
+     " Open sidebar with usage info
+     call plugin_manager#ui#usage()
+   endif
 endfunction
