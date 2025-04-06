@@ -54,7 +54,6 @@ function! plugin_manager#modules#list()
 endfunction
 
 " Improved status function with fixed column formatting and truly asynchronous behavior
-" Modification de la fonction status pour tenir compte des appels multiples
 function! plugin_manager#modules#status()
   " Protection contre les appels multiples
   if exists('s:status_in_progress') && s:status_in_progress
