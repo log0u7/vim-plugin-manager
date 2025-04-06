@@ -6,13 +6,14 @@ CONTENTS                                                *plugin-manager-contents
     1. Introduction ............................ |plugin-manager-introduction|
     2. Installation ............................ |plugin-manager-installation|
     3. Configuration ........................... |plugin-manager-configuration|
-    4. Commands ................................ |plugin-manager-commands|
-    5. Usage Examples .......................... |plugin-manager-examples|
-    6. Keyboard Shortcuts ...................... |plugin-manager-shortcuts|
-    7. Tips & Tricks ........................... |plugin-manager-tips|
-    8. Troubleshooting ......................... |plugin-manager-troubleshooting|
-    9. License ................................. |plugin-manager-license|
-    10. About .................................. |plugin-manager-about|
+    4. Configuration Management ................ |plugin-manager-config-management|
+    5. Commands ................................ |plugin-manager-commands|
+    6. Usage Examples .......................... |plugin-manager-examples|
+    7. Keyboard Shortcuts ...................... |plugin-manager-shortcuts|
+    8. Tips & Tricks ........................... |plugin-manager-tips|
+    9. Troubleshooting ......................... |plugin-manager-troubleshooting|
+    10. License ................................ |plugin-manager-license|
+    11. About .................................. |plugin-manager-about|
 
 ===============================================================================
 1. INTRODUCTION                                     *plugin-manager-introduction*
@@ -37,22 +38,36 @@ Prerequisites:
 - Vim 8+ or Neovim
 - Git
 
+The plugin manager uses Git submodules and Vim 8's native package system. Installation is straightforward:
+
 First, ensure your Vim/Neovim configuration is a Git repository:
 >
-    cd ~/.vim  # or ~/.config/nvim for Neovim
+    # For Vim
+    cd ~/.vim
+    git init
+    
+    # For Neovim
+    cd ~/.config/nvim
     git init
 <
-Then, download the plugin and place it in your plugin directory:
+Then, add the plugin manager as a Git submodule:
 >
-    mkdir -p ~/.vim/plugin
-    curl -o ~/.vim/plugin/plugin_manager.vim \
-        https://raw.githubusercontent.com/username/vim-plugin-manager/main/plugin_manager.vim
+    # For Vim
+    git submodule add https://github.com/username/vim-plugin-manager.git ~/.vim/pack/plugins/start/vim-plugin-manager
+    
+    # For Neovim
+    git submodule add https://github.com/username/vim-plugin-manager.git ~/.config/nvim/pack/plugins/start/vim-plugin-manager
 <
-For directory structure compatibility, also create these directories:
+Finally, generate helptags:
 >
-    mkdir -p ~/.vim/pack/plugins/start
-    mkdir -p ~/.vim/pack/plugins/opt
+    # From command line
+    vim -c "helptags ~/.vim/pack/plugins/start/vim-plugin-manager/doc" -c q
+    
+    # Or from within Vim
+    :helptags ~/.vim/pack/plugins/start/vim-plugin-manager/doc
 <
+The plugin manager will automatically create any necessary directories when you install plugins.
+
 ===============================================================================
 3. CONFIGURATION                                   *plugin-manager-configuration*
 
@@ -81,7 +96,112 @@ behavior with the following global variables:
                                   Default: 'github.com'
 
 ===============================================================================
-4. COMMANDS                                           *plugin-manager-commands*
+4. CONFIGURATION MANAGEMENT                    *plugin-manager-config-management*
+
+Since the plugin manager uses Git to manage your Vim configuration directory,
+it's important to understand how to organize your custom configurations.
+
+CUSTOM PLUGIN CONFIGURATIONS ~
+
+The plugin manager will create directories like `.vim/plugin`, `.vim/ftdetect`,
+`.vim/autoload`, etc. for its own functionality. A best practice is to create 
+your own configuration files for each plugin you install:
+
+For example:
+>
+    ~/.vim/plugin/nerdtree_config.vim
+    ~/.vim/plugin/fzf_config.vim
+    ~/.vim/plugin/fugitive_config.vim
+<
+These files will be automatically included in backups when using
+`:PluginManager backup`. The backup command commits all changes in your Vim 
+configuration directory before pushing to remote repositories, ensuring all your
+custom configurations, mappings, and settings are properly versioned and backed up.
+
+Examples of custom configuration files:
+
+NERDTree Configuration (~/.vim/plugin/nerdtree_config.vim):
+>
+    " Custom NERDTree configuration
+    let g:NERDTreeShowHidden = 1
+    let g:NERDTreeMinimalUI = 1
+    let g:NERDTreeIgnore = ['^\.git$', '^\.DS_Store$']
+    nnoremap <leader>n :NERDTreeToggle<CR>
+<
+FZF Configuration (~/.vim/plugin/fzf_config.vim):
+>
+    " Custom FZF configuration
+    let g:fzf_layout = { 'down': '~40%' }
+    nnoremap <leader>f :Files<CR>
+    nnoremap <leader>b :Buffers<CR>
+    nnoremap <leader>g :GFiles<CR>
+<
+USING .GITIGNORE                             *plugin-manager-gitignore*
+
+To exclude certain files from version control, create a `.gitignore` file:
+>
+    # Ignore undo history
+    undodir/*
+    # Ignore swap files
+    *.swp
+    *.swo
+    .*.swp
+    .*.swo
+    swapdir/*
+    # Ignore helptags
+    doc/tags
+    **/doc/tags
+    # Ignore netrw history
+    .netrwhist
+    # Ignore session files
+    session/*
+    # Ignore local vimrc files
+    .exrc
+    .vimrc.local
+<
+Make sure to commit your `.gitignore` file:
+>
+    git add .gitignore
+    git commit -m "Add .gitignore for Vim configuration"
+<
+ALTERNATIVE: CUSTOM PLUGIN STRUCTURE         *plugin-manager-custom-structure*
+
+As an alternative, you can create your own plugin structure as a Git submodule:
+>
+    # Create your custom Vim configuration repository
+    mkdir ~/my-vim-config
+    cd ~/my-vim-config
+    git init
+
+    # Create the standard Vim directory structure
+    mkdir -p plugin ftplugin ftdetect syntax autoload doc colors after
+
+    # Add your configurations to the appropriate directories
+    touch plugin/mappings.vim
+    touch plugin/settings.vim
+    touch plugin/plugin_configs.vim
+
+    # Commit your changes
+    git add .
+    git commit -m "Initial setup of my Vim configuration"
+
+    # Push to your own repository (optional)
+    git remote add origin https://github.com/yourusername/my-vim-config.git
+    git push -u origin main
+
+    # Now add this as a submodule to your Vim configuration
+    # You can use either direct Git command:
+    cd ~/.vim
+    git submodule add https://github.com/yourusername/my-vim-config.git pack/personal/start/my-vim-config
+    
+    # Or use PluginManager itself:
+    :PluginManager add https://github.com/yourusername/my-vim-config.git {'dir':'my-vim-config'}
+<
+This approach keeps your personal configurations organized and separate from
+the plugin manager and other plugins.
+
+===============================================================================
+5. COMMANDS                                           *plugin-manager-commands*
 
 The plugin provides the following commands:
 
@@ -115,6 +235,12 @@ The plugin provides the following commands:
 :PluginManager update [plugin]   Update all plugins or a specific one
 
 :PluginManager backup            Backup configuration to git remotes
+                                Commits all changes in your Vim configuration
+                                directory (custom files, mappings, settings) 
+                                and pushes to configured remote repositories.
+                                Note: Changes inside plugin submodules are not
+                                included in the backup as they are tracked
+                                separately as Git submodules.
 
 :PluginManager restore           Reinstall all plugins from .gitmodules
 
@@ -140,7 +266,7 @@ The plugin provides the following commands:
 :PluginEnd                      Process and install all declared plugins
 
 ===============================================================================
-5. USAGE EXAMPLES                                     *plugin-manager-examples*
+6. USAGE EXAMPLES                                     *plugin-manager-examples*
 
 Install a plugin from GitHub:
 >
@@ -211,7 +337,7 @@ Declare multiple plugins at once:
     PluginEnd
 <
 ===============================================================================
-6. KEYBOARD SHORTCUTS                                *plugin-manager-shortcuts*
+7. KEYBOARD SHORTCUTS                                *plugin-manager-shortcuts*
 
 The following keyboard shortcuts are available in the PluginManager sidebar:
 
@@ -226,11 +352,15 @@ R       Reload configuration
 ?       Show usage information
 
 ===============================================================================
-7. TIPS & TRICKS                                          *plugin-manager-tips*
+8. TIPS & TRICKS                                          *plugin-manager-tips*
 
 Backup Your Configuration:
 It's recommended to set up a remote repository and use `:PluginManager backup`
-regularly to ensure your configuration is safe.
+regularly to ensure your configuration is safe. The backup operation will commit
+all files in your Vim configuration directory that aren't excluded by .gitignore,
+including your custom plugin configurations, mappings, colorschemes, syntax files
+and other personal settings. The only changes not included are those inside plugin
+submodules themselves, which are tracked separately in their respective repositories.
 
 Loading Optional Plugins:
 Optional plugins installed with the 'opt' parameter can be loaded with:
@@ -249,7 +379,7 @@ repositories. If you've made custom modifications to plugins, consider using
 a different approach like git patches.
 
 ===============================================================================
-8. TROUBLESHOOTING                             *plugin-manager-troubleshooting*
+9. TROUBLESHOOTING                             *plugin-manager-troubleshooting*
 
 Issues with Plugin Installation:
 - Make sure your Vim configuration directory is a Git repository
@@ -267,7 +397,7 @@ Git-related Errors:
 - Try running `:PluginManager restore` to reinitialize all modules
 
 ===============================================================================
-9. LICENSE                                             *plugin-manager-license*
+10. LICENSE                                             *plugin-manager-license*
 
 PluginManager is released under the MIT License.
 Copyright (c) 2025 G.K.E. <gke@6admin.io>
@@ -275,7 +405,7 @@ Copyright (c) 2025 G.K.E. <gke@6admin.io>
 See LICENSE file or plugin header for full license text.
 
 ===============================================================================
-10. ABOUT                                                *plugin-manager-about*
+11. ABOUT                                                *plugin-manager-about*
 
 Maintained by: G.K.E. <gke@6admin.io>
 Source: https://github.com/username/vim-plugin-manager
