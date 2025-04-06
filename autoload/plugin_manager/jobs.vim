@@ -8,23 +8,18 @@ if !exists('s:job_list')
 endif
       
 if !exists('s:is_win')
-let s:is_win = has('win32') || has('win64')
+    let s:is_win = has('win32') || has('win64')
 endif
       
 " Check if async jobs are supported
 function! plugin_manager#jobs#is_async_supported()
-" Check for Neovim
-if has('nvim-0.2') || (has('nvim') && exists('*jobwait') && !s:is_win)
-    return 1
-endif
+    " Check for Neovim
+    if has('nvim')
+        return exists('*jobstart') && exists('*jobwait')
+    endif    
 
-" Check for Vim
-if has('patch-8.0.0039') && exists('*job_start')
-    return 1 
-endif
-
-" Not supported
-return 0
+    " Check for Vim
+    return v:version >= 800 && exists('*job_start')
 endfunction
 
 " Start an async job with appropriate callback handling
