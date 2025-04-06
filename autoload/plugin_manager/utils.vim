@@ -128,31 +128,42 @@ function! plugin_manager#utils#repository_exists(url)
     return v:shell_error == 0
 endfunction
 
-" Parse .gitmodules and return a dictionary of plugins
-function! plugin_manager#utils#parse_gitmodules()
-    " Ensure we're in the right directory
-    if !plugin_manager#utils#ensure_vim_directory()
-      return {}
-    endif
-    
-    " Check if .gitmodules exists
-    if !filereadable('.gitmodules')
+" Non-blocking implementation of gitmodules parser
+function! plugin_manager#utils#parse_gitmodules_async(callback)
+  " Ensure we're in the right directory
+  if !plugin_manager#utils#ensure_vim_directory()
+    call a:callback({})
+    return
+  endif
+  
+  " Check if .gitmodules exists
+  if !filereadable('.gitmodules')
+    let g:pm_gitmodules_cache = {}
+    call a:callback(g:pm_gitmodules_cache)
+    return
+  endif
+  
+  " Check if file has been modified since last parse
+  let l:mtime = getftime('.gitmodules')
+  if !empty(g:pm_gitmodules_cache) && l:mtime == g:pm_gitmodules_mtime
+    call a:callback(g:pm_gitmodules_cache)
+    return
+  endif
+  
+  " Use the async job system to read the file
+  function! s:parse_gitmodules_output(status, output) closure
+    if a:status != 0
       let g:pm_gitmodules_cache = {}
-      return g:pm_gitmodules_cache
-    endif
-    
-    " Check if file has been modified since last parse
-    let l:mtime = getftime('.gitmodules')
-    if !empty(g:pm_gitmodules_cache) && l:mtime == g:pm_gitmodules_mtime
-      return g:pm_gitmodules_cache
+      call a:callback(g:pm_gitmodules_cache)
+      return
     endif
     
     " Reset cache
     let g:pm_gitmodules_cache = {}
     let g:pm_gitmodules_mtime = l:mtime
     
-    " Parse the file
-    let l:lines = readfile('.gitmodules')
+    " Parse the output
+    let l:lines = split(a:output, "\n")
     let l:current_module = ''
     let l:in_module = 0
     
@@ -191,6 +202,11 @@ function! plugin_manager#utils#parse_gitmodules()
     endfor
     
     " Validate the modules: each should have both path and url
+    " Schedule this as a separate task to avoid blocking
+    call timer_start(1, function('s:validate_modules', [a:callback]))
+  endfunction
+  
+  function! s:validate_modules(callback, timer)
     for [l:name, l:module] in items(g:pm_gitmodules_cache)
       if !has_key(l:module, 'path') || !has_key(l:module, 'url')
         " Mark invalid modules but don't remove them
@@ -198,12 +214,115 @@ function! plugin_manager#utils#parse_gitmodules()
       else
         let g:pm_gitmodules_cache[l:name]['is_valid'] = 1
         
-        " Check if the plugin directory exists
+        " Check if the plugin directory exists - do this in batches
         let g:pm_gitmodules_cache[l:name]['exists'] = isdirectory(l:module.path)
       endif
     endfor
     
+    call a:callback(g:pm_gitmodules_cache)
+  endfunction
+  
+  " Read the file asynchronously
+  if plugin_manager#jobs#is_async_supported()
+    let l:callbacks = {
+          \ 'name': 'Reading .gitmodules',
+          \ 'on_exit': function('s:parse_gitmodules_output')
+          \ }
+    call plugin_manager#jobs#start('cat .gitmodules', l:callbacks)
+  else
+    " Fallback to synchronous operation
+    let l:output = join(readfile('.gitmodules'), "\n")
+    call s:parse_gitmodules_output(0, l:output)
+  endif
+endfunction
+
+" Update parse_gitmodules to have a synchronous version that uses the async version
+function! plugin_manager#utils#parse_gitmodules()
+  " If we're not in a UI context or async is not supported, use the existing cache
+  " or parse synchronously
+  
+  " Check if file has been modified since last parse
+  if filereadable('.gitmodules')
+    let l:mtime = getftime('.gitmodules')
+    if !empty(g:pm_gitmodules_cache) && l:mtime == g:pm_gitmodules_mtime
+      return g:pm_gitmodules_cache
+    endif
+  else
+    let g:pm_gitmodules_cache = {}
     return g:pm_gitmodules_cache
+  endif
+  
+  " We need to parse, but for better responsiveness, we'll use a very small
+  " cache timeout to avoid re-parsing multiple times in quick succession
+  
+  " If we're in an async context, just return the current cache
+  if exists('g:pm_parsing_gitmodules') && g:pm_parsing_gitmodules
+    return g:pm_gitmodules_cache
+  endif
+  
+  " Set a flag to indicate we're currently parsing
+  let g:pm_parsing_gitmodules = 1
+  
+  " Read the file synchronously
+  let l:lines = filereadable('.gitmodules') ? readfile('.gitmodules') : []
+  let l:current_module = ''
+  let l:in_module = 0
+  
+  " Reset cache
+  let g:pm_gitmodules_cache = {}
+  let g:pm_gitmodules_mtime = getftime('.gitmodules')
+  
+  for l:line in l:lines
+    " Skip empty lines and comments
+    if l:line =~ '^\s*$' || l:line =~ '^\s*#'
+      continue
+    endif
+    
+    " Start of module section
+    if l:line =~ '\[submodule "'
+      let l:in_module = 1
+      " Extract module name from [submodule "name"] format
+      let l:current_module = substitute(l:line, '\[submodule "\(.\{-}\)"\]', '\1', '')
+      let g:pm_gitmodules_cache[l:current_module] = {'name': l:current_module}
+    " Inside module section
+    elseif l:in_module && !empty(l:current_module)
+      " Path property
+      if l:line =~ '\s*path\s*='
+        let l:path = substitute(l:line, '\s*path\s*=\s*', '', '')
+        let l:path = substitute(l:path, '^\s*\(.\{-}\)\s*$', '\1', '')  " Trim whitespace
+        let g:pm_gitmodules_cache[l:current_module]['path'] = l:path
+        " Extract short name from path (last component)
+        let g:pm_gitmodules_cache[l:current_module]['short_name'] = fnamemodify(l:path, ':t')
+      " URL property
+      elseif l:line =~ '\s*url\s*='
+        let l:url = substitute(l:line, '\s*url\s*=\s*', '', '')
+        let l:url = substitute(l:url, '^\s*\(.\{-}\)\s*$', '\1', '')  " Trim whitespace
+        let g:pm_gitmodules_cache[l:current_module]['url'] = l:url
+      " New section starts - reset current module
+      elseif l:line =~ '\['
+        let l:in_module = 0
+        let l:current_module = ''
+      endif
+    endif
+  endfor
+  
+  " Validate the modules: each should have both path and url
+  for [l:name, l:module] in items(g:pm_gitmodules_cache)
+    if !has_key(l:module, 'path') || !has_key(l:module, 'url')
+      " Mark invalid modules but don't remove them
+      let g:pm_gitmodules_cache[l:name]['is_valid'] = 0
+    else
+      let g:pm_gitmodules_cache[l:name]['is_valid'] = 1
+      
+      " Check if the plugin directory exists
+      let g:pm_gitmodules_cache[l:name]['exists'] = isdirectory(l:module.path)
+    endif
+  endfor
+  
+  " Clear the parsing flag
+  let g:pm_parsing_gitmodules = 0
+  
+  return g:pm_gitmodules_cache
 endfunction
   
 " Utility function to find a module by name, path, or short name
