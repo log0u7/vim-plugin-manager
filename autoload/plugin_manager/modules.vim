@@ -54,10 +54,22 @@ function! plugin_manager#modules#list()
 endfunction
 
 " Improved status function with fixed column formatting and truly asynchronous behavior
+" Modification de la fonction status pour tenir compte des appels multiples
 function! plugin_manager#modules#status()
-  if !plugin_manager#utils#ensure_vim_directory()
+  " Protection contre les appels multiples
+  if exists('s:status_in_progress') && s:status_in_progress
+    call plugin_manager#ui#update_sidebar(['Status operation already in progress...'], 1)
     return
   endif
+  let s:status_in_progress = 1
+  
+  if !plugin_manager#utils#ensure_vim_directory()
+    let s:status_in_progress = 0
+    return
+  endif
+  
+  " Nettoyer la section Job Progress avant de commencer
+  call plugin_manager#ui#clear_job_progress()
   
   " Initial header display
   let l:header = 'Submodule Status:'
@@ -69,6 +81,7 @@ function! plugin_manager#modules#status()
   
   if empty(l:modules)
     call plugin_manager#ui#update_sidebar([l:header, repeat('-', len(l:header)), '', 'No submodules found (.gitmodules not found)'], 0)
+    let s:status_in_progress = 0
     return
   endif
   
