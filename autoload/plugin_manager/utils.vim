@@ -32,6 +32,15 @@ function! plugin_manager#utils#ensure_vim_directory()
   return 1
 endfunction
 
+" Set a lock variable with automatic timeout to prevent deadlocks
+function! plugin_manager#utils#set_lock_with_timeout(lock_var, timeout_ms)
+  " Set the lock
+  execute 'let ' . a:lock_var . ' = 1'
+  
+  " Schedule automatic lock release after timeout
+  call timer_start(a:timeout_ms, {-> execute('if exists("' . a:lock_var . '") | let ' . a:lock_var . ' = 0 | endif')})
+endfunction
+
 " Execute command with output in sidebar asynchronously
 function! plugin_manager#utils#execute_with_sidebar(title, cmd)
   " Ensure we're in the Vim directory
@@ -81,23 +90,23 @@ endfunction
 
 " Function to detect if a path is a local path
 function! plugin_manager#utils#is_local_path(path)
-" Starts with '~' (home path)
-if a:path =~ '^\~\/'
-  return 1
-endif
-  
-" Absolute path (starts with '/' or drive letter on Windows)
-if a:path =~ '^\/\|^[A-Za-z]:[\\\/]'
-  return 1
-endif
-  
-" Relative path that exists locally
-let l:expanded_path = expand(a:path)
-if isdirectory(l:expanded_path)
-  return 1
-endif
-  
-return 0
+  " Starts with '~' (home path)
+  if a:path =~ '^\~\/'
+    return 1
+  endif
+    
+  " Absolute path (starts with '/' or drive letter on Windows)
+  if a:path =~ '^\/\|^[A-Za-z]:[\\\/]'
+    return 1
+  endif
+    
+  " Relative path that exists locally
+  let l:expanded_path = expand(a:path)
+  if isdirectory(l:expanded_path)
+    return 1
+  endif
+    
+  return 0
 endfunction
 
 " Modified version of convert_to_full_url to handle local paths
@@ -261,244 +270,244 @@ endfunction
 
 " Check module updates asynchronously
 function! plugin_manager#utils#check_module_updates(module_path)
-let l:result = {
-  \ 'behind': 0, 
-  \ 'ahead': 0, 
-  \ 'has_updates': 0, 
-  \ 'has_changes': 0,
-  \ 'branch': 'N/A',
-  \ 'remote_branch': 'N/A',
-  \ 'different_branch': 0,
-  \ 'current_commit': 'N/A',
-  \ 'remote_commit': 'N/A'
-\ }
-
-" Check if the directory exists
-if !isdirectory(a:module_path)
-  return l:result
-endif
-
-" Get current commit hash (more reliable for submodules than branch)
-let l:current_commit = system('cd "' . a:module_path . '" && git rev-parse HEAD 2>/dev/null || echo "N/A"')
-let l:result.current_commit = substitute(l:current_commit, '\n', '', 'g')
-
-" Get current symbolic ref - might be a branch or HEAD
-let l:branch = system('cd "' . a:module_path . '" && git symbolic-ref --short HEAD 2>/dev/null || echo "detached"')
-let l:result.branch = substitute(l:branch, '\n', '', 'g')
-
-" Fetch updates from remote repository more aggressively
-call system('cd "' . a:module_path . '" && git fetch origin --all 2>/dev/null')
-
-" First try to find remote branch from .gitmodules
-let l:remote_info = system('cd "' . a:module_path . '" && git config -f ../.gitmodules submodule.' . fnamemodify(a:module_path, ':t') . '.branch 2>/dev/null || echo ""')
-let l:remote_branch = substitute(l:remote_info, '\n', '', 'g')
-
-" If not found in .gitmodules, try to determine from the current branch's upstream
-if empty(l:remote_branch) && l:result.branch != "detached"
-  let l:upstream_info = system('cd "' . a:module_path . '" && git rev-parse --abbrev-ref ' . l:result.branch . '@{upstream} 2>/dev/null || echo ""')
-  let l:remote_branch = substitute(l:upstream_info, '\n', '', 'g')
-  " If upstream exists but doesn't include 'origin/', prepend it
-  if !empty(l:remote_branch) && l:remote_branch !~ '^origin/'
-    let l:remote_branch = 'origin/' . l:remote_branch
+  let l:result = {
+    \ 'behind': 0, 
+    \ 'ahead': 0, 
+    \ 'has_updates': 0, 
+    \ 'has_changes': 0,
+    \ 'branch': 'N/A',
+    \ 'remote_branch': 'N/A',
+    \ 'different_branch': 0,
+    \ 'current_commit': 'N/A',
+    \ 'remote_commit': 'N/A'
+  \ }
+  
+  " Check if the directory exists
+  if !isdirectory(a:module_path)
+    return l:result
   endif
-endif
-
-" If still not found, try to determine from standard branches
-if empty(l:remote_branch)
-  " Check if origin/main exists
-  let l:main_exists = system('cd "' . a:module_path . '" && git show-ref --verify --quiet refs/remotes/origin/main 2>/dev/null; echo $?')
-  if trim(l:main_exists) == "0"
-    let l:remote_branch = 'origin/main'
-  else
-    " Check if origin/master exists
-    let l:master_exists = system('cd "' . a:module_path . '" && git show-ref --verify --quiet refs/remotes/origin/master 2>/dev/null; echo $?')
-    if trim(l:master_exists) == "0"
-      let l:remote_branch = 'origin/master'
+  
+  " Get current commit hash (more reliable for submodules than branch)
+  let l:current_commit = system('cd "' . a:module_path . '" && git rev-parse HEAD 2>/dev/null || echo "N/A"')
+  let l:result.current_commit = substitute(l:current_commit, '\n', '', 'g')
+  
+  " Get current symbolic ref - might be a branch or HEAD
+  let l:branch = system('cd "' . a:module_path . '" && git symbolic-ref --short HEAD 2>/dev/null || echo "detached"')
+  let l:result.branch = substitute(l:branch, '\n', '', 'g')
+  
+  " Fetch updates from remote repository more aggressively
+  call system('cd "' . a:module_path . '" && git fetch origin --all 2>/dev/null')
+  
+  " First try to find remote branch from .gitmodules
+  let l:remote_info = system('cd "' . a:module_path . '" && git config -f ../.gitmodules submodule.' . fnamemodify(a:module_path, ':t') . '.branch 2>/dev/null || echo ""')
+  let l:remote_branch = substitute(l:remote_info, '\n', '', 'g')
+  
+  " If not found in .gitmodules, try to determine from the current branch's upstream
+  if empty(l:remote_branch) && l:result.branch != "detached"
+    let l:upstream_info = system('cd "' . a:module_path . '" && git rev-parse --abbrev-ref ' . l:result.branch . '@{upstream} 2>/dev/null || echo ""')
+    let l:remote_branch = substitute(l:upstream_info, '\n', '', 'g')
+    " If upstream exists but doesn't include 'origin/', prepend it
+    if !empty(l:remote_branch) && l:remote_branch !~ '^origin/'
+      let l:remote_branch = 'origin/' . l:remote_branch
     endif
   endif
-endif
-
-" Default to origin/master if all attempts failed
-if empty(l:remote_branch)
-  let l:remote_branch = 'origin/master'
-endif
-
-let l:result.remote_branch = l:remote_branch
-
-" Get the latest commit on the remote branch
-let l:remote_commit = system('cd "' . a:module_path . '" && git rev-parse ' . l:result.remote_branch . ' 2>/dev/null || echo "N/A"')
-let l:result.remote_commit = substitute(l:remote_commit, '\n', '', 'g')
-
-" Direct check if remote commit is different from current commit
-if l:result.current_commit != "N/A" && l:result.remote_commit != "N/A" && l:result.current_commit != l:result.remote_commit
-  " Get the merge base to determine the common ancestor
-  let l:merge_base = system('cd "' . a:module_path . '" && git merge-base HEAD ' . l:result.remote_branch . ' 2>/dev/null || echo "N/A"')
-  let l:merge_base = substitute(l:merge_base, '\n', '', 'g')
   
-  " Count commits ahead/behind
-  let l:behind_check = system('cd "' . a:module_path . '" && git rev-list --count HEAD..' . l:result.remote_branch . ' 2>/dev/null || echo "0"')
-  let l:behind = substitute(l:behind_check, '\n', '', 'g')
-  if l:behind =~ '^\d\+$'
-    let l:result.behind = str2nr(l:behind)
+  " If still not found, try to determine from standard branches
+  if empty(l:remote_branch)
+    " Check if origin/main exists
+    let l:main_exists = system('cd "' . a:module_path . '" && git show-ref --verify --quiet refs/remotes/origin/main 2>/dev/null; echo $?')
+    if trim(l:main_exists) == "0"
+      let l:remote_branch = 'origin/main'
+    else
+      " Check if origin/master exists
+      let l:master_exists = system('cd "' . a:module_path . '" && git show-ref --verify --quiet refs/remotes/origin/master 2>/dev/null; echo $?')
+      if trim(l:master_exists) == "0"
+        let l:remote_branch = 'origin/master'
+      endif
+    endif
   endif
   
-  let l:ahead_check = system('cd "' . a:module_path . '" && git rev-list --count ' . l:result.remote_branch . '..HEAD 2>/dev/null || echo "0"')
-  let l:ahead = substitute(l:ahead_check, '\n', '', 'g')
-  if l:ahead =~ '^\d\+$'
-    let l:result.ahead = str2nr(l:ahead)
+  " Default to origin/master if all attempts failed
+  if empty(l:remote_branch)
+    let l:remote_branch = 'origin/master'
   endif
   
-  " Force has_updates flag if the current and remote commits are different
-  let l:result.has_updates = (l:result.behind > 0 || l:result.current_commit != l:result.remote_commit)
-endif
-
-" For submodules, we primarily care about commit differences, not branch names
-" If current branch is not detached and doesn't match remote branch name, note this
-let l:remote_branch_name = substitute(l:result.remote_branch, '^origin/', '', '')
-if l:result.branch != "detached" && l:result.branch != l:remote_branch_name
-  let l:result.different_branch = 1
-endif
-
-" Check for local changes while ignoring helptags files
-let l:changes = system('cd "' . a:module_path . '" && git status -s -- . ":(exclude)doc/tags" ":(exclude)**/tags" 2>/dev/null')
-let l:result.has_changes = !empty(l:changes)
-
-return l:result
+  let l:result.remote_branch = l:remote_branch
+  
+  " Get the latest commit on the remote branch
+  let l:remote_commit = system('cd "' . a:module_path . '" && git rev-parse ' . l:result.remote_branch . ' 2>/dev/null || echo "N/A"')
+  let l:result.remote_commit = substitute(l:remote_commit, '\n', '', 'g')
+  
+  " Direct check if remote commit is different from current commit
+  if l:result.current_commit != "N/A" && l:result.remote_commit != "N/A" && l:result.current_commit != l:result.remote_commit
+    " Get the merge base to determine the common ancestor
+    let l:merge_base = system('cd "' . a:module_path . '" && git merge-base HEAD ' . l:result.remote_branch . ' 2>/dev/null || echo "N/A"')
+    let l:merge_base = substitute(l:merge_base, '\n', '', 'g')
+    
+    " Count commits ahead/behind
+    let l:behind_check = system('cd "' . a:module_path . '" && git rev-list --count HEAD..' . l:result.remote_branch . ' 2>/dev/null || echo "0"')
+    let l:behind = substitute(l:behind_check, '\n', '', 'g')
+    if l:behind =~ '^\d\+$'
+      let l:result.behind = str2nr(l:behind)
+    endif
+    
+    let l:ahead_check = system('cd "' . a:module_path . '" && git rev-list --count ' . l:result.remote_branch . '..HEAD 2>/dev/null || echo "0"')
+    let l:ahead = substitute(l:ahead_check, '\n', '', 'g')
+    if l:ahead =~ '^\d\+$'
+      let l:result.ahead = str2nr(l:ahead)
+    endif
+    
+    " Force has_updates flag if the current and remote commits are different
+    let l:result.has_updates = (l:result.behind > 0 || l:result.current_commit != l:result.remote_commit)
+  endif
+  
+  " For submodules, we primarily care about commit differences, not branch names
+  " If current branch is not detached and doesn't match remote branch name, note this
+  let l:remote_branch_name = substitute(l:result.remote_branch, '^origin/', '', '')
+  if l:result.branch != "detached" && l:result.branch != l:remote_branch_name
+    let l:result.different_branch = 1
+  endif
+  
+  " Check for local changes while ignoring helptags files
+  let l:changes = system('cd "' . a:module_path . '" && git status -s -- . ":(exclude)doc/tags" ":(exclude)**/tags" 2>/dev/null')
+  let l:result.has_changes = !empty(l:changes)
+  
+  return l:result
 endfunction
 
 " Process plugin specification block from .vimrc
 function! plugin_manager#utils#process_plugin_block(start_line, end_line)
-let l:header = ['Processing Plugin Block:', '----------------------', '']
-call plugin_manager#ui#open_sidebar(l:header)
-
-let l:vimrc_path = expand(g:plugin_manager_vimrc_path)
-if !filereadable(l:vimrc_path)
-  call plugin_manager#ui#update_sidebar(['Error: vimrc file not found at ' . l:vimrc_path], 1)
-  return
-endif
-
-let l:lines = readfile(l:vimrc_path)
-let l:process_lines = l:lines[a:start_line-1:a:end_line-1]
-
-let l:plugins_to_install = []
-let l:current_plugin = {}
-let l:in_plugin_def = 0
-
-for l:line in l:process_lines
-  " Skip empty lines and comments
-  if l:line =~ '^\s*$' || l:line =~ '^\s*"'
-    continue
+  let l:header = ['Processing Plugin Block:', '----------------------', '']
+  call plugin_manager#ui#open_sidebar(l:header)
+  
+  let l:vimrc_path = expand(g:plugin_manager_vimrc_path)
+  if !filereadable(l:vimrc_path)
+    call plugin_manager#ui#update_sidebar(['Error: vimrc file not found at ' . l:vimrc_path], 1)
+    return
   endif
   
-  " Check for PluginBegin
-  if l:line =~ '^\s*PluginBegin'
-    continue
-  endif
+  let l:lines = readfile(l:vimrc_path)
+  let l:process_lines = l:lines[a:start_line-1:a:end_line-1]
   
-  " Check for PluginEnd
-  if l:line =~ '^\s*PluginEnd'
-    continue
-  endif
+  let l:plugins_to_install = []
+  let l:current_plugin = {}
+  let l:in_plugin_def = 0
   
-  " Check for Plugin definition
-  let l:plugin_match = matchlist(l:line, '^\s*Plugin\s\+[''"].\{-}[''"]')
-  if !empty(l:plugin_match)
-    " Start new plugin definition
-    if !empty(l:current_plugin)
-      call add(l:plugins_to_install, l:current_plugin)
+  for l:line in l:process_lines
+    " Skip empty lines and comments
+    if l:line =~ '^\s*$' || l:line =~ '^\s*"'
+      continue
     endif
     
-    let l:current_plugin = {'line': l:line, 'options': {}}
-    let l:in_plugin_def = 1
-    
-    " Extract plugin URL or shortname
-    let l:url_match = matchlist(l:line, '^\s*Plugin\s\+[''"]\(.\{-}\)[''"]')
-    if !empty(l:url_match)
-      let l:current_plugin.url = l:url_match[1]
+    " Check for PluginBegin
+    if l:line =~ '^\s*PluginBegin'
+      continue
     endif
     
-    " Check for inline options
-    let l:options_match = matchlist(l:line, '^\s*Plugin\s\+[''"].\{-}[''"],\s*{\(.\{-}\)}')
-    if !empty(l:options_match)
-      let l:options_str = l:options_match[1]
-      let l:current_plugin.options = s:parse_plugin_options(l:options_str)
+    " Check for PluginEnd
+    if l:line =~ '^\s*PluginEnd'
+      continue
     endif
-  endif
-endfor
-
-" Add last plugin if exists
-if !empty(l:current_plugin)
-  call add(l:plugins_to_install, l:current_plugin)
-endif
-
-" Install plugins
-call plugin_manager#ui#update_sidebar(['Found ' . len(l:plugins_to_install) . ' plugins to install...'], 1)
-
-for l:plugin in l:plugins_to_install
-  let l:url = l:plugin.url
-  let l:options = l:plugin.options
-  
-  " Convert options to plugin_manager options
-  let l:pm_options = {}
-  
-  " Handle 'dir' option
-  if has_key(l:options, 'dir')
-    let l:pm_options.dir = l:options.dir
-  endif
-  
-  " Handle 'branch' option
-  if has_key(l:options, 'branch')
-    let l:pm_options.branch = l:options.branch
-  endif
-  
-  " Handle 'tag' option
-  if has_key(l:options, 'tag')
-    let l:pm_options.tag = l:options.tag
-  endif
-  
-  " Handle 'exec' option
-  if has_key(l:options, 'exec')
-    let l:exec_value = l:options.exec
-    " Check if it's a string
-    if type(l:exec_value) == v:t_string
-      let l:pm_options.exec = l:exec_value
+    
+    " Check for Plugin definition
+    let l:plugin_match = matchlist(l:line, '^\s*Plugin\s\+[''"].\{-}[''"]')
+    if !empty(l:plugin_match)
+      " Start new plugin definition
+      if !empty(l:current_plugin)
+        call add(l:plugins_to_install, l:current_plugin)
+      endif
+      
+      let l:current_plugin = {'line': l:line, 'options': {}}
+      let l:in_plugin_def = 1
+      
+      " Extract plugin URL or shortname
+      let l:url_match = matchlist(l:line, '^\s*Plugin\s\+[''"]\(.\{-}\)[''"]')
+      if !empty(l:url_match)
+        let l:current_plugin.url = l:url_match[1]
+      endif
+      
+      " Check for inline options
+      let l:options_match = matchlist(l:line, '^\s*Plugin\s\+[''"].\{-}[''"],\s*{\(.\{-}\)}')
+      if !empty(l:options_match)
+        let l:options_str = l:options_match[1]
+        let l:current_plugin.options = s:parse_plugin_options(l:options_str)
+      endif
     endif
+  endfor
+  
+  " Add last plugin if exists
+  if !empty(l:current_plugin)
+    call add(l:plugins_to_install, l:current_plugin)
   endif
   
-  " Handle 'load' option
-  if has_key(l:options, 'load')
-    let l:pm_options.load = l:options.load
-  endif
+  " Install plugins
+  call plugin_manager#ui#update_sidebar(['Found ' . len(l:plugins_to_install) . ' plugins to install...'], 1)
   
-  " Install the plugin
-  call plugin_manager#ui#update_sidebar(['Installing: ' . l:url], 1)
-  call plugin_manager#modules#add(l:url, l:pm_options)
-endfor
-
-call plugin_manager#ui#update_sidebar(['Plugin block processing completed.'], 1)
+  for l:plugin in l:plugins_to_install
+    let l:url = l:plugin.url
+    let l:options = l:plugin.options
+    
+    " Convert options to plugin_manager options
+    let l:pm_options = {}
+    
+    " Handle 'dir' option
+    if has_key(l:options, 'dir')
+      let l:pm_options.dir = l:options.dir
+    endif
+    
+    " Handle 'branch' option
+    if has_key(l:options, 'branch')
+      let l:pm_options.branch = l:options.branch
+    endif
+    
+    " Handle 'tag' option
+    if has_key(l:options, 'tag')
+      let l:pm_options.tag = l:options.tag
+    endif
+    
+    " Handle 'exec' option
+    if has_key(l:options, 'exec')
+      let l:exec_value = l:options.exec
+      " Check if it's a string
+      if type(l:exec_value) == v:t_string
+        let l:pm_options.exec = l:exec_value
+      endif
+    endif
+    
+    " Handle 'load' option
+    if has_key(l:options, 'load')
+      let l:pm_options.load = l:options.load
+    endif
+    
+    " Install the plugin
+    call plugin_manager#ui#update_sidebar(['Installing: ' . l:url], 1)
+    call plugin_manager#modules#add(l:url, l:pm_options)
+  endfor
+  
+  call plugin_manager#ui#update_sidebar(['Plugin block processing completed.'], 1)
 endfunction
 
 " Parse options from string to dictionary
 function! s:parse_plugin_options(options_str)
-let l:options = {}
-
-" Split by commas, but respect nested structures
-let l:option_parts = split(a:options_str, ',')
-
-for l:part in l:option_parts
-  let l:kv_match = matchlist(l:part, '[''"]\?\(\w\+\)[''"]\?\s*:\s*\(.\{-}\)\s*$')
-  if !empty(l:kv_match)
-    let l:key = trim(l:kv_match[1])
-    let l:value = trim(l:kv_match[2])
-    
-    " Remove quotes from string values
-    if l:value =~ '^[''"].*[''"]$'
-      let l:value = l:value[1:-2]
+  let l:options = {}
+  
+  " Split by commas, but respect nested structures
+  let l:option_parts = split(a:options_str, ',')
+  
+  for l:part in l:option_parts
+    let l:kv_match = matchlist(l:part, '[''"]\?\(\w\+\)[''"]\?\s*:\s*\(.\{-}\)\s*$')
+    if !empty(l:kv_match)
+      let l:key = trim(l:kv_match[1])
+      let l:value = trim(l:kv_match[2])
+      
+      " Remove quotes from string values
+      if l:value =~ '^[''"].*[''"]$'
+        let l:value = l:value[1:-2]
+      endif
+      
+      let l:options[l:key] = l:value
     endif
-    
-    let l:options[l:key] = l:value
-  endif
-endfor
-
-return l:options
+  endfor
+  
+  return l:options
 endfunction

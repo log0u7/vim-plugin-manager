@@ -55,19 +55,21 @@ endfunction
 
 " Improved status function with fixed column formatting and truly asynchronous behavior
 function! plugin_manager#modules#status()
-  " Protection contre les appels multiples
+  " Lock with timeout to prevent multiple concurrent runs
   if exists('s:status_in_progress') && s:status_in_progress
     call plugin_manager#ui#update_sidebar(['Status operation already in progress...'], 1)
     return
   endif
-  let s:status_in_progress = 1
+  
+  " Set lock with automatic timeout of 10 minutes (600000 ms)
+  call plugin_manager#utils#set_lock_with_timeout('s:status_in_progress', 600000)
   
   if !plugin_manager#utils#ensure_vim_directory()
     let s:status_in_progress = 0
     return
   endif
   
-  " Nettoyer la section Job Progress avant de commencer
+  " Clear the Job Progress section before starting
   call plugin_manager#ui#clear_job_progress()
   
   " Initial header display
@@ -80,7 +82,7 @@ function! plugin_manager#modules#status()
   
   if empty(l:modules)
     call plugin_manager#ui#update_sidebar([l:header, repeat('-', len(l:header)), '', 'No submodules found (.gitmodules not found)'], 0)
-    let s:status_in_progress = 0
+    let s:status_in_progress = 0  " Important: release the lock
     return
   endif
   
@@ -110,6 +112,14 @@ endfunction
 
 " Process module statuses after fetch completes
 function! s:process_status_after_fetch(modules, header, status, output) 
+  " Error handling: release lock if fetch failed
+  if a:status != 0
+    let s:status_in_progress = 0  " Important: release the lock on error
+    call plugin_manager#ui#update_sidebar([a:header, repeat('-', len(a:header)), '', 
+          \ 'Error fetching updates: ' . a:output], 0)
+    return
+  endif
+
   call plugin_manager#ui#update_sidebar([a:header, repeat('-', len(a:header)), '', 
         \ 'Plugin'.repeat(' ', 16).'Commit'.repeat(' ', 14).'Branch'.repeat(' ', 8).'Last Updated'.repeat(' ', 18).'Status',
         \ repeat('-', 120),
@@ -144,6 +154,9 @@ function! s:process_status_sync(modules, header, timer)
         \ repeat('-', 120)]
   call extend(l:final_lines, l:lines)
   call plugin_manager#ui#update_sidebar(l:final_lines, 0)
+  
+  " Important: release the lock after completion
+  let s:status_in_progress = 0
 endfunction
 
 " Process module statuses asynchronously in chunks
@@ -198,6 +211,9 @@ function! s:process_status_async(modules, header, timer)
     
     " Clean up state
     unlet s:status_state
+    
+    " Important: release the lock after completion
+    let s:status_in_progress = 0
   endif
 endfunction
 
@@ -280,7 +296,17 @@ endfunction
   
 " Show a summary of submodule changes
 function! plugin_manager#modules#summary()
+  " Lock with timeout to prevent multiple concurrent runs
+  if exists('s:summary_in_progress') && s:summary_in_progress
+    call plugin_manager#ui#update_sidebar(['Summary operation already in progress...'], 1)
+    return
+  endif
+  
+  " Set lock with automatic timeout of 5 minutes (300000 ms)
+  call plugin_manager#utils#set_lock_with_timeout('s:summary_in_progress', 300000)
+  
   if !plugin_manager#utils#ensure_vim_directory()
+    let s:summary_in_progress = 0  " Important: release the lock on error
     return
   endif
   
@@ -290,6 +316,7 @@ function! plugin_manager#modules#summary()
   if !filereadable('.gitmodules')
     let l:lines = [l:header, repeat('-', len(l:header)), '', 'No submodules found (.gitmodules not found)']
     call plugin_manager#ui#open_sidebar(l:lines)
+    let s:summary_in_progress = 0  " Important: release the lock
     return
   endif
   
@@ -297,7 +324,8 @@ function! plugin_manager#modules#summary()
   if plugin_manager#jobs#is_async_supported()
     let l:callbacks = {
           \ 'name': 'Generating module summary',
-          \ 'on_stdout': function('s:handle_summary_output', [l:header])
+          \ 'on_stdout': function('s:handle_summary_output', [l:header]),
+          \ 'on_exit': function('s:handle_summary_exit')
           \ }
     call plugin_manager#jobs#start('git submodule summary', l:callbacks)
   else
@@ -305,6 +333,7 @@ function! plugin_manager#modules#summary()
     let l:lines = [l:header, repeat('-', len(l:header)), '']
     call extend(l:lines, split(l:output, "\n"))
     call plugin_manager#ui#open_sidebar(l:lines)
+    let s:summary_in_progress = 0  " Important: release the lock
   endif
 endfunction
 
@@ -312,6 +341,11 @@ function! s:handle_summary_output(header, output)
   let l:lines = [a:header, repeat('-', len(a:header)), '']
   call extend(l:lines, split(a:output, "\n"))
   call plugin_manager#ui#open_sidebar(l:lines)
+endfunction
+
+function! s:handle_summary_exit(status, output)
+  " Important: release the lock after completion
+  let s:summary_in_progress = 0
 endfunction
   
 " Generate helptags for a specific plugin
@@ -353,11 +387,21 @@ endfunction
   
 " Generate helptags for all installed plugins
 function! plugin_manager#modules#generate_helptags(...)
+  " Lock with timeout to prevent multiple concurrent runs
+  if exists('s:helptags_in_progress') && s:helptags_in_progress
+    call plugin_manager#ui#update_sidebar(['Helptags generation already in progress...'], 1)
+    return
+  endif
+  
+  " Set lock with automatic timeout of 3 minutes (180000 ms)
+  call plugin_manager#utils#set_lock_with_timeout('s:helptags_in_progress', 180000)
+  
   " Fix: Properly handle optional arguments
   let l:create_header = a:0 > 0 ? a:1 : 1
   let l:specific_module = a:0 > 1 ? a:2 : ''
   
   if !plugin_manager#utils#ensure_vim_directory()
+    let s:helptags_in_progress = 0  " Important: release the lock on error
     return
   endif
     
@@ -406,19 +450,27 @@ function! plugin_manager#modules#generate_helptags(...)
   endif
   
   call plugin_manager#ui#update_sidebar(l:result_message, 1)
+  
+  " Important: release the lock after completion
+  let s:helptags_in_progress = 0
 endfunction
 
 " Update plugins asynchronously
 function! plugin_manager#modules#update(...)
-  " Prevent multiple concurrent update calls if not async
-  if exists('s:update_in_progress') && s:update_in_progress && !plugin_manager#jobs#is_async_supported()
-    call plugin_manager#ui#update_sidebar(['Update already in progress. Please wait...'], 1)
-    return
+  " Prevent multiple concurrent update calls with proper lock management
+  if exists('s:update_in_progress') && s:update_in_progress
+    " Only block if async is not supported, otherwise use lock without blocking
+    if !plugin_manager#jobs#is_async_supported()
+      call plugin_manager#ui#update_sidebar(['Update already in progress. Please wait...'], 1)
+      return
+    endif
   endif
-  let s:update_in_progress = 1
+  
+  " Set lock with automatic timeout of 30 minutes (1800000 ms)
+  call plugin_manager#utils#set_lock_with_timeout('s:update_in_progress', 1800000)
 
   if !plugin_manager#utils#ensure_vim_directory()
-    let s:update_in_progress = 0
+    let s:update_in_progress = 0  " Important: release the lock on error
     return
   endif
   
@@ -428,7 +480,7 @@ function! plugin_manager#modules#update(...)
   if empty(l:modules)
     let l:lines = [l:title, repeat('-', len(l:title)), '', 'No plugins to update (.gitmodules not found)']
     call plugin_manager#ui#open_sidebar(l:lines)
-    let s:update_in_progress = 0
+    let s:update_in_progress = 0  " Important: release the lock
     return
   endif
   
@@ -488,6 +540,13 @@ function! plugin_manager#modules#update(...)
     let s:update_in_progress = 0
     
     " Clear job progress section when done
+    call timer_start(3000, {-> plugin_manager#ui#clear_job_progress()})
+  endfunction
+  
+  " Error handler to ensure lock is released on failure
+  function! s:handle_update_error(error_msg) closure
+    call plugin_manager#ui#update_sidebar(['Error during update: ' . a:error_msg], 1)
+    let s:update_in_progress = 0  " Important: release the lock on error
     call timer_start(3000, {-> plugin_manager#ui#clear_job_progress()})
   endfunction
   
@@ -570,7 +629,7 @@ function! plugin_manager#modules#update(...)
     " 5. Apply updates if any
     if empty(l:modules_with_updates)
       call plugin_manager#ui#update_sidebar(['All plugins are up-to-date.'], 1)
-      let s:update_in_progress = 0
+      let s:update_in_progress = 0  " Important: release the lock
       return
     else
       call plugin_manager#ui#update_sidebar(['Found ' . len(l:modules_with_updates) . ' plugins with updates available. Updating...'], 1)
@@ -601,7 +660,7 @@ function! plugin_manager#modules#update(...)
     
     if empty(l:module_info)
       call plugin_manager#ui#open_sidebar(l:header + ['Error: Module "' . l:specific_module . '" not found.'])
-      let s:update_in_progress = 0
+      let s:update_in_progress = 0  " Important: release the lock
       return
     endif
     
@@ -613,7 +672,7 @@ function! plugin_manager#modules#update(...)
     if !isdirectory(l:module_path)
       call plugin_manager#ui#update_sidebar(['Error: Module directory "' . l:module_path . '" not found.', 
             \ 'Try running "PluginManager restore" to reinstall missing modules.'], 1)
-      let s:update_in_progress = 0
+      let s:update_in_progress = 0  " Important: release the lock
       return
     endif
     
@@ -653,14 +712,14 @@ function! plugin_manager#modules#update(...)
             \ 'To preserve your branch choice, the plugin will not be updated automatically.',
             \ 'To update anyway, run: git submodule update --remote --force -- "' . l:module_path . '"'
             \ ], 1)
-      let s:update_in_progress = 0
+      let s:update_in_progress = 0  " Important: release the lock
       return
     endif
     
     " If module has no updates, it's up to date
     if !l:update_status.has_updates
       call plugin_manager#ui#update_sidebar(['Plugin "' . l:module_name . '" is already up-to-date.'], 1)
-      let s:update_in_progress = 0
+      let s:update_in_progress = 0  " Important: release the lock
       return
     else
       call plugin_manager#ui#update_sidebar(['Updates available for plugin "' . l:module_name . '". Updating...'], 1)
@@ -688,6 +747,15 @@ endfunction
   
 " Handle 'add' command
 function! plugin_manager#modules#add(...)
+  " Lock with timeout to prevent multiple concurrent runs
+  if exists('s:add_in_progress') && s:add_in_progress
+    call plugin_manager#ui#update_sidebar(['Plugin add operation already in progress...'], 1)
+    return 1
+  endif
+  
+  " Set lock with automatic timeout of 10 minutes (600000 ms)
+  call plugin_manager#utils#set_lock_with_timeout('s:add_in_progress', 600000)
+  
   if a:0 < 1
     let l:lines = ["Add Plugin Usage:", "---------------", "", 
           \ "Usage: PluginManager add <plugin> [options]", "",
@@ -699,6 +767,7 @@ function! plugin_manager#modules#add(...)
           \ "For backward compatibility:", 
           \ "PluginManager add <plugin> [modulename] [opt]"]
     call plugin_manager#ui#open_sidebar(l:lines)
+    let s:add_in_progress = 0  " Important: release the lock
     return 1
   endif
   
@@ -709,6 +778,7 @@ function! plugin_manager#modules#add(...)
   if empty(l:moduleUrl)
     let l:lines = ["Invalid Plugin Format:", "--------------------", "", l:pluginInput . " is not a valid plugin name, URL, or local path.", "Use format 'user/repo', complete URL, or local path."]
     call plugin_manager#ui#open_sidebar(l:lines)
+    let s:add_in_progress = 0  " Important: release the lock
     return 1
   endif
   
@@ -726,6 +796,7 @@ function! plugin_manager#modules#add(...)
     endif
     
     call plugin_manager#ui#open_sidebar(l:lines)
+    let s:add_in_progress = 0  " Important: release the lock
     return 1
   endif
   
@@ -800,6 +871,7 @@ endfunction
 " Function to install local plugins
 function! s:add_local_module(localPath, installDir, options)
   if !plugin_manager#utils#ensure_vim_directory()
+    let s:add_in_progress = 0  " Important: release the lock
     return
   endif
   
@@ -809,6 +881,7 @@ function! s:add_local_module(localPath, installDir, options)
   " Check if local path exists
   if !isdirectory(a:localPath)
     call plugin_manager#ui#update_sidebar(['Error: Local directory "' . a:localPath . '" not found'], 1)
+    let s:add_in_progress = 0  " Important: release the lock
     return
   endif
   
@@ -821,6 +894,7 @@ function! s:add_local_module(localPath, installDir, options)
   " Ensure the installation directory doesn't already exist
   if isdirectory(a:installDir)
     call plugin_manager#ui#update_sidebar(['Error: Destination directory "' . a:installDir . '" already exists'], 1)
+    let s:add_in_progress = 0  " Important: release the lock
     return
   endif
   
@@ -892,6 +966,9 @@ function! s:add_local_module(localPath, installDir, options)
       call timer_start(500, {-> s:generate_helptag_async(a:installDir)})
     endif
     
+    " Important: release the lock
+    let s:add_in_progress = 0
+    
     " Clear job progress section when done
     call timer_start(3000, {-> plugin_manager#ui#clear_job_progress()})
   endfunction
@@ -903,6 +980,7 @@ endfunction
 " Add a new plugin asynchronously
 function! s:add_module(moduleUrl, installDir, options)
   if !plugin_manager#utils#ensure_vim_directory()
+    let s:add_in_progress = 0  " Important: release the lock
     return
   endif
   
@@ -922,6 +1000,7 @@ function! s:add_module(moduleUrl, installDir, options)
   let l:gitmoduleCheck = system('grep -c "' . l:relativeInstallDir . '" .gitmodules 2>/dev/null')
   if shellescape(l:gitmoduleCheck) != 0
     call plugin_manager#ui#update_sidebar(['Error: Plugin already installed at this location :'. l:relativeInstallDir], 1)
+    let s:add_in_progress = 0  " Important: release the lock
     return
   endif
   
@@ -999,6 +1078,9 @@ function! s:add_module(moduleUrl, installDir, options)
     " Force refresh the cache
     call plugin_manager#utils#refresh_modules_cache()
     
+    " Important: release the lock
+    let s:add_in_progress = 0
+    
     " Clear job progress section when done
     call timer_start(3000, {-> plugin_manager#ui#clear_job_progress()})
   endfunction
@@ -1009,88 +1091,104 @@ endfunction
   
 " Handle 'remove' command
 function! plugin_manager#modules#remove(...)
-    if a:0 < 1
-      let l:lines = ["Remove Plugin Usage:", "-----------------", "", "Usage: PluginManager remove <modulename> [-f]"]
-      call plugin_manager#ui#open_sidebar(l:lines)
-      return 1
+  " Lock with timeout to prevent multiple concurrent runs
+  if exists('s:remove_in_progress') && s:remove_in_progress
+    call plugin_manager#ui#update_sidebar(['Plugin remove operation already in progress...'], 1)
+    return 1
+  endif
+  
+  " Set lock with automatic timeout of 5 minutes (300000 ms)
+  call plugin_manager#utils#set_lock_with_timeout('s:remove_in_progress', 300000)
+  
+  if a:0 < 1
+    let l:lines = ["Remove Plugin Usage:", "-----------------", "", "Usage: PluginManager remove <modulename> [-f]"]
+    call plugin_manager#ui#open_sidebar(l:lines)
+    let s:remove_in_progress = 0  " Important: release the lock
+    return 1
+  endif
+  
+  let l:moduleName = a:1
+  let l:force_flag = a:0 >= 2 && a:2 == "-f"
+  
+  " Use the module finder from the cache system
+  let l:module_info = plugin_manager#utils#find_module(l:moduleName)
+  
+  if !empty(l:module_info)
+    let l:module = l:module_info.module
+    let l:module_path = l:module.path
+    let l:module_name = l:module.short_name
+    
+    " Force flag provided or prompt for confirmation
+    if l:force_flag
+      call s:remove_module(l:module_name, l:module_path)
+    else
+      let l:response = input("Are you sure you want to remove " . l:module_name . " (" . l:module_path . ")? [y/N] ")
+      if l:response =~? '^y\(es\)\?$'
+        call s:remove_module(l:module_name, l:module_path)
+      else
+        let s:remove_in_progress = 0  " Important: release the lock if canceled
+      endif
     endif
+  else
+    " Module not found in cache, fallback to filesystem search
+    let l:removedPluginPath = ""
     
-    let l:moduleName = a:1
-    let l:force_flag = a:0 >= 2 && a:2 == "-f"
+    " Try direct filesystem search
+    let l:find_cmd = 'find ' . g:plugin_manager_plugins_dir . ' -type d -name "*' . l:moduleName . '*" | head -n1'
+    let l:removedPluginPath = substitute(system(l:find_cmd), '\n$', '', '')
     
-    " Use the module finder from the cache system
-    let l:module_info = plugin_manager#utils#find_module(l:moduleName)
-    
-    if !empty(l:module_info)
-      let l:module = l:module_info.module
-      let l:module_path = l:module.path
-      let l:module_name = l:module.short_name
+    if !empty(l:removedPluginPath) && isdirectory(l:removedPluginPath)
+      let l:filesystem_name = fnamemodify(l:removedPluginPath, ':t')
       
       " Force flag provided or prompt for confirmation
       if l:force_flag
-        call s:remove_module(l:module_name, l:module_path)
+        call s:remove_module(l:filesystem_name, l:removedPluginPath)
       else
-        let l:response = input("Are you sure you want to remove " . l:module_name . " (" . l:module_path . ")? [y/N] ")
+        let l:response = input("Are you sure you want to remove " . l:filesystem_name . " (" . l:removedPluginPath . ")? [y/N] ")
         if l:response =~? '^y\(es\)\?$'
-          call s:remove_module(l:module_name, l:module_path)
+          call s:remove_module(l:filesystem_name, l:removedPluginPath)
+        else
+          let s:remove_in_progress = 0  " Important: release the lock if canceled
         endif
       endif
     else
-      " Module not found in cache, fallback to filesystem search
-      let l:removedPluginPath = ""
+      " Provide more informative error for debugging
+      let l:lines = ["Module Not Found:", "----------------", "", 
+            \ "Unable to find module '" . l:moduleName . "'", ""]
       
-      " Try direct filesystem search
-      let l:find_cmd = 'find ' . g:plugin_manager_plugins_dir . ' -type d -name "*' . l:moduleName . '*" | head -n1'
-      let l:removedPluginPath = substitute(system(l:find_cmd), '\n$', '', '')
-      
-      if !empty(l:removedPluginPath) && isdirectory(l:removedPluginPath)
-        let l:filesystem_name = fnamemodify(l:removedPluginPath, ':t')
-        
-        " Force flag provided or prompt for confirmation
-        if l:force_flag
-          call s:remove_module(l:filesystem_name, l:removedPluginPath)
-        else
-          let l:response = input("Are you sure you want to remove " . l:filesystem_name . " (" . l:removedPluginPath . ")? [y/N] ")
-          if l:response =~? '^y\(es\)\?$'
-            call s:remove_module(l:filesystem_name, l:removedPluginPath)
+      " List available modules for reference
+      let l:modules = plugin_manager#utils#parse_gitmodules()
+      if !empty(l:modules)
+        let l:lines += ["Available modules:"]
+        for [l:name, l:module] in items(l:modules)
+          if l:module.is_valid
+            call add(l:lines, "- " . l:module.short_name . " (" . l:module.path . ")")
           endif
-        endif
+        endfor
       else
-        " Provide more informative error for debugging
-        let l:lines = ["Module Not Found:", "----------------", "", 
-              \ "Unable to find module '" . l:moduleName . "'", ""]
+        let l:lines += ["No modules found in .gitmodules"]
         
-        " List available modules for reference
-        let l:modules = plugin_manager#utils#parse_gitmodules()
-        if !empty(l:modules)
-          let l:lines += ["Available modules:"]
-          for [l:name, l:module] in items(l:modules)
-            if l:module.is_valid
-              call add(l:lines, "- " . l:module.short_name . " (" . l:module.path . ")")
-            endif
-          endfor
-        else
-          let l:lines += ["No modules found in .gitmodules"]
-          
-          " Check filesystem if nothing in .gitmodules
-          let l:fs_plugins = systemlist('find ' . g:plugin_manager_plugins_dir . ' -mindepth 2 -maxdepth 2 -type d | sort')
-          if !empty(l:fs_plugins)
-            let l:lines += ["", "Plugin directories found in filesystem:"]
-            let l:lines += l:fs_plugins
-          endif
+        " Check filesystem if nothing in .gitmodules
+        let l:fs_plugins = systemlist('find ' . g:plugin_manager_plugins_dir . ' -mindepth 2 -maxdepth 2 -type d | sort')
+        if !empty(l:fs_plugins)
+          let l:lines += ["", "Plugin directories found in filesystem:"]
+          let l:lines += l:fs_plugins
         endif
-        
-        call plugin_manager#ui#open_sidebar(l:lines)
-        return 1
       endif
+      
+      call plugin_manager#ui#open_sidebar(l:lines)
+      let s:remove_in_progress = 0  " Important: release the lock
+      return 1
     endif
-    
-    return 0
+  endif
+  
+  return 0
 endfunction
   
 " Remove an existing plugin asynchronously
 function! s:remove_module(moduleName, removedPluginPath)
   if !plugin_manager#utils#ensure_vim_directory()
+    let s:remove_in_progress = 0  " Important: release the lock
     return
   endif
   
@@ -1192,6 +1290,9 @@ function! s:remove_module(moduleName, removedPluginPath)
     " Force refresh the cache after removal
     call plugin_manager#utils#refresh_modules_cache()
     
+    " Important: release the lock
+    let s:remove_in_progress = 0
+    
     " Clear job progress section when done
     call timer_start(3000, {-> plugin_manager#ui#clear_job_progress()})
   endfunction
@@ -1202,7 +1303,17 @@ endfunction
   
 " Backup configuration to remote repositories
 function! plugin_manager#modules#backup()
+  " Lock with timeout to prevent multiple concurrent runs
+  if exists('s:backup_in_progress') && s:backup_in_progress
+    call plugin_manager#ui#update_sidebar(['Backup operation already in progress...'], 1)
+    return
+  endif
+  
+  " Set lock with automatic timeout of 10 minutes (600000 ms)
+  call plugin_manager#utils#set_lock_with_timeout('s:backup_in_progress', 600000)
+  
   if !plugin_manager#utils#ensure_vim_directory()
+    let s:backup_in_progress = 0  " Important: release the lock on error
     return
   endif
   
@@ -1248,6 +1359,7 @@ function! plugin_manager#modules#backup()
           \ 'No remote repositories configured.',
           \ 'Use PluginManagerRemote to add a remote repository.'
           \ ], 1)
+    let s:backup_in_progress = 0  " Important: release the lock
     return
   endif
   
@@ -1281,6 +1393,9 @@ function! plugin_manager#modules#backup()
     
     call plugin_manager#ui#update_sidebar(l:result_lines, 1)
     
+    " Important: release the lock
+    let s:backup_in_progress = 0
+    
     " Clear job progress section when done
     call timer_start(3000, {-> plugin_manager#ui#clear_job_progress()})
   endfunction
@@ -1291,248 +1406,291 @@ endfunction
   
 " Restore all plugins from .gitmodules
 function! plugin_manager#modules#restore()
-    if !plugin_manager#utils#ensure_vim_directory()
-      return
-    endif
+  " Lock with timeout to prevent multiple concurrent runs
+  if exists('s:restore_in_progress') && s:restore_in_progress
+    call plugin_manager#ui#update_sidebar(['Restore operation already in progress...'], 1)
+    return
+  endif
+  
+  " Set lock with automatic timeout of 15 minutes (900000 ms)
+  call plugin_manager#utils#set_lock_with_timeout('s:restore_in_progress', 900000)
+  
+  if !plugin_manager#utils#ensure_vim_directory()
+    let s:restore_in_progress = 0  " Important: release the lock on error
+    return
+  endif
     
-    let l:header = ['Restore Plugins:', '---------------', '', 'Checking for .gitmodules file...']
-    call plugin_manager#ui#open_sidebar(l:header)
-    
-    " First, check if .gitmodules exists
-    if !filereadable('.gitmodules')
-      call plugin_manager#ui#update_sidebar(['Error: .gitmodules file not found!'], 1)
-      return
-    endif
-    
-    " Create command sequence
-    let l:commands = []
-    
-    " 1. Initialize submodules
-    call add(l:commands, {
-          \ 'cmd': 'git submodule init',
-          \ 'name': 'Initializing submodules'
-          \ })
-    
-    " 2. Fetch and update all submodules
-    call add(l:commands, {
-          \ 'cmd': 'git submodule update --init --recursive',
-          \ 'name': 'Updating submodules'
-          \ })
-    
-    " 3. Make sure all submodules are at the correct commit
-    call add(l:commands, {
-          \ 'cmd': 'git submodule sync',
-          \ 'name': 'Syncing submodules'
-          \ })
-          
-    call add(l:commands, {
-          \ 'cmd': 'git submodule update --init --recursive --force',
-          \ 'name': 'Forcing submodule update'
-          \ })
-    
-    " Final callback function
-    function! s:handle_restore_completed(results) closure
-      let l:success = 1
-      let l:result_lines = ['Restore results:']
-      
-      for l:result in a:results
-        if l:result.status != 0
-          let l:success = 0
-          call add(l:result_lines, '✗ ' . l:result.name . ' failed')
-        else
-          call add(l:result_lines, '✓ ' . l:result.name . ' succeeded')
-        endif
-      endfor
-      
-      if l:success
-        call add(l:result_lines, '')
-        call add(l:result_lines, 'All plugins have been restored successfully.')
-        call add(l:result_lines, '')
-        call add(l:result_lines, 'Generating helptags:')
-        call plugin_manager#ui#update_sidebar(l:result_lines, 1)
+  let l:header = ['Restore Plugins:', '---------------', '', 'Checking for .gitmodules file...']
+  call plugin_manager#ui#open_sidebar(l:header)
+  
+  " First, check if .gitmodules exists
+  if !filereadable('.gitmodules')
+    call plugin_manager#ui#update_sidebar(['Error: .gitmodules file not found!'], 1)
+    let s:restore_in_progress = 0  " Important: release the lock
+    return
+  endif
+  
+  " Create command sequence
+  let l:commands = []
+  
+  " 1. Initialize submodules
+  call add(l:commands, {
+        \ 'cmd': 'git submodule init',
+        \ 'name': 'Initializing submodules'
+        \ })
+  
+  " 2. Fetch and update all submodules
+  call add(l:commands, {
+        \ 'cmd': 'git submodule update --init --recursive',
+        \ 'name': 'Updating submodules'
+        \ })
+  
+  " 3. Make sure all submodules are at the correct commit
+  call add(l:commands, {
+        \ 'cmd': 'git submodule sync',
+        \ 'name': 'Syncing submodules'
+        \ })
         
-        " Generate helptags for all plugins
-        call plugin_manager#modules#generate_helptags(0)
-      else
-        call add(l:result_lines, '')
-        call add(l:result_lines, 'Restore completed with errors. See details above.')
-        call plugin_manager#ui#update_sidebar(l:result_lines, 1)
-      endif
-      
-      " Clear job progress section when done
-      call timer_start(3000, {-> plugin_manager#ui#clear_job_progress()})
-    endfunction
+  call add(l:commands, {
+        \ 'cmd': 'git submodule update --init --recursive --force',
+        \ 'name': 'Forcing submodule update'
+        \ })
+  
+  " Final callback function
+  function! s:handle_restore_completed(results) closure
+    let l:success = 1
+    let l:result_lines = ['Restore results:']
     
-    " Run the commands in sequence
-    call plugin_manager#jobs#run_sequence(l:commands, function('s:handle_restore_completed'))
+    for l:result in a:results
+      if l:result.status != 0
+        let l:success = 0
+        call add(l:result_lines, '✗ ' . l:result.name . ' failed')
+      else
+        call add(l:result_lines, '✓ ' . l:result.name . ' succeeded')
+      endif
+    endfor
+    
+    if l:success
+      call add(l:result_lines, '')
+      call add(l:result_lines, 'All plugins have been restored successfully.')
+      call add(l:result_lines, '')
+      call add(l:result_lines, 'Generating helptags:')
+      call plugin_manager#ui#update_sidebar(l:result_lines, 1)
+      
+      " Generate helptags for all plugins
+      call plugin_manager#modules#generate_helptags(0)
+    else
+      call add(l:result_lines, '')
+      call add(l:result_lines, 'Restore completed with errors. See details above.')
+      call plugin_manager#ui#update_sidebar(l:result_lines, 1)
+    endif
+    
+    " Important: release the lock
+    let s:restore_in_progress = 0
+    
+    " Clear job progress section when done
+    call timer_start(3000, {-> plugin_manager#ui#clear_job_progress()})
+  endfunction
+  
+  " Run the commands in sequence
+  call plugin_manager#jobs#run_sequence(l:commands, function('s:handle_restore_completed'))
 endfunction
   
 " Reload a specific plugin or all Vim configuration
 function! plugin_manager#modules#reload(...)
-    if !plugin_manager#utils#ensure_vim_directory()
+  " Lock with timeout to prevent multiple concurrent runs
+  if exists('s:reload_in_progress') && s:reload_in_progress
+    call plugin_manager#ui#update_sidebar(['Reload operation already in progress...'], 1)
+    return
+  endif
+  
+  " Set lock with automatic timeout of 1 minute (60000 ms)
+  call plugin_manager#utils#set_lock_with_timeout('s:reload_in_progress', 60000)
+  
+  if !plugin_manager#utils#ensure_vim_directory()
+    let s:reload_in_progress = 0  " Important: release the lock on error
+    return
+  endif
+    
+  let l:header = ['Reload:', '-------', '']
+  
+  " Check if a specific module was specified
+  let l:specific_module = a:0 > 0 ? a:1 : ''
+  
+  if !empty(l:specific_module)
+    " Reload a specific module
+    call plugin_manager#ui#open_sidebar(l:header + ['Reloading plugin: ' . l:specific_module . '...'])
+    
+    " Find the module path
+    let l:grep_cmd = 'grep -A1 "path = .*' . l:specific_module . '" .gitmodules | grep "path =" | cut -d "=" -f2 | tr -d " "'
+    let l:module_path = system(l:grep_cmd)
+    let l:module_path = substitute(l:module_path, '\n$', '', '')
+    
+    if empty(l:module_path)
+      call plugin_manager#ui#update_sidebar(['Error: Module "' . l:specific_module . '" not found.'], 1)
+      let s:reload_in_progress = 0  " Important: release the lock
       return
     endif
     
-    let l:header = ['Reload:', '-------', '']
+    " A more effective approach to reload a plugin:
+    " 1. Remove it from runtimepath
+    execute 'set rtp-=' . l:module_path
     
-    " Check if a specific module was specified
-    let l:specific_module = a:0 > 0 ? a:1 : ''
-    
-    if !empty(l:specific_module)
-      " Reload a specific module
-      call plugin_manager#ui#open_sidebar(l:header + ['Reloading plugin: ' . l:specific_module . '...'])
-      
-      " Find the module path
-      let l:grep_cmd = 'grep -A1 "path = .*' . l:specific_module . '" .gitmodules | grep "path =" | cut -d "=" -f2 | tr -d " "'
-      let l:module_path = system(l:grep_cmd)
-      let l:module_path = substitute(l:module_path, '\n$', '', '')
-      
-      if empty(l:module_path)
-        call plugin_manager#ui#update_sidebar(['Error: Module "' . l:specific_module . '" not found.'], 1)
-        return
-      endif
-      
-      " A more effective approach to reload a plugin:
-      " 1. Remove it from runtimepath
-      execute 'set rtp-=' . l:module_path
-      
-      " 2. Clear any runtime files loaded from this plugin
-      let l:runtime_paths = split(globpath(l:module_path, '**/*.vim'), '\n')
-      for l:rtp in l:runtime_paths
-        " Only try to clear files that are in autoload, plugin, or ftplugin directories
-        if l:rtp =~ '/autoload/' || l:rtp =~ '/plugin/' || l:rtp =~ '/ftplugin/'
-          " Get the script ID if loaded
-          let l:sid = 0
-          redir => l:scriptnames
-          silent scriptnames
-          redir END
-          
-          for l:line in split(l:scriptnames, '\n')
-            if l:line =~ l:rtp
-              let l:sid = str2nr(matchstr(l:line, '^\s*\zs\d\+\ze:'))
-              break
-            endif
-          endfor
-          
-          " If script is loaded, try to unload it
-          if l:sid > 0
-            " Attempt to clear script variables (doesn't work for all plugins)
-            execute 'runtime! ' . l:rtp
+    " 2. Clear any runtime files loaded from this plugin
+    let l:runtime_paths = split(globpath(l:module_path, '**/*.vim'), '\n')
+    for l:rtp in l:runtime_paths
+      " Only try to clear files that are in autoload, plugin, or ftplugin directories
+      if l:rtp =~ '/autoload/' || l:rtp =~ '/plugin/' || l:rtp =~ '/ftplugin/'
+        " Get the script ID if loaded
+        let l:sid = 0
+        redir => l:scriptnames
+        silent scriptnames
+        redir END
+        
+        for l:line in split(l:scriptnames, '\n')
+          if l:line =~ l:rtp
+            let l:sid = str2nr(matchstr(l:line, '^\s*\zs\d\+\ze:'))
+            break
           endif
-        endif
-      endfor
-      
-      " 3. Add it back to runtimepath
-      execute 'set rtp+=' . l:module_path
-      
-      " 4. Reload all runtime files from the plugin
-      for l:rtp in l:runtime_paths
-        if l:rtp =~ '/plugin/' || l:rtp =~ '/ftplugin/'
+        endfor
+        
+        " If script is loaded, try to unload it
+        if l:sid > 0
+          " Attempt to clear script variables (doesn't work for all plugins)
           execute 'runtime! ' . l:rtp
         endif
-      endfor
-      
-      call plugin_manager#ui#update_sidebar(['Plugin "' . l:specific_module . '" reloaded successfully.', 'Note: Some plugins may require restarting Vim for a complete reload.'], 1)
-    else
-      " Reload all Vim configuration
-      call plugin_manager#ui#open_sidebar(l:header + ['Reloading entire Vim configuration...'])
-      
-      " First unload all plugins
-      call plugin_manager#ui#update_sidebar(['Unloading plugins...'], 1)
-      
-      " Then reload vimrc file
-      if filereadable(expand(g:plugin_manager_vimrc_path))
-        call plugin_manager#ui#update_sidebar(['Sourcing ' . g:plugin_manager_vimrc_path . '...'], 1)
-        
-        " More effective reloading approach
-        execute 'runtime! plugin/**/*.vim'
-        execute 'runtime! ftplugin/**/*.vim'
-        execute 'runtime! syntax/**/*.vim'
-        execute 'runtime! indent/**/*.vim'
-        
-        " Finally source the vimrc
-        execute 'source ' . g:plugin_manager_vimrc_path
-        
-        call plugin_manager#ui#update_sidebar(['Vim configuration reloaded successfully.', 'Note: Some plugins may require restarting Vim for a complete reload.'], 1)
-      else
-        call plugin_manager#ui#update_sidebar(['Warning: Vimrc file not found at ' . g:plugin_manager_vimrc_path], 1)
       endif
+    endfor
+    
+    " 3. Add it back to runtimepath
+    execute 'set rtp+=' . l:module_path
+    
+    " 4. Reload all runtime files from the plugin
+    for l:rtp in l:runtime_paths
+      if l:rtp =~ '/plugin/' || l:rtp =~ '/ftplugin/'
+        execute 'runtime! ' . l:rtp
+      endif
+    endfor
+    
+    call plugin_manager#ui#update_sidebar(['Plugin "' . l:specific_module . '" reloaded successfully.', 'Note: Some plugins may require restarting Vim for a complete reload.'], 1)
+    let s:reload_in_progress = 0  " Important: release the lock
+  else
+    " Reload all Vim configuration
+    call plugin_manager#ui#open_sidebar(l:header + ['Reloading entire Vim configuration...'])
+    
+    " First unload all plugins
+    call plugin_manager#ui#update_sidebar(['Unloading plugins...'], 1)
+    
+    " Then reload vimrc file
+    if filereadable(expand(g:plugin_manager_vimrc_path))
+      call plugin_manager#ui#update_sidebar(['Sourcing ' . g:plugin_manager_vimrc_path . '...'], 1)
+      
+      " More effective reloading approach
+      execute 'runtime! plugin/**/*.vim'
+      execute 'runtime! ftplugin/**/*.vim'
+      execute 'runtime! syntax/**/*.vim'
+      execute 'runtime! indent/**/*.vim'
+      
+      " Finally source the vimrc
+      execute 'source ' . g:plugin_manager_vimrc_path
+      
+      call plugin_manager#ui#update_sidebar(['Vim configuration reloaded successfully.', 'Note: Some plugins may require restarting Vim for a complete reload.'], 1)
+    else
+      call plugin_manager#ui#update_sidebar(['Warning: Vimrc file not found at ' . g:plugin_manager_vimrc_path], 1)
     endif
+    
+    let s:reload_in_progress = 0  " Important: release the lock
+  endif
 endfunction
   
 " Function to add a backup remote repository
 function! plugin_manager#modules#add_remote_backup(...)
-    if !plugin_manager#utils#ensure_vim_directory()
-      return
-    endif
+  " Lock with timeout to prevent multiple concurrent runs
+  if exists('s:remote_add_in_progress') && s:remote_add_in_progress
+    call plugin_manager#ui#update_sidebar(['Remote add operation already in progress...'], 1)
+    return
+  endif
+  
+  " Set lock with automatic timeout of 2 minutes (120000 ms)
+  call plugin_manager#utils#set_lock_with_timeout('s:remote_add_in_progress', 120000)
+  
+  if !plugin_manager#utils#ensure_vim_directory()
+    let s:remote_add_in_progress = 0  " Important: release the lock on error
+    return
+  endif
     
-    if a:0 < 1
-      let l:lines = ["Remote Backup Usage:", "-------------------", "", "Usage: PluginManagerRemote <repository_url>"]
-      call plugin_manager#ui#open_sidebar(l:lines)
-      return
-    endif
+  if a:0 < 1
+    let l:lines = ["Remote Backup Usage:", "-------------------", "", "Usage: PluginManagerRemote <repository_url>"]
+    call plugin_manager#ui#open_sidebar(l:lines)
+    let s:remote_add_in_progress = 0  " Important: release the lock
+    return
+  endif
+  
+  let l:repoUrl = a:1
+  if l:repoUrl !~ g:pm_urlRegexp
+    let l:lines = ["Invalid URL:", "-----------", "", l:repoUrl . " is not a valid url"]
+    call plugin_manager#ui#open_sidebar(l:lines)
+    let s:remote_add_in_progress = 0  " Important: release the lock
+    return
+  endif
+  
+  let l:header = ['Add Remote Repository:', '---------------------', '', 'Adding backup repository: ' . l:repoUrl]
+  call plugin_manager#ui#open_sidebar(l:header)
+  
+  " Create command sequence
+  let l:commands = []
+  
+  " Check if remote origin exists
+  let l:originExists = system('git remote | grep -c "^origin$" || echo 0')
+  if l:originExists == "0"
+    call add(l:commands, {
+          \ 'cmd': 'git remote add origin ' . l:repoUrl,
+          \ 'name': 'Adding origin remote'
+          \ })
+  else
+    call add(l:commands, {
+          \ 'cmd': 'git remote set-url origin --add --push ' . l:repoUrl,
+          \ 'name': 'Adding push URL to origin remote'
+          \ })
+  endif
+  
+  " Final callback function
+  function! s:handle_remote_add_completed(results) closure
+    let l:success = 1
+    let l:result_lines = []
     
-    let l:repoUrl = a:1
-    if l:repoUrl !~ g:pm_urlRegexp
-      let l:lines = ["Invalid URL:", "-----------", "", l:repoUrl . " is not a valid url"]
-      call plugin_manager#ui#open_sidebar(l:lines)
-      return
-    endif
-    
-    let l:header = ['Add Remote Repository:', '---------------------', '', 'Adding backup repository: ' . l:repoUrl]
-    call plugin_manager#ui#open_sidebar(l:header)
-    
-    " Create command sequence
-    let l:commands = []
-    
-    " Check if remote origin exists
-    let l:originExists = system('git remote | grep -c "^origin$" || echo 0')
-    if l:originExists == "0"
-      call add(l:commands, {
-            \ 'cmd': 'git remote add origin ' . l:repoUrl,
-            \ 'name': 'Adding origin remote'
-            \ })
-    else
-      call add(l:commands, {
-            \ 'cmd': 'git remote set-url origin --add --push ' . l:repoUrl,
-            \ 'name': 'Adding push URL to origin remote'
-            \ })
-    endif
-    
-    " Final callback function
-    function! s:handle_remote_add_completed(results) closure
-      let l:success = 1
-      let l:result_lines = []
-      
-      for l:result in a:results
-        if l:result.status != 0
-          let l:success = 0
-          call add(l:result_lines, '✗ ' . l:result.name . ' failed')
-        else
-          call add(l:result_lines, '✓ ' . l:result.name . ' succeeded')
-        endif
-      endfor
-      
-      if l:success
-        call add(l:result_lines, 'Repository added successfully.')
+    for l:result in a:results
+      if l:result.status != 0
+        let l:success = 0
+        call add(l:result_lines, '✗ ' . l:result.name . ' failed')
       else
-        call add(l:result_lines, 'Error adding remote repository.')
+        call add(l:result_lines, '✓ ' . l:result.name . ' succeeded')
       endif
-      
-      " Display configured repositories
-      call add(l:result_lines, '')
-      call add(l:result_lines, 'Configured repositories:')
-      
-      " Get configured remotes
-      let l:remotes = system('git remote -v')
-      call extend(l:result_lines, split(l:remotes, "\n"))
-      
-      call plugin_manager#ui#update_sidebar(l:result_lines, 1)
-      
-      " Clear job progress section when done
-      call timer_start(3000, {-> plugin_manager#ui#clear_job_progress()})
-    endfunction
+    endfor
     
-    " Run the commands in sequence
-    call plugin_manager#jobs#run_sequence(l:commands, function('s:handle_remote_add_completed'))
+    if l:success
+      call add(l:result_lines, 'Repository added successfully.')
+    else
+      call add(l:result_lines, 'Error adding remote repository.')
+    endif
+    
+    " Display configured repositories
+    call add(l:result_lines, '')
+    call add(l:result_lines, 'Configured repositories:')
+    
+    " Get configured remotes
+    let l:remotes = system('git remote -v')
+    call extend(l:result_lines, split(l:remotes, "\n"))
+    
+    call plugin_manager#ui#update_sidebar(l:result_lines, 1)
+    
+    " Important: release the lock
+    let s:remote_add_in_progress = 0
+    
+    " Clear job progress section when done
+    call timer_start(3000, {-> plugin_manager#ui#clear_job_progress()})
+  endfunction
+  
+  " Run the commands in sequence
+  call plugin_manager#jobs#run_sequence(l:commands, function('s:handle_remote_add_completed'))
 endfunction
