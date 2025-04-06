@@ -294,7 +294,7 @@ function! s:format_module_status_line(module)
   return l:name_col . l:commit_col . l:branch_col . l:date_col . l:status
 endfunction
   
-" Show a summary of submodule changes
+" Show a summary of submodule changes with proper lock handling
 function! plugin_manager#modules#summary()
   " Lock with timeout to prevent multiple concurrent runs
   if exists('s:summary_in_progress') && s:summary_in_progress
@@ -320,6 +320,23 @@ function! plugin_manager#modules#summary()
     return
   endif
   
+  " Define helper functions before referencing them in callbacks
+  function! s:handle_summary_output(header, output)
+    let l:lines = [a:header, repeat('-', len(a:header)), '']
+    call extend(l:lines, split(a:output, "\n"))
+    call plugin_manager#ui#open_sidebar(l:lines)
+  endfunction
+  
+  function! s:handle_summary_exit(status, output)
+    " Important: release the lock after completion
+    let s:summary_in_progress = 0
+    
+    " If we had an error, report it
+    if a:status != 0
+      call plugin_manager#ui#update_sidebar(['Error generating summary. Exit code: ' . a:status], 1)
+    endif
+  endfunction
+  
   " Run summary command asynchronously if supported
   if plugin_manager#jobs#is_async_supported()
     let l:callbacks = {
@@ -329,6 +346,7 @@ function! plugin_manager#modules#summary()
           \ }
     call plugin_manager#jobs#start('git submodule summary', l:callbacks)
   else
+    " Synchronous fallback
     let l:output = system('git submodule summary')
     let l:lines = [l:header, repeat('-', len(l:header)), '']
     call extend(l:lines, split(l:output, "\n"))
