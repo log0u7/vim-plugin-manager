@@ -5,14 +5,14 @@
 " Variables for job handling
     if !exists('s:job_list')
         let s:job_list = []
-    endif
+      endif
       
-    if !exists('s:is_win')
+      if !exists('s:is_win')
         let s:is_win = has('win32') || has('win64')
-    endif
+      endif
       
-    " Check if async jobs are supported
-    function! plugin_manager#jobs#is_async_supported()
+      " Check if async jobs are supported
+      function! plugin_manager#jobs#is_async_supported()
         " Check for Neovim
         if has('nvim-0.2') || (has('nvim') && exists('*jobwait') && !s:is_win)
           return 1
@@ -25,14 +25,19 @@
         
         " Not supported
         return 0
-    endfunction
+      endfunction
       
-    " Start an async job with appropriate callback handling
-    function! plugin_manager#jobs#start(cmd, callbacks)
+      " Start an async job with appropriate callback handling
+      function! plugin_manager#jobs#start(cmd, callbacks)
         " If async not supported, fall back to sync
         if !plugin_manager#jobs#is_async_supported()
           call plugin_manager#ui#update_sidebar(['Async jobs not supported in this Vim version, falling back to synchronous operation...'], 1)
-          let l:output = system(a:cmd)
+          
+          " Handle command as a list or string
+          let l:cmd = type(a:cmd) == v:t_list ? a:cmd : a:cmd
+          
+          " Execute command synchronously
+          let l:output = system(l:cmd)
           let l:status = v:shell_error
           
           if has_key(a:callbacks, 'on_stdout')
@@ -62,7 +67,7 @@
           let l:job_info.name = a:callbacks.name
           call plugin_manager#jobs#display_progress(l:job_info.id, 'Starting: ' . l:job_info.name)
         else
-          call plugin_manager#jobs#display_progress(l:job_info.id, 'Starting job: ' . a:cmd)
+          call plugin_manager#jobs#display_progress(l:job_info.id, 'Starting job: ' . (type(a:cmd) == v:t_list ? join(a:cmd) : a:cmd))
         endif
         
         " Branch for Vim or Neovim implementation
@@ -133,8 +138,11 @@
                 \ 'on_exit': function('s:on_exit_nvim', [], l:job_info),
                 \ }
           
+          " Handle command as a list or string
+          let l:cmd = type(a:cmd) == v:t_list ? a:cmd : split(a:cmd, '\s\+')
+          
           " Start the job
-          let l:job = jobstart(a:cmd, l:job_options)
+          let l:job = jobstart(l:cmd, l:job_options)
           let l:job_info.job = l:job
           let l:job_info.type = 'nvim'
           
@@ -204,8 +212,11 @@
                 \ 'in_io': 'null',
                 \ }
           
+          " Handle shell command as string (Vim's job_start can handle shell commands directly)
+          let l:cmd = a:cmd
+          
           " Start the job
-          let l:job = job_start(a:cmd, l:job_options)
+          let l:job = job_start(l:cmd, l:job_options)
           let l:job_info.job = l:job
           let l:job_info.type = 'vim'
           
@@ -214,20 +225,20 @@
           
           return l:job_info.id
         endif
-    endfunction
+      endfunction
       
-    " Check if any jobs are running
-    function! plugin_manager#jobs#is_running()
+      " Check if any jobs are running
+      function! plugin_manager#jobs#is_running()
         for l:job in s:job_list
           if l:job.status == 'running'
             return 1
           endif
         endfor
         return 0
-    endfunction
+      endfunction
       
-    " Clean up completed jobs
-    function! plugin_manager#jobs#clean_jobs()
+      " Clean up completed jobs
+      function! plugin_manager#jobs#clean_jobs()
         " Filter out completed jobs that are older than 60 seconds
         let l:now = reltime()
         let l:new_list = []
@@ -239,10 +250,10 @@
         endfor
         
         let s:job_list = l:new_list
-    endfunction
+      endfunction
       
-    " Display job progress in the sidebar
-    function! plugin_manager#jobs#display_progress(job_id, message)
+      " Display job progress in the sidebar
+      function! plugin_manager#jobs#display_progress(job_id, message)
         " Find the job by ID
         let l:job = {}
         for j in s:job_list
@@ -263,26 +274,35 @@
           let l:spinner_idx = float2nr(l:elapsed * 10) % len(l:spinner)
           let l:spinner_char = l:spinner[l:spinner_idx]
           
+          " Fall back to simpler characters if terminal might not support Unicode
+          if !has('gui_running') && !has('nvim') && &encoding !~? 'utf'
+            let l:spinner = ['-', '\', '|', '/']
+            let l:spinner_idx = float2nr(l:elapsed * 4) % len(l:spinner)
+            let l:spinner_char = l:spinner[l:spinner_idx]
+          endif
+          
           " Format status line
           if l:job.status == 'running'
             let l:status_line = l:spinner_char . ' ' . l:name . ' (' . l:elapsed_str . '): ' . a:message
           else
-            let l:status_line = '✓ ' . l:name . ' (' . l:elapsed_str . '): ' . a:message
+            " Use check mark or 'OK' based on terminal capabilities
+            let l:check = has('gui_running') || has('nvim') || &encoding =~? 'utf' ? '✓' : 'OK'
+            let l:status_line = l:check . ' ' . l:name . ' (' . l:elapsed_str . '): ' . a:message
           endif
           
           " Update the UI
           call plugin_manager#ui#update_job_progress(a:job_id, l:status_line)
         endif
-    endfunction
+      endfunction
       
-    " Run a sequence of commands asynchronously, chaining them together
-    function! plugin_manager#jobs#run_sequence(commands, final_callback)
+      " Run a sequence of commands asynchronously, chaining them together
+      function! plugin_manager#jobs#run_sequence(commands, final_callback)
         let l:sequence = copy(a:commands)
         let l:results = []
         
         function! s:run_next(results, commands, final_callback, status, output) closure
           " Add result of previous command
-          call add(a:results, {'status': a:status, 'output': a:output})
+          call add(a:results, {'status': a:status, 'output': a:output, 'name': get(l:cmd, 'name', 'Command ' . len(a:results))})
           
           " If no more commands, we're done
           if empty(a:commands)
@@ -292,7 +312,7 @@
           
           " Get next command and run it
           let l:cmd = remove(a:commands, 0)
-          let l:name = get(l:cmd, 'name', 'Command ' . len(a:results) + 1)
+          let l:name = get(l:cmd, 'name', 'Command ' . (len(a:results) + 1))
           
           " Create callbacks for this command
           let l:callbacks = {
@@ -328,9 +348,9 @@
                 \ 'on_exit': function('s:run_next', [l:results, l:sequence, a:final_callback]),
                 \ }
           
-          " Start the job
+          " Start the job - make sure we're sending the string command
           call plugin_manager#jobs#start(l:cmd.cmd, l:callbacks)
         else
           call a:final_callback([])
         endif
-    endfunction
+      endfunction

@@ -6,6 +6,7 @@ let s:buffer_name = 'PluginManager'
 " Job status section
 let s:job_progress_lines = {}
 let s:job_progress_section_active = 0
+let s:sidebar_update_timer = -1
 
 " Open the sidebar window with optimized logic
 function! plugin_manager#ui#open_sidebar(lines)
@@ -27,44 +28,54 @@ function! plugin_manager#ui#open_sidebar(lines)
     call plugin_manager#ui#update_sidebar(a:lines, 0)
 endfunction
   
-" Update the sidebar content with better performance
-function! plugin_manager#ui#update_sidebar(lines, append)
-    " Find the sidebar buffer window
-    let l:win_id = bufwinid(s:buffer_name)
-    if l:win_id == -1
-      " If the window doesn't exist, create it
-      call plugin_manager#ui#open_sidebar(a:lines)
-      return
+" Schedule sidebar update to avoid UI blocking
+function! s:do_update_sidebar(lines, append)
+  " Find the sidebar buffer window
+  let l:win_id = bufwinid(s:buffer_name)
+  if l:win_id == -1
+    " If the window doesn't exist, create it
+    call plugin_manager#ui#open_sidebar(a:lines)
+    return
+  endif
+  
+  " Focus the sidebar window
+  call win_gotoid(l:win_id)
+  
+  " Only change modifiable state once
+  setlocal modifiable
+  
+  " Update content based on append flag
+  if a:append && !empty(a:lines)
+    " More efficient append - don't write empty lines
+    if line('$') > 0 && getline('$') != ''
+      call append(line('$'), '')  " Add separator line
     endif
-    
-    " Focus the sidebar window
-    call win_gotoid(l:win_id)
-    
-    " Only change modifiable state once
-    setlocal modifiable
-    
-    " Update content based on append flag
-    if a:append && !empty(a:lines)
-      " More efficient append - don't write empty lines
-      if line('$') > 0 && getline('$') != ''
-        call append(line('$'), '')  " Add separator line
-      endif
-      call append(line('$'), a:lines)
-    else
-      " Replace existing content more efficiently
-      silent! %delete _
-      if !empty(a:lines)
-        call setline(1, a:lines)
-      endif
+    call append(line('$'), a:lines)
+  else
+    " Replace existing content more efficiently
+    silent! %delete _
+    if !empty(a:lines)
+      call setline(1, a:lines)
     endif
-    
-    " Set back to non-modifiable and move cursor to top
-    setlocal nomodifiable
-    call cursor(1, 1)
+  endif
+  
+  " Set back to non-modifiable and move cursor to top
+  setlocal nomodifiable
+  call cursor(1, 1)
 endfunction
 
-" Update job progress indicators in the sidebar
-function! plugin_manager#ui#update_job_progress(job_id, status_line)
+" Update the sidebar content with better performance using scheduled update
+function! plugin_manager#ui#update_sidebar(lines, append)
+  if s:sidebar_update_timer != -1
+    call timer_stop(s:sidebar_update_timer)
+  endif
+  
+  " Schedule an immediate update (1ms timer to ensure async behavior)
+  let s:sidebar_update_timer = timer_start(1, {-> s:do_update_sidebar(a:lines, a:append)})
+endfunction
+
+" Schedule job progress update to avoid UI blocking
+function! s:do_update_job_progress(job_id, status_line)
   " Store/update this job's status
   let s:job_progress_lines[a:job_id] = a:status_line
   
@@ -92,6 +103,7 @@ function! plugin_manager#ui#update_job_progress(job_id, status_line)
       if i == l:progress_section_start + 1
         " This is the line right after the header
         let l:progress_section_end = i
+        break
       endif
     endif
   endfor
@@ -148,8 +160,14 @@ function! plugin_manager#ui#update_job_progress(job_id, status_line)
   setlocal nomodifiable
 endfunction
 
-" Clear the job progress section
-function! plugin_manager#ui#clear_job_progress()
+" Update job progress indicators in the sidebar
+function! plugin_manager#ui#update_job_progress(job_id, status_line)
+  " Schedule job progress update (1ms timer to ensure async behavior)
+  call timer_start(1, {-> s:do_update_job_progress(a:job_id, a:status_line)})
+endfunction
+
+" Schedule clear job progress to avoid UI blocking
+function! s:do_clear_job_progress()
   let s:job_progress_lines = {}
   let s:job_progress_section_active = 0
   
@@ -196,6 +214,12 @@ function! plugin_manager#ui#clear_job_progress()
   
   " Restore modifiable state
   setlocal nomodifiable
+endfunction
+
+" Clear the job progress section
+function! plugin_manager#ui#clear_job_progress()
+  " Schedule clear job progress (1ms timer to ensure async behavior)
+  call timer_start(1, {-> s:do_clear_job_progress()})
 endfunction
 
 " Display a progress bar in the sidebar
