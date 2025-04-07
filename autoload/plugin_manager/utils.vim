@@ -490,3 +490,104 @@ function! s:parse_plugin_options(options_str)
   
   return l:options
 endfunction
+
+" Set a lock variable with automatic timeout to prevent deadlocks
+function! plugin_manager#utils#set_lock_with_timeout(lock_var, timeout_ms)
+  " Check if lock already exists
+  if exists(a:lock_var) && eval(a:lock_var)
+    return 0  " Already locked, couldn't acquire
+  endif
+  
+  " Set the lock
+  execute 'let ' . a:lock_var . ' = 1'
+  
+  " Schedule automatic release after timeout
+  let l:timer_id = timer_start(a:timeout_ms, {-> s:release_lock_safe(a:lock_var)})
+  
+  return l:timer_id  " Return timer ID for cancellation
+endfunction
+
+" Safe release of a lock variable
+function! s:release_lock_safe(lock_var)
+  try
+    execute 'let ' . a:lock_var . ' = 0'
+  catch
+    " Silent handling of errors
+  endtry
+endfunction
+
+" Release a lock variable manually
+function! plugin_manager#utils#release_lock(lock_var)
+  if exists(a:lock_var)
+    execute 'let ' . a:lock_var . ' = 0'
+    return 1  " Lock was released
+  endif
+  return 0  " Lock didn't exist
+endfunction
+
+" Execute a function with proper lock handling
+function! plugin_manager#utils#with_lock(lock_var, timeout_ms, func, ...)
+  " Try to acquire lock
+  let l:timer_id = plugin_manager#utils#set_lock_with_timeout(a:lock_var, a:timeout_ms)
+  if !l:timer_id
+    return {'success': 0, 'error': 'Operation already in progress'}
+  endif
+  
+  try
+    let l:result = call(a:func, a:000)
+    return {'success': 1, 'result': l:result}
+  catch
+    return {'success': 0, 'error': v:exception}
+  finally
+    " Cancel auto-release timer and release lock manually
+    call timer_stop(l:timer_id)
+    call plugin_manager#utils#release_lock(a:lock_var)
+  endtry
+endfunction
+
+" Execute command with output in sidebar asynchronously
+function! plugin_manager#utils#execute_with_sidebar(title, cmd)
+  " Ensure we're in the Vim directory
+  if !plugin_manager#utils#ensure_vim_directory()
+    return ''
+  endif
+  
+  " Create initial header
+  let l:header = [a:title, repeat('-', len(a:title)), '']
+  let l:initial_message = l:header + ['Executing operation, please wait...']
+  
+  " Create or update sidebar with initial message
+  call plugin_manager#ui#open_sidebar(l:initial_message)
+  
+  " Check if async is supported
+  if plugin_manager#jobs#is_async_supported()
+    " Use async operation
+    function! s:command_callback(status, output) closure
+      " Prepare final output with header
+      let l:final_output = l:header + split(a:output, "\n") + ['', 'Press q to close this window...']
+      
+      " Update sidebar with final content
+      call plugin_manager#ui#update_sidebar(l:final_output, 0)
+    endfunction
+    
+    " Start the job with callback
+    let l:callbacks = {
+          \ 'name': 'Execute command',
+          \ 'on_exit': function('s:command_callback')
+          \ }
+    call plugin_manager#jobs#start(a:cmd, l:callbacks)
+    return ''
+  else
+    " Fall back to sync operation
+    let l:output = system(a:cmd)
+    let l:output_lines = split(l:output, "\n")
+    
+    " Prepare final output
+    let l:final_output = l:header + l:output_lines + ['', 'Press q to close this window...']
+    
+    " Update sidebar with final content
+    call plugin_manager#ui#update_sidebar(l:final_output, 0)
+    
+    return l:output
+  endif
+endfunction
