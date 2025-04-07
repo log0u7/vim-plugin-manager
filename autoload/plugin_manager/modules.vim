@@ -1922,3 +1922,307 @@ endfunction
       endif
     endtry
   endfunction
+
+" Asynchronous version of status function
+  function! plugin_manager#modules#status_async()
+    if !plugin_manager#utils#ensure_vim_directory()
+      return
+    endif
+    
+    " Use the gitmodules cache
+    let l:modules = plugin_manager#utils#parse_gitmodules()
+    let l:header = 'Submodule Status:'
+  
+    if empty(l:modules)
+      let l:lines = [l:header, repeat('-', len(l:header)), '', 'No submodules found (.gitmodules not found)']
+      call plugin_manager#ui#open_sidebar(l:lines)
+      return
+    endif
+    
+    let l:lines = [l:header, repeat('-', len(l:header)), '']
+    call add(l:lines, 'Plugin'.repeat(' ', 16).'Commit'.repeat(' ', 14).'Branch'.repeat(' ', 8).'Last Updated'.repeat(' ', 18).'Status')
+    call add(l:lines, repeat('-', 120))
+    
+    " Initial sidebar with loading message
+    call plugin_manager#ui#open_sidebar(l:lines + ['Fetching updates and analyzing status...'])
+    
+    " Create fetch command
+    let l:fetch_cmd = {
+          \ 'name': 'Fetch updates',
+          \ 'cmd': 'git submodule foreach --recursive "git fetch -q origin 2>/dev/null || true"',
+          \ 'on_stdout': {msg -> plugin_manager#ui#update_sidebar(['Fetching remote updates...'], 1)}
+          \ }
+    
+    " Callback to process modules after fetch is complete
+    function! s:process_modules_status(modules, lines, results)
+      call plugin_manager#ui#update_sidebar(['Analyzing module status...'], 1)
+      
+      " Create a counter for progress tracking
+      let l:total_modules = len(a:modules)
+      let l:processed_count = 0
+      
+      " Sort module names
+      let l:module_names = sort(keys(a:modules))
+      
+      " Final results array to collect all status lines
+      let l:status_lines = []
+      
+      " Master callback that will be called for each module
+      function! s:module_status_callback(status_lines, total_modules, processed_count, module, module_name, status_info) closure
+        try
+          " Increment processed count and update progress
+          let l:processed_count += 1
+          let l:percent = (l:processed_count * 100.0) / a:total_modules
+          call plugin_manager#ui#show_progress_bar(l:percent, 'Analyzing plugins (' . l:processed_count . '/' . a:total_modules . ')')
+          
+          " Format module status info for display
+          let l:short_name = a:module.short_name
+          
+          " Initialize status to 'OK' by default
+          let l:status = 'OK'
+          
+          " Initialize other information as N/A in case checks fail
+          let l:commit = 'N/A'
+          let l:branch = 'N/A'
+          let l:last_updated = 'N/A'
+          
+          " Check if module exists
+          if !isdirectory(a:module.path)
+            let l:status = 'MISSING'
+          else
+            " Continue with all checks for existing modules
+            
+            " Get current commit
+            let l:cmd = 'cd "' . a:module.path . '" && git rev-parse --short HEAD 2>/dev/null || echo "N/A"'
+            let l:commit = system(l:cmd)
+            let l:commit = substitute(l:commit, '\n', '', 'g')
+            
+            " Get current branch
+            let l:branch = a:status_info.branch
+            
+            " Get last commit date
+            let l:cmd = 'cd "' . a:module.path . '" && git log -1 --format=%cd --date=relative 2>/dev/null || echo "N/A"'
+            let l:last_updated = system(l:cmd)
+            let l:last_updated = substitute(l:last_updated, '\n', '', 'g')
+            
+            " Determine status combining local changes and remote status
+            if a:status_info.different_branch
+              let l:status = 'CUSTOM BRANCH (local: ' . a:status_info.branch . ', target: ' . a:status_info.remote_branch . ')'
+              if a:status_info.has_changes
+                let l:status .= ' + LOCAL CHANGES'
+              endif
+            elseif a:status_info.behind > 0 && a:status_info.ahead > 0
+              " DIVERGED state has highest priority after different branch
+              let l:status = 'DIVERGED (BEHIND ' . a:status_info.behind . ', AHEAD ' . a:status_info.ahead . ')'
+              if a:status_info.has_changes
+                let l:status .= ' + LOCAL CHANGES'
+              endif
+            elseif a:status_info.behind > 0
+              let l:status = 'BEHIND (' . a:status_info.behind . ')'
+              if a:status_info.has_changes
+                let l:status .= ' + LOCAL CHANGES'
+              endif
+            elseif a:status_info.ahead > 0
+              let l:status = 'AHEAD (' . a:status_info.ahead . ')'
+              if a:status_info.has_changes
+                let l:status .= ' + LOCAL CHANGES'
+              endif
+            elseif a:status_info.has_changes
+              let l:status = 'LOCAL CHANGES'
+            endif
+          endif
+          
+          " Truncate long names
+          if len(l:short_name) > 20
+            let l:short_name = l:short_name[0:19]
+          endif
+  
+          " Format the output with properly aligned columns
+          let l:name_col = l:short_name . repeat(' ', max([0, 22 - len(l:short_name)]))
+          let l:commit_col = l:commit . repeat(' ', max([0, 20 - len(l:commit)]))
+          let l:branch_col = l:branch . repeat(' ', max([0, 14 - len(l:branch)]))
+          let l:date_col = l:last_updated . repeat(' ', max([0, 30 - len(l:last_updated)]))
+          
+          " Create status line and store with module name for sorting
+          call add(a:status_lines, {'name': a:module_name, 'line': l:name_col . l:commit_col . l:branch_col . l:date_col . l:status})
+          
+          " If all modules have been processed, update the sidebar with complete status
+          if l:processed_count >= a:total_modules
+            " Sort status lines by module name
+            call sort(a:status_lines, {a, b -> a.name > b.name ? 1 : -1})
+            
+            " Extract just the lines for display
+            let l:display_lines = []
+            for l:item in a:status_lines
+              call add(l:display_lines, l:item.line)
+            endfor
+            
+            " Update the sidebar with header and status lines
+            call plugin_manager#ui#update_sidebar(a:lines + l:display_lines, 0)
+          endif
+        catch
+          " Handle errors in status processing
+          call plugin_manager#ui#update_sidebar(['Error processing status for ' . a:module_name . ': ' . v:exception], 1)
+        endtry
+      endfunction
+      
+      " Process each module to get its status
+      for l:module_name in l:module_names
+        let l:module = a:modules[l:module_name]
+        if has_key(l:module, 'is_valid') && l:module.is_valid
+          " Check module updates asynchronously 
+          call plugin_manager#utils#check_module_updates(
+              \ l:module.path, 
+              \ function('s:module_status_callback', [l:status_lines, l:total_modules, l:processed_count, l:module, l:module_name])
+              \ )
+        else
+          " Invalid module, count as processed
+          let l:processed_count += 1
+        endif
+      endfor
+    endfunction
+    
+    " Execute fetch command and then process modules
+    call plugin_manager#jobs#run_sequence([l:fetch_cmd], function('s:process_modules_status', [l:modules, l:lines]))
+  endfunction
+  
+  " Asynchronous version of backup function
+  function! plugin_manager#modules#backup_async()
+    try
+      if !plugin_manager#utils#ensure_vim_directory()
+        throw 'PM_ERROR:backup:Not in Vim configuration directory'
+      endif
+      
+      let l:header = ['Backup Configuration:', '--------------------', '', 'Starting backup process...']
+      call plugin_manager#ui#open_sidebar(l:header)
+      
+      " Create command sequence
+      let l:commands = []
+      
+      " Check if vimrc or init.vim exists in the vim directory
+      let l:vimrc_basename = fnamemodify(g:plugin_manager_vimrc_path, ':t')
+      let l:local_vimrc = g:plugin_manager_vim_dir . '/' . l:vimrc_basename
+      
+      " If vimrc doesn't exist in the vim directory, copy it
+      if !filereadable(l:local_vimrc) && filereadable(g:plugin_manager_vimrc_path)
+        call add(l:commands, {
+              \ 'name': 'Copy vimrc',
+              \ 'cmd': 'cp "' . g:plugin_manager_vimrc_path . '" "' . l:local_vimrc . '"',
+              \ 'on_stdout': {msg -> plugin_manager#ui#update_sidebar(['Copying ' . l:vimrc_basename . ' file to vim directory...'], 1)}
+              \ })
+        
+        call add(l:commands, {
+              \ 'name': 'Add vimrc to git',
+              \ 'cmd': 'git add "' . l:local_vimrc . '"',
+              \ 'on_stdout': {msg -> plugin_manager#ui#update_sidebar(['Adding ' . l:vimrc_basename . ' to git...'], 1)}
+              \ })
+      endif
+      
+      " Check if there are changes to commit
+      function! s:check_git_status(commands)
+        let l:gitStatus = system('git status -s')
+        if !empty(l:gitStatus)
+          call add(a:commands, {
+                \ 'name': 'Commit changes',
+                \ 'cmd': 'git commit -am "Automatic backup"',
+                \ 'on_stdout': {msg -> plugin_manager#ui#update_sidebar(['Committing local changes...'], 1)}
+                \ })
+        else
+          call plugin_manager#ui#update_sidebar(['No local changes to commit.'], 1)
+        endif
+        
+        " Check for remotes
+        let l:remotesExist = system('git remote')
+        if empty(l:remotesExist)
+          call plugin_manager#ui#update_sidebar([
+                \ 'No remote repositories configured.',
+                \ 'Use PluginManagerRemote to add a remote repository.'
+                \ ], 1)
+          return
+        endif
+        
+        call add(a:commands, {
+              \ 'name': 'Push changes',
+              \ 'cmd': 'git push --all',
+              \ 'on_stdout': {msg -> plugin_manager#ui#update_sidebar(['Pushing changes to remote repositories...'], 1)}
+              \ })
+        
+        " Run the commands
+        call plugin_manager#jobs#run_sequence(a:commands, function('s:backup_complete'))
+      endfunction
+      
+      " Final callback
+      function! s:backup_complete(results)
+        call plugin_manager#ui#update_sidebar(['Backup completed successfully.'], 1)
+      endfunction
+      
+      " Start by checking git status
+      call s:check_git_status(l:commands)
+      
+    catch
+      let l:error = plugin_manager#utils#is_pm_error(v:exception) 
+            \ ? plugin_manager#utils#format_error(v:exception)
+            \ : 'Unexpected error during backup: ' . v:exception
+      
+      call plugin_manager#ui#update_sidebar(['Error: ' . l:error], 1)
+    endtry
+  endfunction
+  
+  " Asynchronous version of restore function
+  function! plugin_manager#modules#restore_async()
+    try
+      if !plugin_manager#utils#ensure_vim_directory()
+        throw 'PM_ERROR:restore:Not in Vim configuration directory'
+      endif
+      
+      let l:header = ['Restore Plugins:', '---------------', '', 'Starting plugin restoration...']
+      call plugin_manager#ui#open_sidebar(l:header)
+      
+      " Check if .gitmodules exists
+      if !filereadable('.gitmodules')
+        throw 'PM_ERROR:restore:.gitmodules file not found'
+      endif
+      
+      call plugin_manager#ui#update_sidebar(['Found .gitmodules file.'], 1)
+      
+      " Create command sequence
+      let l:commands = [
+            \ {
+            \   'name': 'Initialize submodules',
+            \   'cmd': 'git submodule init',
+            \   'on_stdout': {msg -> plugin_manager#ui#update_sidebar(['Initializing submodules...'], 1)}
+            \ },
+            \ {
+            \   'name': 'Update submodules',
+            \   'cmd': 'git submodule update --init --recursive',
+            \   'on_stdout': {msg -> plugin_manager#ui#update_sidebar(['Fetching and updating all submodules...'], 1)}
+            \ },
+            \ {
+            \   'name': 'Sync submodules',
+            \   'cmd': 'git submodule sync',
+            \   'on_stdout': {msg -> plugin_manager#ui#update_sidebar(['Synchronizing submodules...'], 1)}
+            \ },
+            \ {
+            \   'name': 'Final update',
+            \   'cmd': 'git submodule update --init --recursive --force',
+            \   'on_stdout': {msg -> plugin_manager#ui#update_sidebar(['Ensuring all submodules are at the correct commit...'], 1)}
+            \ }
+            \ ]
+      
+      " Final callback
+      function! s:restore_complete(results)
+        call plugin_manager#ui#update_sidebar(['All plugins have been restored successfully.', '', 'Generating helptags:'], 1)
+        call plugin_manager#modules#generate_helptags(0)
+      endfunction
+      
+      " Run the command sequence
+      call plugin_manager#jobs#run_sequence(l:commands, function('s:restore_complete'))
+      
+    catch
+      let l:error = plugin_manager#utils#is_pm_error(v:exception) 
+            \ ? plugin_manager#utils#format_error(v:exception)
+            \ : 'Unexpected error during restore: ' . v:exception
+      
+      call plugin_manager#ui#update_sidebar(['Error: ' . l:error], 1)
+    endtry
+  endfunction
