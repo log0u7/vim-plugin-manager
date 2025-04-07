@@ -31,7 +31,24 @@ function! plugin_manager#utils#ensure_vim_directory()
     
     return 1
   endfunction
-  
+
+" Exception helpers
+function! plugin_manager#utils#throw(component, message)
+  throw 'PM_ERROR:' . a:component . ':' . a:message
+endfunction
+
+function! plugin_manager#utils#is_pm_error(error)
+  return a:error =~# '^PM_ERROR:'
+endfunction
+
+function! plugin_manager#utils#format_error(error)
+  if plugin_manager#utils#is_pm_error(a:error)
+    let l:parts = split(a:error, ':')
+    return l:parts[2:]->join(':')
+  endif
+  return a:error
+endfunction
+
 " Execute command with output in sidebar - redesigned for better efficiency
 function! plugin_manager#utils#execute_with_sidebar(title, cmd)
     " Ensure we're in the Vim directory
