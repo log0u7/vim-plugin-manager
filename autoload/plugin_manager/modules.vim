@@ -179,12 +179,11 @@ endfunction
     
     " Run asynchronously if available
     if exists('*plugin_manager#utils#execute_async')
-      let l:callback = function('s:status_complete')
       call plugin_manager#utils#execute_async(l:cmd, {
             \ 'name': 'modules_status',
             \ 'description': 'Fetching plugin status information',
             \ 'lock': 'git_operations',
-            \ 'on_complete': l:callback
+            \ 'on_complete': function('s:status_complete')
             \ })
     else
       " Fallback to synchronous execution
