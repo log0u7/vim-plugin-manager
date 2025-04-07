@@ -558,7 +558,9 @@ function! plugin_manager#modules#add(...)
   if l:isLocalPath
     let l:moduleName = fnamemodify(l:localPath, ':t')
   else
-    let l:moduleName = fnamemodify(l:moduleUrl, ':t:r')  " Remove .git from the end if present
+    " Extract repo name from URL, preserving dots in the name
+    let l:moduleName = matchstr(l:moduleUrl, '[^/]*$')  " Get everything after the last /
+    let l:moduleName = substitute(l:moduleName, '\.git$', '', '')  " Remove .git extension if present
   endif
   
   " Initialize options with defaults
