@@ -1,6 +1,6 @@
 " vim-plugin-manager.vim - Manage Vim plugins with git submodules
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.3
+" Version: 1.4
 
 if exists('g:loaded_plugin_manager') || &cp
   finish
@@ -54,6 +54,11 @@ if !exists('g:plugin_manager_default_git_host')
   let g:plugin_manager_default_git_host = "github.com"
 endif
 
+" New configuration option for async jobs
+if !exists('g:plugin_manager_force_sync')
+  let g:plugin_manager_force_sync = 0
+endif
+
 " Internal variables (shared between files)
 let g:pm_urlRegexp = '^https\?://.\+\|^git@.\+:.\\+$'
 let g:pm_shortNameRegexp = '^[a-zA-Z0-9_.-]\+/[a-zA-Z0-9_.-]\+$'
@@ -73,6 +78,24 @@ command! PluginManagerToggle call plugin_manager#ui#toggle_sidebar()
 command! -nargs=0 PluginBegin call s:plugin_begin()
 command! -nargs=+ -complete=file Plugin call s:plugin(<args>)
 command! -nargs=0 PluginEnd call s:plugin_end()
+command! -nargs=* PluginManagerJobs call s:show_jobs(<f-args>)
+
+" Show running jobs status
+function! s:show_jobs(...) abort
+  if a:0 > 0 && a:1 == 'cancel'
+    " Cancel specified job (if provided as second argument)
+    if a:0 > 1
+      call plugin_manager#jobs#cancel(a:2)
+    else
+      " Cancel all jobs
+      call plugin_manager#jobs#cancel_all()
+    endif
+    return
+  endif
+  
+  " Display job status
+  call plugin_manager#jobs#show_status()
+endfunction
 
 " Functions for plugin block commands
 function! s:plugin_begin()
@@ -152,6 +175,16 @@ function! plugin_manager#main(...)
       else
         call plugin_manager#modules#reload()
       endif
+    elseif l:command == "jobs"
+      " Show jobs status
+      call plugin_manager#jobs#show_status()
+    elseif l:command == "cancel"
+      " Cancel all jobs or a specific job
+      if a:0 >= 2
+        call plugin_manager#jobs#cancel(a:2)
+      else
+        call plugin_manager#jobs#cancel_all()
+      endif
     else
       call plugin_manager#ui#usage()
     endif
@@ -161,8 +194,8 @@ function! plugin_manager#main(...)
           \ : 'Unexpected error: ' . v:exception . ' at ' . v:throwpoint
     
     call plugin_manager#ui#open_sidebar(['Error:', repeat('-', 6), '', l:formatted_error])
-  finally
-    " Reset any in-progress flags
-    let s:update_in_progress = 0
   endtry
 endfunction
+
+" Initialize and check async jobs support on load
+call plugin_manager#jobs#init()

@@ -1,6 +1,6 @@
 " syntax/pluginmanager.vim - Syntax coloration for PluginManager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.3
+" Version: 1.4
 
 " Ensure it's loaded once
 if exists("b:current_syntax")
@@ -18,7 +18,7 @@ syntax keyword PMKeyword Usage Examples Configuration
 
 " Plugin management operations
 syntax keyword PMOperation add install update remove restore reload backup
-syntax keyword PMSecondaryOp list status summary helptags
+syntax keyword PMSecondaryOp list status summary helptags jobs cancel
 
 " Special highlighting for important operations
 syntax match PMUpdateOp /\<update\>\|\<updating\>/
@@ -26,7 +26,7 @@ syntax match PMInstallOp /\<install\>\|\<installing\>/
 syntax match PMRemoveOp /\<remove\>\|\<removing\>/
 
 " Commands
-syntax match PMCommand /^\s*\(PluginManager\|PluginManagerRemote\|PluginManagerToggle\)/
+syntax match PMCommand /^\s*\(PluginManager\|PluginManagerRemote\|PluginManagerToggle\|PluginManagerJobs\)/
 
 " URLs
 syntax match PMUrl /https\?:\/\/\S\+/
@@ -37,7 +37,7 @@ syntax match PMOkStatus /\<OK\>/
 
 " Warning and error messages
 syntax match PMWarning /\<Warning\>\|\<BEHIND\>\|\<AHEAD\>/
-syntax match PMError /\<Error\>\|\<MISSING\>\|\<failed\>/
+syntax match PMError /\<Error\>\|\<MISSING\>\|\<failed\>\|\<Failed\>/
 syntax match PMChanged /\<LOCAL CHANGES\>\|\<+ LOCAL CHANGES\>/
 syntax match PMDiverged /\<DIVERGED\>/
 syntax match PMBranch /\<DIFFERENT BRANCH\>/
@@ -50,6 +50,17 @@ syntax match PMStackTrace / at .*$/
 
 " Paths
 syntax match PMPath /\/\S\+\(\/\|\.\(vim\|txt\)\)\@=/
+
+" Job status indicators
+syntax match PMSpinner /[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏\-\\|\/]\s/
+syntax match PMCompleteMark /✓\s/
+syntax match PMFailureMark /✗\s/
+syntax match PMJobRunning /^\s\+└─\s\+Processing\.\.\.$/
+syntax match PMJobCompleted /^\s\+└─\s\+Completed in.*$/
+syntax match PMJobFailed /^\s\+└─\s\+Failed.*$/
+syntax match PMOutputHeader /^\s\+└─\s\+\(Output\|Error output\):$/
+syntax match PMOutputLine /^\s\+\s\+.*$/
+syntax match PMProgressBar /\[.*\]\s\+\d\+%\s\+(\d\+\/\d\+)/
 
 " Color configuration
 highlight default link PMHeader Title
@@ -79,5 +90,16 @@ highlight default link PMErrorType Error
 highlight default link PMErrorComponent Statement
 highlight default link PMErrorMessage ErrorMsg
 highlight default link PMStackTrace Comment
+
+" Job status highlighting
+highlight default link PMSpinner SpecialKey
+highlight default link PMCompleteMark String
+highlight default link PMFailureMark Error
+highlight default link PMJobRunning Comment
+highlight default link PMJobCompleted String
+highlight default link PMJobFailed Error
+highlight default link PMOutputHeader Type
+highlight default link PMOutputLine Comment
+highlight default link PMProgressBar MoreMsg
 
 let b:current_syntax = "pluginmanager"
