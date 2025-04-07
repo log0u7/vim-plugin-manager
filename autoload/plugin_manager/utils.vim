@@ -190,7 +190,7 @@ function! plugin_manager#utils#parse_gitmodules()
 endfunction
   
 " Utility function to find a module by name, path, or short name
-function! plugin_manager#utils#find_module(query)
+  function! plugin_manager#utils#find_module(query)
     let l:modules = plugin_manager#utils#parse_gitmodules()
     
     " First try exact match on module name
@@ -211,20 +211,12 @@ function! plugin_manager#utils#find_module(query)
       endif
     endfor
     
-    " Then try partial matches
+    " Then try partial matches with case insensitivity
     for [l:name, l:module] in items(l:modules)
-      " Module name contains query
-      if l:name =~ a:query
-        return {'name': l:name, 'module': l:module}
-      endif
-      
-      " Path contains query
-      if has_key(l:module, 'path') && l:module.path =~ a:query
-        return {'name': l:name, 'module': l:module}
-      endif
-      
-      " Short name contains query
-      if has_key(l:module, 'short_name') && l:module.short_name =~ a:query
+      " Module name, path or short_name contains query
+      if l:name =~? a:query || 
+            \ (has_key(l:module, 'path') && l:module.path =~? a:query) ||
+            \ (has_key(l:module, 'short_name') && l:module.short_name =~? a:query)
         return {'name': l:name, 'module': l:module}
       endif
     endfor
