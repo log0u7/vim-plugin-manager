@@ -103,6 +103,97 @@ function! plugin_manager#ui#display_error(component, message) abort
   endtry
 endfunction
 
+" Function to update job status in the sidebar
+function! plugin_manager#ui#update_job_status(status_text)
+  try
+    " Try to find a plugin manager sidebar window
+    let l:win_id = bufwinid(s:buffer_name)
+    if l:win_id == -1
+      " If no sidebar is open, we don't need to update it
+      return
+    endif
+    
+    " Store the current window ID
+    let l:current_win = win_getid()
+    
+    " Go to the sidebar window
+    call win_gotoid(l:win_id)
+    
+    " Update the job status area at the bottom of the sidebar
+    setlocal modifiable
+    
+    " Check if there's already a job status section
+    let l:job_section_line = search('^Jobs Status:', 'nw')
+    
+    if l:job_section_line > 0
+      " Replace existing job status section
+      let l:end_line = line('$')
+      silent! execute l:job_section_line . ',' . l:end_line . 'delete _'
+    else
+      " Add a separator and job status section at the end
+      call append(line('$'), ['', '----------------------------------------', ''])
+    endif
+    
+    " Add job status
+    call append(line('$'), ['Jobs Status:', '------------'] + split(a:status_text, "\n"))
+    
+    setlocal nomodifiable
+    
+    " Return to the original window
+    call win_gotoid(l:current_win)
+  catch
+    " Silently ignore errors
+    echohl ErrorMsg
+    echomsg "Error updating job status: " . v:exception
+    echohl None
+  endtry
+endfunction
+
+" Function to clear job status in the sidebar
+function! plugin_manager#ui#clear_job_status()
+  try
+    " Try to find a plugin manager sidebar window
+    let l:win_id = bufwinid(s:buffer_name)
+    if l:win_id == -1
+      " If no sidebar is open, we don't need to update it
+      return
+    endif
+    
+    " Store the current window ID
+    let l:current_win = win_getid()
+    
+    " Go to the sidebar window
+    call win_gotoid(l:win_id)
+    
+    " Remove the job status section
+    setlocal modifiable
+    
+    " Check if there's already a job status section
+    let l:job_section_line = search('^Jobs Status:', 'nw')
+    
+    if l:job_section_line > 0
+      " Remove job status section including separator
+      let l:start_line = l:job_section_line - 2 " Include separator line
+      if l:start_line < 1
+        let l:start_line = l:job_section_line
+      endif
+      
+      let l:end_line = line('$')
+      silent! execute l:start_line . ',' . l:end_line . 'delete _'
+    endif
+    
+    setlocal nomodifiable
+    
+    " Return to the original window
+    call win_gotoid(l:current_win)
+  catch
+    " Silently ignore errors
+    echohl ErrorMsg
+    echomsg "Error clearing job status: " . v:exception
+    echohl None
+  endtry
+endfunction
+
 " Display usage instructions
 function! plugin_manager#ui#usage()
   try
@@ -134,6 +225,12 @@ function! plugin_manager#ui#usage()
           \ "r - Restore all plugins",
           \ "R - Reload configuration",
           \ "? - Show this help",
+          \ "",
+          \ "Job Management:",
+          \ "---------------",
+          \ ":PluginManagerJobs            - List running jobs",
+          \ ":PluginManagerKillJob <id>    - Kill a specific job",
+          \ ":PluginManagerStopJobs        - Stop all running jobs",
           \ "",
           \ "Configuration:",
           \ "-------------",

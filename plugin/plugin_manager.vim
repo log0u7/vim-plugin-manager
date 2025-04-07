@@ -102,67 +102,65 @@ function! s:plugin_end()
   endtry
 endfunction
 
-" Main function to handle PluginManager commands
-function! plugin_manager#main(...)
-  try
-    if !plugin_manager#utils#ensure_vim_directory()
-      return
-    endif
-    
-    if a:0 < 1
-      call plugin_manager#ui#usage()
-      return
-    endif
-    
-    let l:command = a:1
-    
-    if l:command == "add" && a:0 >= 2
-      " Pass all arguments starting from index 1
-      call call('plugin_manager#modules#add', a:000[1:])
-    elseif l:command == "remove" && a:0 >= 2
-      call plugin_manager#modules#remove(a:2, get(a:, 3, ""))
-    elseif l:command == "list"
-      call plugin_manager#modules#list()
-    elseif l:command == "status"
-      call plugin_manager#modules#status()
-    elseif l:command == "update"
-      " Pass the optional module name if provided
-      if a:0 >= 2
-        call plugin_manager#modules#update(a:2)
-      else
-        call plugin_manager#modules#update('all')
-      endif
-    elseif l:command == "summary"
-      call plugin_manager#modules#summary()
-    elseif l:command == "backup"
-      call plugin_manager#modules#backup()
-    elseif l:command == "restore"
-      call plugin_manager#modules#restore()
-    elseif l:command == "helptags"
-      " Pass the optional module name if provided
-      if a:0 >= 2
-        call plugin_manager#modules#generate_helptags(1, a:2)
-      else 
-        call plugin_manager#modules#generate_helptags()
-      endif
-    elseif l:command == "reload"
-      " Pass the optional module name if provided
-      if a:0 >= 2
-        call plugin_manager#modules#reload(a:2)
-      else
-        call plugin_manager#modules#reload()
-      endif
-    else
-      call plugin_manager#ui#usage()
-    endif
-  catch
-    let l:formatted_error = plugin_manager#utils#is_pm_error(v:exception) 
-          \ ? plugin_manager#utils#format_error(v:exception) 
-          \ : 'Unexpected error: ' . v:exception . ' at ' . v:throwpoint
-    
-    call plugin_manager#ui#open_sidebar(['Error:', repeat('-', 6), '', l:formatted_error])
-  finally
-    " Reset any in-progress flags
-    let s:update_in_progress = 0
-  endtry
+" Stop all running jobs (useful for clean Vim exit)
+function! plugin_manager#stop_all_jobs()
+  if exists('*plugin_manager#jobs#stop_all')
+    call plugin_manager#jobs#stop_all()
+  endif
 endfunction
+
+" List all running jobs
+function! plugin_manager#list_jobs()
+  if exists('*plugin_manager#jobs#list')
+    let l:jobs = plugin_manager#jobs#list()
+    
+    let l:header = 'Running Jobs:'
+    let l:lines = [l:header, repeat('-', len(l:header)), '']
+    
+    if empty(l:jobs)
+      call add(l:lines, 'No jobs are currently running.')
+    else
+      call add(l:lines, 'ID'.repeat(' ', 10).'Name'.repeat(' ', 16).'Description'.repeat(' ', 30).'Progress')
+      call add(l:lines, repeat('-', 100))
+      
+      for l:job in l:jobs
+        let l:id_col = l:job.id . repeat(' ', max([0, 12 - len(l:job.id)]))
+        let l:name_col = l:job.name . repeat(' ', max([0, 20 - len(l:job.name)]))
+        let l:desc_col = l:job.description . repeat(' ', max([0, 34 - len(l:job.description)]))
+        let l:progress = l:job.progress > 0 ? l:job.progress . '%' : 'N/A'
+        
+        call add(l:lines, l:id_col . l:name_col . l:desc_col . l:progress)
+      endfor
+    endif
+    
+    call plugin_manager#ui#open_sidebar(l:lines)
+  else
+    call plugin_manager#ui#open_sidebar(['Jobs:', '-----', '', 'Asynchronous job support is not available.'])
+  endif
+endfunction
+
+" Kill a specific job
+function! plugin_manager#kill_job(job_id)
+  if exists('*plugin_manager#jobs#stop')
+    let l:result = plugin_manager#jobs#stop(a:job_id)
+    
+    if l:result
+      call plugin_manager#ui#open_sidebar(['Kill Job:', '---------', '', 'Successfully stopped job ' . a:job_id])
+    else
+      call plugin_manager#ui#open_sidebar(['Kill Job:', '---------', '', 'Failed to stop job ' . a:job_id . '. Job not found.'])
+    endif
+  else
+    call plugin_manager#ui#open_sidebar(['Kill Job:', '---------', '', 'Asynchronous job support is not available.'])
+  endif
+endfunction
+
+" Add commands for job management
+command! PluginManagerJobs call plugin_manager#list_jobs()
+command! -nargs=1 PluginManagerKillJob call plugin_manager#kill_job(<f-args>)
+command! PluginManagerStopJobs call plugin_manager#stop_all_jobs()
+
+" Clean up jobs when exiting Vim
+augroup PluginManagerJobsCleanup
+  autocmd!
+  autocmd VimLeave * call plugin_manager#stop_all_jobs()
+augroup END
