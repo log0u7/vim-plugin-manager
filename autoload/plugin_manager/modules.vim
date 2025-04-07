@@ -816,59 +816,6 @@ function! s:add_module(moduleUrl, installDir, options)
   call plugin_manager#ui#update_sidebar(l:result_lines, 1)
 endfunction
   
-" Add a new plugin
-function! s:add_module(moduleUrl, installDir)
-    if !plugin_manager#utils#ensure_vim_directory()
-      return
-    endif
-    
-    let l:header = ['Add Plugin:', '----------', '', 'Installing ' . a:moduleUrl . ' in ' . a:installDir . '...']
-    call plugin_manager#ui#open_sidebar(l:header)
-    
-    " Check if module directory exists and create if needed
-    let l:parentDir = fnamemodify(a:installDir, ':h')
-    if !isdirectory(l:parentDir)
-      call mkdir(l:parentDir, 'p')
-    endif
-  
-    " Ensure the path is relative to vim directory
-    let l:relativeInstallDir = substitute(a:installDir, '^' . g:plugin_manager_vim_dir . '/', '', '')
-    
-    " Fix: Check if submodule already exists
-    let l:gitmoduleCheck = system('grep -c "' . l:relativeInstallDir . '" .gitmodules 2>/dev/null')
-    if shellescape(l:gitmoduleCheck) != 0
-      call plugin_manager#ui#update_sidebar(['Error: Plugin already installed at this location :'. l:relativeInstallDir], 1)
-      return
-    end
-    
-    " Execute git submodule add command
-    let l:result = system('git submodule add "' . a:moduleUrl . '" "' . l:relativeInstallDir . '"')
-    if v:shell_error != 0
-      let l:error_lines = ['Error installing plugin:']
-      call extend(l:error_lines, split(l:result, "\n"))
-      call plugin_manager#ui#update_sidebar(l:error_lines, 1)
-      return
-    endif
-    
-    call plugin_manager#ui#update_sidebar(['Committing changes...'], 1)
-    
-    let l:result = system('git commit -m "Added ' . a:moduleUrl . ' module"')
-    let l:result_lines = []
-    if v:shell_error != 0
-      let l:result_lines += ['Error committing changes:']
-      let l:result_lines += split(l:result, "\n")
-    else
-      let l:result_lines += ['Plugin installed successfully.', 'Generating helptags...']
-      if s:generate_helptag(a:installDir)
-        let l:result_lines += ['Helptags generated successfully.']
-      else
-        let l:result_lines += ['No documentation directory found.']
-      endif
-    endif
-    
-    call plugin_manager#ui#update_sidebar(l:result_lines, 1)
-endfunction
-  
 " Handle 'remove' command
 function! plugin_manager#modules#remove(...)
     if a:0 < 1
