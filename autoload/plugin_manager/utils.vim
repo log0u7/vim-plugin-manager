@@ -102,12 +102,12 @@ function! plugin_manager#utils#convert_to_full_url(shortName)
 endfunction
   
 " Check if a repository exists
-function! plugin_manager#utils#repository_exists(url)
+  function! plugin_manager#utils#repository_exists(url)
     " Use git ls-remote to check if the repository exists
-    let l:cmd = 'git ls-remote ' . a:url . ' > /dev/null 2>&1'
-    let l:exitCode = system(l:cmd)
+    let l:cmd = 'git ls-remote --exit-code "' . a:url . '" HEAD > /dev/null 2>&1'
+    call system(l:cmd)
     
-    " Return 0 if the command succeeded (repository exists), non-zero otherwise
+    " Return true if command succeeded (repository exists), false otherwise
     return v:shell_error == 0
 endfunction
 

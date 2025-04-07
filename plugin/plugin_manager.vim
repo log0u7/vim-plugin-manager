@@ -55,8 +55,8 @@ if !exists('g:plugin_manager_default_git_host')
 endif
 
 " Internal variables (shared between files)
-let g:pm_urlRegexp = 'https\?:\/\/\(www\.\)\?[-a-zA-Z0-9@:%._\\+~#=]\{1,256}\.[a-zA-Z0-9()]\{1,6}\b\([-a-zA-Z0-9()@:%_\\+.~#?&//=]*\)'
-let g:pm_shortNameRegexp = '^[a-zA-Z0-9_-]\+\/[a-zA-Z0-9_-]\+$'
+let g:pm_urlRegexp = '^https\?://.\+\|^git@.\+:.\\+$'
+let g:pm_shortNameRegexp = '^[a-zA-Z0-9_.-]\+/[a-zA-Z0-9_.-]\+$'
 
 " Cache for gitmodules data
 let g:pm_gitmodules_cache = {}
