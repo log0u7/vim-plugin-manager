@@ -34,11 +34,56 @@ endfunction
 
 " Set a lock variable with automatic timeout to prevent deadlocks
 function! plugin_manager#utils#set_lock_with_timeout(lock_var, timeout_ms)
+  " Check if lock already exists (prevent resetting timer)
+  if exists(a:lock_var) && eval(a:lock_var)
+    return 0  " Lock already set, couldn't acquire
+  endif
+  
   " Set the lock
   execute 'let ' . a:lock_var . ' = 1'
   
   " Schedule automatic lock release after timeout
-  call timer_start(a:timeout_ms, {-> execute('if exists("' . a:lock_var . '") | let ' . a:lock_var . ' = 0 | endif')})
+  let l:timer_id = timer_start(a:timeout_ms, {-> s:release_lock_safe(a:lock_var)})
+  
+  return l:timer_id  " Return timer ID so it can be cancelled if needed
+endfunction
+
+" Safe release of a lock variable that handles errors
+function! s:release_lock_safe(lock_var)
+  try
+    execute 'let ' . a:lock_var . ' = 0'
+  catch
+    " Silently handle errors during automatic lock release
+  endtry
+endfunction
+
+" Release a lock variable safely (for manual use)
+function! plugin_manager#utils#release_lock(lock_var)
+  if exists(a:lock_var)
+    execute 'let ' . a:lock_var . ' = 0'
+    return 1  " Lock was released
+  endif
+  return 0  " Lock didn't exist
+endfunction
+
+" Execute a function with proper lock handling
+function! plugin_manager#utils#with_lock(lock_var, timeout_ms, func, ...)
+  " Try to acquire lock
+  let l:timer_id = plugin_manager#utils#set_lock_with_timeout(a:lock_var, a:timeout_ms)
+  if !l:timer_id
+    return {'success': 0, 'error': 'Operation already in progress'}
+  endif
+  
+  try
+    let l:result = call(a:func, a:000)
+    return {'success': 1, 'result': l:result}
+  catch
+    return {'success': 0, 'error': v:exception}
+  finally
+    " Cancel the auto-release timer and release lock manually
+    call timer_stop(l:timer_id)
+    call plugin_manager#utils#release_lock(a:lock_var)
+  endtry
 endfunction
 
 " Execute command with output in sidebar asynchronously

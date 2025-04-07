@@ -30,6 +30,30 @@
     return 0
   endfunction
   
+  " Log job-related errors to both the UI and Vim's message history
+  function! s:log_job_error(message)
+    " Log to Vim's message history
+    echohl ErrorMsg
+    echomsg 'Job Error: ' . a:message
+    echohl None
+    
+    " Try to log to UI if possible
+    try
+      call plugin_manager#ui#update_sidebar(['Job Error: ' . a:message], 1)
+    catch
+      " Silently fail if UI update isn't possible
+    endtry
+  endfunction
+  
+  " Release jobs operations lock safely
+  function! s:release_jobs_operations_lock()
+    try
+      let s:jobs_operations_lock = 0
+    catch
+      " Silently handle errors during lock release
+    endtry
+  endfunction
+  
   " Start an async job with appropriate callback handling and error protection
   function! plugin_manager#jobs#start(cmd, callbacks)
     " Prevent job operations from being nested/recursive
@@ -40,57 +64,61 @@
     
     " Set lock with timeout to prevent deadlocks
     let s:jobs_operations_lock = 1
-    call timer_start(1000, {-> s:release_jobs_operations_lock()})
-    
-    " If async not supported, fall back to sync with error handling
-    if !plugin_manager#jobs#is_async_supported()
-      call plugin_manager#ui#update_sidebar(['Async jobs not supported in this Vim version, falling back to synchronous operation...'], 1)
-      
-      try
-        " Handle command as a list or string
-        let l:cmd = type(a:cmd) == v:t_list ? a:cmd : a:cmd
-        
-        " Execute command synchronously
-        let l:output = system(l:cmd)
-        let l:status = v:shell_error
-        
-        if has_key(a:callbacks, 'on_stdout')
-          call a:callbacks.on_stdout(l:output)
-        endif
-        
-        if has_key(a:callbacks, 'on_exit')
-          call a:callbacks.on_exit(l:status, l:output)
-        endif
-        
-        let s:jobs_operations_lock = 0
-        return 0
-      catch
-        call s:log_job_error('Error in synchronous execution: ' . v:exception)
-        let s:jobs_operations_lock = 0
-        return -1
-      endtry
-    endif
-    
-    " Create a structure to keep track of this job
-    let l:job_info = {
-          \ 'cmd': a:cmd,
-          \ 'callbacks': a:callbacks,
-          \ 'start_time': reltime(),
-          \ 'stdout': [],
-          \ 'stderr': [],
-          \ 'id': len(s:job_list) + 1,
-          \ 'status': 'running',
-          \ }
-    
-    " Display that we're starting the job
-    if has_key(a:callbacks, 'name')
-      let l:job_info.name = a:callbacks.name
-      call plugin_manager#jobs#display_progress(l:job_info.id, 'Starting: ' . l:job_info.name)
-    else
-      call plugin_manager#jobs#display_progress(l:job_info.id, 'Starting job: ' . (type(a:cmd) == v:t_list ? join(a:cmd) : a:cmd))
-    endif
+    let l:timer_id = timer_start(10000, {-> s:release_jobs_operations_lock()})
     
     try
+      " If async not supported, fall back to sync with error handling
+      if !plugin_manager#jobs#is_async_supported()
+        call plugin_manager#ui#update_sidebar(['Async jobs not supported in this Vim version, falling back to synchronous operation...'], 1)
+        
+        try
+          " Handle command as a list or string
+          let l:cmd = type(a:cmd) == v:t_list ? join(a:cmd, ' ') : a:cmd
+          
+          " Execute command synchronously
+          let l:output = system(l:cmd)
+          let l:status = v:shell_error
+          
+          if has_key(a:callbacks, 'on_stdout')
+            call a:callbacks.on_stdout(l:output)
+          endif
+          
+          if has_key(a:callbacks, 'on_exit')
+            call a:callbacks.on_exit(l:status, l:output)
+          endif
+          
+          " Release lock immediately for synchronous execution
+          call timer_stop(l:timer_id)
+          let s:jobs_operations_lock = 0
+          return 0
+        catch
+          call s:log_job_error('Error in synchronous execution: ' . v:exception)
+          throw v:exception
+        endtry
+      endif
+      
+      " Create a structure to keep track of this job
+      let l:job_info = {
+            \ 'cmd': a:cmd,
+            \ 'callbacks': a:callbacks,
+            \ 'start_time': reltime(),
+            \ 'stdout': [],
+            \ 'stderr': [],
+            \ 'id': len(s:job_list) + 1,
+            \ 'status': 'running',
+            \ 'lock_released': 0,
+            \ }
+      
+      " Display that we're starting the job
+      if has_key(a:callbacks, 'name')
+        let l:job_info.name = a:callbacks.name
+        call plugin_manager#jobs#display_progress(l:job_info.id, 'Starting: ' . l:job_info.name)
+      else
+        let l:job_name = type(a:cmd) == v:t_list ? join(a:cmd) : a:cmd
+        let l:job_name = strlen(l:job_name) > 40 ? strpart(l:job_name, 0, 37) . '...' : l:job_name
+        call plugin_manager#jobs#display_progress(l:job_info.id, 'Starting job: ' . l:job_name)
+      endif
+      
       " Branch for Vim or Neovim implementation
       if has('nvim')
         " Neovim job implementation
@@ -131,6 +159,9 @@
         
         function! s:on_exit_nvim(id, status, event) dict
           try
+            " Mark lock as released to prevent double release
+            let self.lock_released = 1
+            
             " Set job status
             let self.status = 'completed'
             let self.exit_status = a:status
@@ -157,6 +188,11 @@
           catch
             call s:log_job_error('Error in exit handler: ' . v:exception)
           finally
+            " Release the lock if this is the job that set it
+            if !self.lock_released && exists('s:jobs_operations_lock') && s:jobs_operations_lock
+              let s:jobs_operations_lock = 0
+            endif
+            
             " Clean up job list
             call plugin_manager#jobs#clean_jobs()
           endtry
@@ -180,20 +216,11 @@
         " Check if job started successfully
         if l:job <= 0
           call s:log_job_error('Failed to start Neovim job, error code: ' . l:job)
-          let s:jobs_operations_lock = 0
-          return -1
+          throw 'Failed to start Neovim job'
         endif
         
         let l:job_info.job = l:job
         let l:job_info.type = 'nvim'
-        
-        " Add job to list
-        call add(s:job_list, l:job_info)
-        
-        " Release lock after successful job start
-        let s:jobs_operations_lock = 0
-        
-        return l:job_info.id
       else
         " Vim job implementation
         function! s:on_stdout_vim(channel, msg) dict
@@ -229,6 +256,9 @@
         
         function! s:on_exit_vim(channel, status) dict
           try
+            " Mark lock as released to prevent double release
+            let self.lock_released = 1
+            
             " Set job status
             let self.status = 'completed'
             let self.exit_status = a:status
@@ -255,6 +285,11 @@
           catch
             call s:log_job_error('Error in exit handler: ' . v:exception)
           finally
+            " Release the lock if this is the job that set it
+            if !self.lock_released && exists('s:jobs_operations_lock') && s:jobs_operations_lock
+              let s:jobs_operations_lock = 0
+            endif
+            
             " Clean up job list
             call plugin_manager#jobs#clean_jobs()
           endtry
@@ -277,46 +312,32 @@
         " Check if job started successfully
         if job_status(l:job) ==# 'fail'
           call s:log_job_error('Failed to start Vim job')
-          let s:jobs_operations_lock = 0
-          return -1
+          throw 'Failed to start Vim job'
         endif
         
         let l:job_info.job = l:job
         let l:job_info.type = 'vim'
-        
-        " Add job to list
-        call add(s:job_list, l:job_info)
-        
-        " Release lock after successful job start
-        let s:jobs_operations_lock = 0
-        
-        return l:job_info.id
       endif
+      
+      " Add job to list
+      call add(s:job_list, l:job_info)
+      
+      " Cancel the lock release timer - callbacks will handle it
+      call timer_stop(l:timer_id)
+      let l:job_info.started_async = 1
+      
+      return l:job_info.id
     catch
       call s:log_job_error('Error starting job: ' . v:exception)
-      let s:jobs_operations_lock = 0
       return -1
+    finally
+      " Only release the lock if we're not starting an async job,
+      " for async jobs, the exit callback will release the lock
+      if !exists('l:job_info') || !has_key(l:job_info, 'started_async') || !l:job_info.started_async
+        call timer_stop(l:timer_id)
+        let s:jobs_operations_lock = 0
+      endif
     endtry
-  endfunction
-  
-  " Log job-related errors to both the UI and Vim's message history
-  function! s:log_job_error(message)
-    " Log to Vim's message history
-    echohl ErrorMsg
-    echomsg 'Job Error: ' . a:message
-    echohl None
-    
-    " Try to log to UI if possible
-    try
-      call plugin_manager#ui#update_sidebar(['Job Error: ' . a:message], 1)
-    catch
-      " Silently fail if UI update isn't possible
-    endtry
-  endfunction
-  
-  " Release jobs operations lock
-  function! s:release_jobs_operations_lock()
-    let s:jobs_operations_lock = 0
   endfunction
   
   " Check if any jobs are running
@@ -397,55 +418,60 @@
     
     " Set lock with timeout to prevent deadlocks
     let s:jobs_operations_lock = 1
-    call timer_start(1000, {-> s:release_jobs_operations_lock()})
-    
-    let l:sequence = copy(a:commands)
-    let l:results = []
-    
-    function! s:run_next(results, commands, final_callback, status, output) closure
-      try
-        " Add result of previous command
-        call add(a:results, {'status': a:status, 'output': a:output, 'name': get(l:cmd, 'name', 'Command ' . len(a:results))})
-        
-        " If no more commands, we're done
-        if empty(a:commands)
-          call a:final_callback(a:results)
-          return
-        endif
-        
-        " Get next command and run it
-        let l:cmd = remove(a:commands, 0)
-        let l:name = get(l:cmd, 'name', 'Command ' . (len(a:results) + 1))
-        
-        " Create callbacks for this command
-        let l:callbacks = {
-              \ 'name': l:name,
-              \ 'on_stdout': get(l:cmd, 'on_stdout', function('s:default_stdout')),
-              \ 'on_stderr': get(l:cmd, 'on_stderr', function('s:default_stderr')),
-              \ 'on_exit': function('s:run_next', [a:results, a:commands, a:final_callback]),
-              \ }
-        
-        " Start the job
-        call plugin_manager#jobs#start(l:cmd.cmd, l:callbacks)
-      catch
-        call s:log_job_error('Error in job sequence: ' . v:exception)
-        
-        " Call final callback with error state to ensure chain isn't broken
-        call add(a:results, {'status': 1, 'output': 'Error: ' . v:exception, 'name': 'Error in job sequence'})
-        call a:final_callback(a:results)
-      endtry
-    endfunction
-    
-    " Default callbacks
-    function! s:default_stdout(msg)
-      " Do nothing by default
-    endfunction
-    
-    function! s:default_stderr(msg)
-      " Do nothing by default
-    endfunction
+    let l:timer_id = timer_start(10000, {-> s:release_jobs_operations_lock()})
     
     try
+      let l:sequence = copy(a:commands)
+      let l:results = []
+      
+      function! s:run_next(results, commands, final_callback, status, output) closure
+        try
+          " Add result of previous command
+          call add(a:results, {'status': a:status, 'output': a:output, 'name': get(l:cmd, 'name', 'Command ' . len(a:results))})
+          
+          " If no more commands, we're done
+          if empty(a:commands)
+            call a:final_callback(a:results)
+            return
+          endif
+          
+          " Get next command and run it
+          let l:cmd = remove(a:commands, 0)
+          let l:name = get(l:cmd, 'name', 'Command ' . (len(a:results) + 1))
+          
+          " Create callbacks for this command
+          let l:callbacks = {
+                \ 'name': l:name,
+                \ 'on_stdout': get(l:cmd, 'on_stdout', function('s:default_stdout')),
+                \ 'on_stderr': get(l:cmd, 'on_stderr', function('s:default_stderr')),
+                \ 'on_exit': function('s:run_next', [a:results, a:commands, a:final_callback]),
+                \ }
+          
+          " Start the job
+          call plugin_manager#jobs#start(l:cmd.cmd, l:callbacks)
+        catch
+          call s:log_job_error('Error in job sequence: ' . v:exception)
+          
+          " Call final callback with error state to ensure chain isn't broken
+          call add(a:results, {'status': 1, 'output': 'Error: ' . v:exception, 'name': 'Error in job sequence'})
+          call a:final_callback(a:results)
+          
+          " Make sure lock is released
+          if exists('s:jobs_operations_lock') && s:jobs_operations_lock
+            let s:jobs_operations_lock = 0
+          endif
+        endtry
+      endfunction
+      
+      " Default callbacks
+      function! s:default_stdout(msg)
+        " Do nothing by default
+      endfunction
+      
+      function! s:default_stderr(msg)
+        " Do nothing by default
+      endfunction
+      
       " Start the first command
       if !empty(l:sequence)
         let l:cmd = remove(l:sequence, 0)
@@ -459,7 +485,7 @@
               \ 'on_exit': function('s:run_next', [l:results, l:sequence, a:final_callback]),
               \ }
         
-        " Start the job - make sure we're sending the string command
+        " Start the job
         let l:job_id = plugin_manager#jobs#start(l:cmd.cmd, l:callbacks)
         
         " Check if job started successfully
@@ -467,19 +493,18 @@
           throw "Failed to start job: " . l:cmd.cmd
         endif
         
-        " Release lock after chain is started (callbacks will handle the rest)
-        let s:jobs_operations_lock = 0
-        
+        " The lock is now owned by the job chain
+        call timer_stop(l:timer_id)
         return l:job_id
       else
         " No commands to run
         call a:final_callback([])
         let s:jobs_operations_lock = 0
+        call timer_stop(l:timer_id)
         return 0
       endif
     catch
       call s:log_job_error('Error starting job sequence: ' . v:exception)
-      let s:jobs_operations_lock = 0
       
       " Try to call the callback with error information
       try
@@ -489,11 +514,19 @@
       endtry
       
       return -1
+    finally
+      " Release the lock if we didn't start an async job chain successfully
+      if !exists('l:job_id') || l:job_id < 0
+        call timer_stop(l:timer_id)
+        let s:jobs_operations_lock = 0
+      endif
     endtry
   endfunction
   
   " Stop all running jobs 
   function! plugin_manager#jobs#stop_all()
+    let l:stop_errors = []
+    
     for l:job in s:job_list
       if l:job.status == 'running'
         try
@@ -504,7 +537,7 @@
           endif
           let l:job.status = 'stopped'
         catch
-          " Silently continue if job can't be stopped
+          call add(l:stop_errors, 'Failed to stop job ' . get(l:job, 'name', l:job.id) . ': ' . v:exception)
         endtry
       endif
     endfor
@@ -517,4 +550,13 @@
     
     " Clear job progress display
     call plugin_manager#ui#clear_job_progress()
+    
+    " Report any errors
+    if !empty(l:stop_errors)
+      for l:err in l:stop_errors
+        call s:log_job_error(l:err)
+      endfor
+    endif
+    
+    return len(l:stop_errors) == 0
   endfunction

@@ -7,9 +7,88 @@ let s:buffer_name = 'PluginManager'
 let s:job_progress_lines = {}
 let s:job_progress_section_active = 0
 let s:sidebar_update_timer = -1
+let s:ui_update_lock = 0
+
+" Schedule sidebar update to avoid UI blocking
+function! s:do_update_sidebar(lines, append)
+  try
+    " Set a temporary UI update lock
+    let s:ui_update_lock = 1
+    
+    " Save current window ID to restore later
+    let l:current_win = win_getid()
+    
+    " Find the sidebar buffer window
+    let l:win_id = bufwinid(s:buffer_name)
+    if l:win_id == -1
+      " If the window doesn't exist, create it
+      call plugin_manager#ui#open_sidebar(a:lines)
+      let s:ui_update_lock = 0
+      return
+    endif
+    
+    " Focus the sidebar window without disturbing user's window
+    call win_gotoid(l:win_id)
+    
+    " Only change modifiable state once
+    setlocal modifiable
+    
+    " Update content based on append flag
+    if a:append && !empty(a:lines)
+      " More efficient append - don't write empty lines
+      if line('$') > 0 && getline('$') != ''
+        call append(line('$'), '')  " Add separator line
+      endif
+      call append(line('$'), a:lines)
+    else
+      " Replace existing content more efficiently
+      silent! %delete _
+      if !empty(a:lines)
+        call setline(1, a:lines)
+      endif
+    endif
+    
+    " Set back to non-modifiable and move cursor to top
+    setlocal nomodifiable
+    call cursor(1, 1)
+    
+    " Return to the original window
+    call win_gotoid(l:current_win)
+  catch
+    echohl ErrorMsg
+    echomsg "UI Update Error: " . v:exception
+    echohl None
+  finally
+    let s:ui_update_lock = 0
+  endtry
+endfunction
+
+" Update the sidebar content with better performance using scheduled update
+function! plugin_manager#ui#update_sidebar(lines, append)
+  " Prevent nested UI updates
+  if s:ui_update_lock
+    return
+  endif
+  
+  " Cancel any pending update
+  if s:sidebar_update_timer != -1
+    call timer_stop(s:sidebar_update_timer)
+  endif
+  
+  " Schedule an immediate update (1ms timer to ensure async behavior)
+  let s:sidebar_update_timer = timer_start(1, {-> s:do_update_sidebar(a:lines, a:append)})
+endfunction
 
 " Open the sidebar window with optimized logic
 function! plugin_manager#ui#open_sidebar(lines)
+  try
+    " Prevent nested UI updates
+    if s:ui_update_lock
+      return
+    endif
+    
+    let s:ui_update_lock = 1
+
     " Check if sidebar buffer already exists
     let l:buffer_exists = bufexists(s:buffer_name)
     let l:win_id = bufwinid(s:buffer_name)
@@ -33,217 +112,204 @@ function! plugin_manager#ui#open_sidebar(lines)
     endif
     
     " Update buffer content more efficiently
-    call plugin_manager#ui#update_sidebar(a:lines, 0)
-endfunction
-  
-" Schedule sidebar update to avoid UI blocking
-function! s:do_update_sidebar(lines, append)
-  " Save current window ID to restore later
-  let l:current_win = win_getid()
-  
-  " Find the sidebar buffer window
-  let l:win_id = bufwinid(s:buffer_name)
-  if l:win_id == -1
-    " If the window doesn't exist, create it
-    call plugin_manager#ui#open_sidebar(a:lines)
-    return
-  endif
-  
-  " Focus the sidebar window without disturbing user's window
-  call win_gotoid(l:win_id)
-  
-  " Only change modifiable state once
-  setlocal modifiable
-  
-  " Update content based on append flag
-  if a:append && !empty(a:lines)
-    " More efficient append - don't write empty lines
-    if line('$') > 0 && getline('$') != ''
-      call append(line('$'), '')  " Add separator line
-    endif
-    call append(line('$'), a:lines)
-  else
-    " Replace existing content more efficiently
-    silent! %delete _
-    if !empty(a:lines)
-      call setline(1, a:lines)
-    endif
-  endif
-  
-  " Set back to non-modifiable and move cursor to top
-  setlocal nomodifiable
-  call cursor(1, 1)
-  
-  " Return to the original window
-  call win_gotoid(l:current_win)
-endfunction
-
-" Update the sidebar content with better performance using scheduled update
-function! plugin_manager#ui#update_sidebar(lines, append)
-  if s:sidebar_update_timer != -1
-    call timer_stop(s:sidebar_update_timer)
-  endif
-  
-  " Schedule an immediate update (1ms timer to ensure async behavior)
-  let s:sidebar_update_timer = timer_start(1, {-> s:do_update_sidebar(a:lines, a:append)})
+    call s:do_update_sidebar(a:lines, 0)
+  catch
+    echohl ErrorMsg
+    echomsg "UI Open Error: " . v:exception
+    echohl None
+  finally
+    let s:ui_update_lock = 0
+  endtry
 endfunction
 
 " Schedule job progress update to avoid UI blocking
 function! s:do_update_job_progress(job_id, status_line)
-  " Save current window ID to restore later
-  let l:current_win = win_getid()
-  
-  " Store/update this job's status
-  let s:job_progress_lines[a:job_id] = a:status_line
-  
-  " Check if the sidebar exists
-  let l:win_id = bufwinid(s:buffer_name)
-  if l:win_id == -1
-    " Not an error, just don't do anything if sidebar isn't open
-    return
-  endif
-  
-  " Focus the sidebar window
-  call win_gotoid(l:win_id)
-  setlocal modifiable
-  
-  " Find or create the job progress section
-  let l:progress_section_start = -1
-  let l:progress_section_end = -1
-  
-  " Look for existing section markers
-  let l:line_count = line('$')
-  for i in range(1, l:line_count)
-    if getline(i) =~ '^Job Progress:$'
-      let l:progress_section_start = i
-    elseif l:progress_section_start > 0 && getline(i) =~ '^-\+$'
-      if i == l:progress_section_start + 1
-        " This is the line right after the header
-        let l:progress_section_end = i
-        break
+  try
+    " Set a temporary UI update lock
+    let s:ui_update_lock = 1
+    
+    " Store/update this job's status
+    let s:job_progress_lines[a:job_id] = a:status_line
+    
+    " Check if the sidebar exists
+    let l:win_id = bufwinid(s:buffer_name)
+    if l:win_id == -1
+      " Not an error, just don't do anything if sidebar isn't open
+      return
+    endif
+    
+    " Save current window ID
+    let l:current_win = win_getid()
+    
+    " Focus the sidebar window
+    call win_gotoid(l:win_id)
+    setlocal modifiable
+    
+    " Find or create the job progress section
+    let l:progress_section_start = -1
+    let l:progress_section_end = -1
+    
+    " Look for existing section markers
+    let l:line_count = line('$')
+    for i in range(1, l:line_count)
+      if getline(i) =~ '^Job Progress:$'
+        let l:progress_section_start = i
+      elseif l:progress_section_start > 0 && getline(i) =~ '^-\+$'
+        if i == l:progress_section_start + 1
+          " This is the line right after the header
+          let l:progress_section_end = i
+          break
+        endif
       endif
-    endif
-  endfor
-  
-  " If no section exists yet, create it at the bottom
-  if l:progress_section_start < 0
-    call cursor(line('$'), 1)
-    " Add some space if needed
-    if getline('.') != ''
-      call append(line('$'), ['', ''])
-    endif
-    call append(line('$'), ['Job Progress:', repeat('-', 12), ''])
-    let l:progress_section_start = line('$') - 2
-    let l:progress_section_end = line('$') - 1
-    let s:job_progress_section_active = 1
-  endif
-  
-  " Now find the end of the job progress section
-  let l:content_end = l:progress_section_end + 1
-  while l:content_end <= line('$') && getline(l:content_end) !~ '^[A-Z]'
-    let l:content_end += 1
-  endwhile
-  let l:content_end -= 1
-  
-  " Delete existing progress lines
-  if l:progress_section_end + 1 <= l:content_end
-    execute (l:progress_section_end + 1) . ',' . l:content_end . 'delete _'
-  endif
-  
-  " Add updated progress lines
-  let l:progress_lines = []
-  for [l:id, l:status] in items(s:job_progress_lines)
-    call add(l:progress_lines, l:status)
-  endfor
-  
-  " If no active jobs, add a placeholder
-  if empty(l:progress_lines)
-    if s:job_progress_section_active
-      call add(l:progress_lines, 'No active jobs.')
-    else
-      " Remove the section entirely
-      execute (l:progress_section_start) . ',' . (l:progress_section_end + 1) . 'delete _'
-    endif
-  else
-    let s:job_progress_section_active = 1
-  endif
-  
-  " Insert the progress lines
-  if !empty(l:progress_lines) && s:job_progress_section_active
-    call append(l:progress_section_end, l:progress_lines)
-  endif
-  
-  " Restore modifiable state
-  setlocal nomodifiable
-  
-  " Return to the original window
-  call win_gotoid(l:current_win)
-endfunction
-
-" Update job progress indicators in the sidebar
-function! plugin_manager#ui#update_job_progress(job_id, status_line)
-  " Schedule job progress update (1ms timer to ensure async behavior)
-  call timer_start(1, {-> s:do_update_job_progress(a:job_id, a:status_line)})
-endfunction
-
-" Schedule clear job progress to avoid UI blocking
-function! s:do_clear_job_progress()
-  " Save current window ID to restore later
-  let l:current_win = win_getid()
-  
-  let s:job_progress_lines = {}
-  let s:job_progress_section_active = 0
-  
-  " Check if the sidebar exists
-  let l:win_id = bufwinid(s:buffer_name)
-  if l:win_id == -1
-    return
-  endif
-  
-  " Focus the sidebar window
-  call win_gotoid(l:win_id)
-  setlocal modifiable
-  
-  " Find the job progress section
-  let l:progress_section_start = -1
-  let l:progress_section_end = -1
-  
-  " Look for existing section markers
-  let l:line_count = line('$')
-  for i in range(1, l:line_count)
-    if getline(i) =~ '^Job Progress:$'
-      let l:progress_section_start = i
-    elseif l:progress_section_start > 0 && getline(i) =~ '^-\+$'
-      if i == l:progress_section_start + 1
-        " This is the line right after the header
-        let l:progress_section_end = i
-        break
+    endfor
+    
+    " If no section exists yet, create it at the bottom
+    if l:progress_section_start < 0
+      call cursor(line('$'), 1)
+      " Add some space if needed
+      if getline('.') != ''
+        call append(line('$'), ['', ''])
       endif
+      call append(line('$'), ['Job Progress:', repeat('-', 12), ''])
+      let l:progress_section_start = line('$') - 2
+      let l:progress_section_end = line('$') - 1
+      let s:job_progress_section_active = 1
     endif
-  endfor
-  
-  " If section exists, remove it
-  if l:progress_section_start > 0
-    " Find the end of the job progress section
+    
+    " Now find the end of the job progress section
     let l:content_end = l:progress_section_end + 1
     while l:content_end <= line('$') && getline(l:content_end) !~ '^[A-Z]'
       let l:content_end += 1
     endwhile
     let l:content_end -= 1
     
-    " Delete the entire section
-    execute l:progress_section_start . ',' . l:content_end . 'delete _'
+    " Delete existing progress lines
+    if l:progress_section_end + 1 <= l:content_end
+      execute (l:progress_section_end + 1) . ',' . l:content_end . 'delete _'
+    endif
+    
+    " Add updated progress lines
+    let l:progress_lines = []
+    for [l:id, l:status] in items(s:job_progress_lines)
+      call add(l:progress_lines, l:status)
+    endfor
+    
+    " If no active jobs, add a placeholder
+    if empty(l:progress_lines)
+      if s:job_progress_section_active
+        call add(l:progress_lines, 'No active jobs.')
+      else
+        " Remove the section entirely
+        execute (l:progress_section_start) . ',' . (l:progress_section_end + 1) . 'delete _'
+      endif
+    else
+      let s:job_progress_section_active = 1
+    endif
+    
+    " Insert the progress lines
+    if !empty(l:progress_lines) && s:job_progress_section_active
+      call append(l:progress_section_end, l:progress_lines)
+    endif
+    
+    " Restore modifiable state
+    setlocal nomodifiable
+    
+    " Return to the original window
+    call win_gotoid(l:current_win)
+  catch
+    echohl ErrorMsg
+    echomsg "Job Progress Update Error: " . v:exception
+    echohl None
+  finally
+    let s:ui_update_lock = 0
+  endtry
+endfunction
+
+" Update job progress indicators in the sidebar
+function! plugin_manager#ui#update_job_progress(job_id, status_line)
+  " Prevent nested updates
+  if s:ui_update_lock
+    return
   endif
   
-  " Restore modifiable state
-  setlocal nomodifiable
-  
-  " Return to the original window
-  call win_gotoid(l:current_win)
+  " Schedule job progress update (1ms timer to ensure async behavior)
+  call timer_start(1, {-> s:do_update_job_progress(a:job_id, a:status_line)})
+endfunction
+
+" Schedule clear job progress to avoid UI blocking
+function! s:do_clear_job_progress()
+  try
+    " Set a temporary UI update lock
+    let s:ui_update_lock = 1
+    
+    let s:job_progress_lines = {}
+    let s:job_progress_section_active = 0
+    
+    " Check if the sidebar exists
+    let l:win_id = bufwinid(s:buffer_name)
+    if l:win_id == -1
+      return
+    endif
+    
+    " Save current window ID
+    let l:current_win = win_getid()
+    
+    " Focus the sidebar window
+    call win_gotoid(l:win_id)
+    setlocal modifiable
+    
+    " Find the job progress section
+    let l:progress_section_start = -1
+    let l:progress_section_end = -1
+    
+    " Look for existing section markers
+    let l:line_count = line('$')
+    for i in range(1, l:line_count)
+      if getline(i) =~ '^Job Progress:$'
+        let l:progress_section_start = i
+      elseif l:progress_section_start > 0 && getline(i) =~ '^-\+$'
+        if i == l:progress_section_start + 1
+          " This is the line right after the header
+          let l:progress_section_end = i
+          break
+        endif
+      endif
+    endfor
+    
+    " If section exists, remove it
+    if l:progress_section_start > 0
+      " Find the end of the job progress section
+      let l:content_end = l:progress_section_end + 1
+      while l:content_end <= line('$') && getline(l:content_end) !~ '^[A-Z]'
+        let l:content_end += 1
+      endwhile
+      let l:content_end -= 1
+      
+      " Delete the entire section
+      execute l:progress_section_start . ',' . l:content_end . 'delete _'
+    endif
+    
+    " Restore modifiable state
+    setlocal nomodifiable
+    
+    " Return to the original window
+    call win_gotoid(l:current_win)
+  catch
+    echohl ErrorMsg
+    echomsg "Clear Job Progress Error: " . v:exception
+    echohl None
+  finally
+    let s:ui_update_lock = 0
+  endtry
 endfunction
 
 " Clear the job progress section
 function! plugin_manager#ui#clear_job_progress()
+  " Prevent nested updates
+  if s:ui_update_lock
+    return
+  endif
+  
   " Schedule clear job progress (1ms timer to ensure async behavior)
   call timer_start(1, {-> s:do_clear_job_progress()})
 endfunction
@@ -319,12 +385,27 @@ endfunction
   
 " Function to toggle the Plugin Manager sidebar
 function! plugin_manager#ui#toggle_sidebar()
-   let l:win_id = bufwinid(s:buffer_name)
-   if l:win_id != -1
-     " Sidebar is visible, close it
-     execute 'bd ' . bufnr(s:buffer_name)
-   else
-     " Open sidebar with usage info
-     call plugin_manager#ui#usage()
-   endif
+  try
+    " Prevent nested UI operations
+    if s:ui_update_lock
+      return
+    endif
+    
+    let s:ui_update_lock = 1
+    
+    let l:win_id = bufwinid(s:buffer_name)
+    if l:win_id != -1
+      " Sidebar is visible, close it
+      execute 'bd ' . bufnr(s:buffer_name)
+    else
+      " Open sidebar with usage info
+      call plugin_manager#ui#usage()
+    endif
+  catch
+    echohl ErrorMsg
+    echomsg "Toggle Sidebar Error: " . v:exception
+    echohl None
+  finally
+    let s:ui_update_lock = 0
+  endtry
 endfunction
