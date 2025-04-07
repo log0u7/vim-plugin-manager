@@ -102,67 +102,112 @@ function! s:plugin_end()
   endtry
 endfunction
 
-" Main function to handle PluginManager commands
-function! plugin_manager#main(...)
-  try
-    if !plugin_manager#utils#ensure_vim_directory()
-      return
-    endif
-    
-    if a:0 < 1
-      call plugin_manager#ui#usage()
-      return
-    endif
-    
-    let l:command = a:1
-    
-    if l:command == "add" && a:0 >= 2
-      " Pass all arguments starting from index 1
-      call call('plugin_manager#modules#add', a:000[1:])
-    elseif l:command == "remove" && a:0 >= 2
-      call plugin_manager#modules#remove(a:2, get(a:, 3, ""))
-    elseif l:command == "list"
-      call plugin_manager#modules#list()
-    elseif l:command == "status"
-      call plugin_manager#modules#status()
-    elseif l:command == "update"
-      " Pass the optional module name if provided
-      if a:0 >= 2
-        call plugin_manager#modules#update(a:2)
+" Update main function with asynchronous support
+  function! plugin_manager#main(...)
+    try
+      if !plugin_manager#utils#ensure_vim_directory()
+        return
+      endif
+      
+      if a:0 < 1
+        call plugin_manager#ui#usage()
+        return
+      endif
+      
+      let l:command = a:1
+      
+      " Variable to choose between asynchronous or synchronous mode
+      let l:use_async = plugin_manager#jobs#is_async_supported()
+      
+      if l:command == "add" && a:0 >= 2
+        " Pass all arguments starting from index 1
+        if l:use_async
+          call call('plugin_manager#modules#add_async', [a:000[1], get(a:, 2, {}), {status -> 0}])
+        else
+          call call('plugin_manager#modules#add', a:000[1:])
+        endif
+      elseif l:command == "remove" && a:0 >= 2
+        call plugin_manager#modules#remove(a:2, get(a:, 3, ""))
+      elseif l:command == "list"
+        call plugin_manager#modules#list()
+      elseif l:command == "status"
+        if l:use_async
+          call plugin_manager#modules#status_async()
+        else
+          call plugin_manager#modules#status()
+        endif
+      elseif l:command == "update"
+        " Pass the optional module name if provided
+        if a:0 >= 2
+          if l:use_async
+            call plugin_manager#modules#update_async(a:2)
+          else
+            call plugin_manager#modules#update(a:2)
+          endif
+        else
+          if l:use_async
+            call plugin_manager#modules#update_async('all')
+          else
+            call plugin_manager#modules#update('all')
+          endif
+        endif
+      elseif l:command == "summary"
+        call plugin_manager#modules#summary()
+      elseif l:command == "backup"
+        if l:use_async
+          call plugin_manager#modules#backup_async()
+        else
+          call plugin_manager#modules#backup()
+        endif
+      elseif l:command == "restore"
+        if l:use_async
+          call plugin_manager#modules#restore_async()
+        else
+          call plugin_manager#modules#restore()
+        endif
+      elseif l:command == "helptags"
+        " Pass the optional module name if provided
+        if a:0 >= 2
+          call plugin_manager#modules#generate_helptags(1, a:2)
+        else 
+          call plugin_manager#modules#generate_helptags()
+        endif
+      elseif l:command == "reload"
+        " Pass the optional module name if provided
+        if a:0 >= 2
+          call plugin_manager#modules#reload(a:2)
+        else
+          call plugin_manager#modules#reload()
+        endif
       else
-        call plugin_manager#modules#update('all')
+        call plugin_manager#ui#usage()
       endif
-    elseif l:command == "summary"
-      call plugin_manager#modules#summary()
-    elseif l:command == "backup"
-      call plugin_manager#modules#backup()
-    elseif l:command == "restore"
-      call plugin_manager#modules#restore()
-    elseif l:command == "helptags"
-      " Pass the optional module name if provided
-      if a:0 >= 2
-        call plugin_manager#modules#generate_helptags(1, a:2)
-      else 
-        call plugin_manager#modules#generate_helptags()
-      endif
-    elseif l:command == "reload"
-      " Pass the optional module name if provided
-      if a:0 >= 2
-        call plugin_manager#modules#reload(a:2)
-      else
-        call plugin_manager#modules#reload()
-      endif
-    else
-      call plugin_manager#ui#usage()
+    catch
+      let l:formatted_error = plugin_manager#utils#is_pm_error(v:exception) 
+            \ ? plugin_manager#utils#format_error(v:exception) 
+            \ : 'Unexpected error: ' . v:exception . ' at ' . v:throwpoint
+      
+      call plugin_manager#ui#open_sidebar(['Error:', repeat('-', 6), '', l:formatted_error])
+    finally
+      " Reset in-progress flags
+      let s:update_in_progress = 0
+    endtry
+  endfunction
+  
+  " Stop all running jobs (useful for clean Vim exit)
+  function! plugin_manager#stop_all_jobs()
+    if exists('*plugin_manager#jobs#stop_all')
+      call plugin_manager#jobs#stop_all()
     endif
-  catch
-    let l:formatted_error = plugin_manager#utils#is_pm_error(v:exception) 
-          \ ? plugin_manager#utils#format_error(v:exception) 
-          \ : 'Unexpected error: ' . v:exception . ' at ' . v:throwpoint
-    
-    call plugin_manager#ui#open_sidebar(['Error:', repeat('-', 6), '', l:formatted_error])
-  finally
-    " Reset any in-progress flags
-    let s:update_in_progress = 0
-  endtry
-endfunction
+  endfunction
+  
+  " Add a command to stop all running jobs
+  if !exists(':PluginManagerStopJobs')
+    command! PluginManagerStopJobs call plugin_manager#stop_all_jobs()
+  endif
+  
+  " Clean up jobs when exiting Vim
+  augroup PluginManagerJobsCleanup
+    autocmd!
+    autocmd VimLeave * call plugin_manager#stop_all_jobs()
+  augroup END

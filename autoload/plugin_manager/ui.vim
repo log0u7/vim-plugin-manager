@@ -1,47 +1,35 @@
 " autoload/plugin_manager/ui.vim - UI functions for vim-plugin-manager
+" Maintainer: G.K.E. <gke@6admin.io>
+" Version: 1.4
 
 " Buffer name
 let s:buffer_name = 'PluginManager'  
 
-" Open the sidebar window with optimized logic and error handling
-function! plugin_manager#ui#open_sidebar(lines) abort
+" Job status section
+let s:job_progress_lines = {}
+let s:job_progress_section_active = 0
+let s:sidebar_update_timer = -1
+let s:ui_update_lock = 0
+
+" Schedule sidebar update to avoid UI blocking
+function! s:do_update_sidebar(lines, append)
   try
-    " Check if sidebar buffer already exists
-    let l:buffer_exists = bufexists(s:buffer_name)
-    let l:win_id = bufwinid(s:buffer_name)
+    " Set a temporary UI update lock
+    let s:ui_update_lock = 1
     
-    if l:win_id != -1
-      " Sidebar window is already open, focus it
-      call win_gotoid(l:win_id)
-    else
-      " Create a new window on the right
-      execute 'silent! rightbelow ' . g:plugin_manager_sidebar_width . 'vnew ' . s:buffer_name
-      " Set the filetype to trigger ftplugin and syntax files
-      set filetype=pluginmanager
-    endif
+    " Save current window ID to restore later
+    let l:current_win = win_getid()
     
-    " Update buffer content more efficiently
-    call plugin_manager#ui#update_sidebar(a:lines, 0)
-  catch
-    " Handle errors during sidebar creation/update
-    echohl ErrorMsg
-    echomsg "Error creating sidebar: " . v:exception
-    echohl None
-  endtry
-endfunction
-  
-" Update the sidebar content with better performance and error handling
-function! plugin_manager#ui#update_sidebar(lines, append) abort
-  try
     " Find the sidebar buffer window
     let l:win_id = bufwinid(s:buffer_name)
     if l:win_id == -1
       " If the window doesn't exist, create it
       call plugin_manager#ui#open_sidebar(a:lines)
+      let s:ui_update_lock = 0
       return
     endif
     
-    " Focus the sidebar window
+    " Focus the sidebar window without disturbing user's window
     call win_gotoid(l:win_id)
     
     " Only change modifiable state once
@@ -65,33 +53,244 @@ function! plugin_manager#ui#update_sidebar(lines, append) abort
     " Set back to non-modifiable and move cursor to top
     setlocal nomodifiable
     call cursor(1, 1)
-  catch
-    " Handle errors safely
-    echohl ErrorMsg
-    echomsg "Error updating sidebar: " . v:exception
-    echohl None
     
-    " Try to ensure buffer is left in a stable state
-    if exists('l:win_id') && l:win_id != -1
-      try
-        call win_gotoid(l:win_id)
-        setlocal modifiable
-        if !empty(a:lines)
-          call setline(1, ["UI Error:", repeat('-', 9), "", "Error updating sidebar: " . v:exception])
-        endif
-        setlocal nomodifiable
-      catch
-        " Last resort error handling
-        echohl ErrorMsg
-        echomsg "Critical UI error: " . v:exception
-        echohl None
-      endtry
-    endif
+    " Return to the original window
+    call win_gotoid(l:current_win)
+  catch
+    echohl ErrorMsg
+    echomsg "UI Update Error: " . v:exception
+    echohl None
+  finally
+    let s:ui_update_lock = 0
   endtry
+endfunction
+
+" Update the sidebar content with better performance using scheduled update
+function! plugin_manager#ui#update_sidebar(lines, append)
+  " Prevent nested UI updates
+  if s:ui_update_lock
+    return
+  endif
+  
+  " Cancel any pending update
+  if s:sidebar_update_timer != -1
+    call timer_stop(s:sidebar_update_timer)
+  endif
+  
+  " Schedule an immediate update (1ms timer to ensure async behavior)
+  let s:sidebar_update_timer = timer_start(1, {-> s:do_update_sidebar(a:lines, a:append)})
+endfunction
+
+" Open the sidebar window with optimized logic
+function! plugin_manager#ui#open_sidebar(lines)
+  try
+    " Check if sidebar buffer already exists
+    let l:buffer_exists = bufexists(s:buffer_name)
+    let l:win_id = bufwinid(s:buffer_name)
+    
+    if l:win_id != -1
+      " Sidebar window is already open, focus it
+      call win_gotoid(l:win_id)
+    else
+      " Create a new window on the right
+      execute 'silent! rightbelow ' . g:plugin_manager_sidebar_width . 'vnew ' . s:buffer_name
+      " Set the filetype to trigger ftplugin and syntax files
+      set filetype=pluginmanager
+    endif
+    
+    " Update buffer content more efficiently
+    call s:do_update_sidebar(a:lines, 0)
+  catch
+    " Handle errors during sidebar creation/update
+    echohl ErrorMsg
+    echomsg "Error creating sidebar: " . v:exception
+    echohl None
+  endtry
+endfunction
+
+" Update job progress indicators in the sidebar
+function! plugin_manager#ui#update_job_progress(job_id, status_line)
+  try
+    " Store/update this job's status
+    let s:job_progress_lines[a:job_id] = a:status_line
+    
+    " Check if the sidebar exists
+    let l:win_id = bufwinid(s:buffer_name)
+    if l:win_id == -1
+      " Not an error, just don't do anything if sidebar isn't open
+      return
+    endif
+    
+    " Save current window ID
+    let l:current_win = win_getid()
+    
+    " Focus the sidebar window
+    call win_gotoid(l:win_id)
+    setlocal modifiable
+    
+    " Find or create the job progress section
+    let l:progress_section_start = -1
+    let l:progress_section_end = -1
+    
+    " Look for existing section markers
+    let l:line_count = line('$')
+    for i in range(1, l:line_count)
+      if getline(i) =~ '^Job Progress:$'
+        let l:progress_section_start = i
+      elseif l:progress_section_start > 0 && getline(i) =~ '^-\+$'
+        if i == l:progress_section_start + 1
+          " This is the line right after the header
+          let l:progress_section_end = i
+          break
+        endif
+      endif
+    endfor
+    
+    " If no section exists yet, create it at the bottom
+    if l:progress_section_start < 0
+      call cursor(line('$'), 1)
+      " Add some space if needed
+      if getline('.') != ''
+        call append(line('$'), ['', ''])
+      endif
+      call append(line('$'), ['Job Progress:', repeat('-', 12), ''])
+      let l:progress_section_start = line('$') - 2
+      let l:progress_section_end = line('$') - 1
+      let s:job_progress_section_active = 1
+    endif
+    
+    " Now find the end of the job progress section
+    let l:content_end = l:progress_section_end + 1
+    while l:content_end <= line('$') && getline(l:content_end) !~ '^[A-Z]'
+      let l:content_end += 1
+    endwhile
+    let l:content_end -= 1
+    
+    " Delete existing progress lines
+    if l:progress_section_end + 1 <= l:content_end
+      execute (l:progress_section_end + 1) . ',' . l:content_end . 'delete _'
+    endif
+    
+    " Add updated progress lines
+    let l:progress_lines = []
+    for [l:id, l:status] in items(s:job_progress_lines)
+      call add(l:progress_lines, l:status)
+    endfor
+    
+    " If no active jobs, add a placeholder
+    if empty(l:progress_lines)
+      if s:job_progress_section_active
+        call add(l:progress_lines, 'No active jobs.')
+      else
+        " Remove the section entirely
+        execute (l:progress_section_start) . ',' . (l:progress_section_end + 1) . 'delete _'
+      endif
+    else
+      let s:job_progress_section_active = 1
+    endif
+    
+    " Insert the progress lines
+    if !empty(l:progress_lines) && s:job_progress_section_active
+      call append(l:progress_section_end, l:progress_lines)
+    endif
+    
+    " Restore modifiable state
+    setlocal nomodifiable
+    
+    " Return to the original window
+    call win_gotoid(l:current_win)
+  catch
+    echohl ErrorMsg
+    echomsg "Job Progress Update Error: " . v:exception
+    echohl None
+  endtry
+endfunction
+
+" Clear the job progress section
+function! plugin_manager#ui#clear_job_progress()
+  try
+    let s:job_progress_lines = {}
+    let s:job_progress_section_active = 0
+    
+    " Check if the sidebar exists
+    let l:win_id = bufwinid(s:buffer_name)
+    if l:win_id == -1
+      return
+    endif
+    
+    " Save current window ID
+    let l:current_win = win_getid()
+    
+    " Focus the sidebar window
+    call win_gotoid(l:win_id)
+    setlocal modifiable
+    
+    " Find the job progress section
+    let l:progress_section_start = -1
+    let l:progress_section_end = -1
+    
+    " Look for existing section markers
+    let l:line_count = line('$')
+    for i in range(1, l:line_count)
+      if getline(i) =~ '^Job Progress:$'
+        let l:progress_section_start = i
+      elseif l:progress_section_start > 0 && getline(i) =~ '^-\+$'
+        if i == l:progress_section_start + 1
+          " This is the line right after the header
+          let l:progress_section_end = i
+          break
+        endif
+      endif
+    endfor
+    
+    " If section exists, remove it
+    if l:progress_section_start > 0
+      " Find the end of the job progress section
+      let l:content_end = l:progress_section_end + 1
+      while l:content_end <= line('$') && getline(l:content_end) !~ '^[A-Z]'
+        let l:content_end += 1
+      endwhile
+      let l:content_end -= 1
+      
+      " Delete the entire section
+      execute l:progress_section_start . ',' . l:content_end . 'delete _'
+    endif
+    
+    " Restore modifiable state
+    setlocal nomodifiable
+    
+    " Return to the original window
+    call win_gotoid(l:current_win)
+  catch
+    echohl ErrorMsg
+    echomsg "Clear Job Progress Error: " . v:exception
+    echohl None
+  endtry
+endfunction
+
+" Display a progress bar in the sidebar
+function! plugin_manager#ui#show_progress_bar(percent, msg)
+  " Calculate progress bar width (50% of sidebar width)
+  let l:bar_width = g:plugin_manager_sidebar_width / 2
+  
+  " Calculate filled portion
+  let l:filled_width = float2nr(l:bar_width * (a:percent / 100.0))
+  
+  " Create progress bar string
+  let l:progress_bar = '[' . repeat('=', l:filled_width) . repeat(' ', l:bar_width - l:filled_width) . ']'
+  
+  " Format percentage display
+  let l:percent_str = printf("%3d%%", float2nr(a:percent))
+  
+  " Create complete progress line
+  let l:progress_line = l:progress_bar . ' ' . l:percent_str . ' ' . a:msg
+  
+  " Update the sidebar with the progress
+  call plugin_manager#ui#update_sidebar([l:progress_line], 1)
 endfunction
   
 " Display error message in sidebar with consistent formatting
-function! plugin_manager#ui#display_error(component, message) abort
+function! plugin_manager#ui#display_error(component, message)
   try
     let l:header = 'Error in ' . a:component . ':'
     let l:lines = [l:header, repeat('-', len(l:header)), '', a:message]
