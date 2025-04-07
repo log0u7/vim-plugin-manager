@@ -42,6 +42,12 @@ syntax match PMChanged /\<LOCAL CHANGES\>\|\<+ LOCAL CHANGES\>/
 syntax match PMDiverged /\<DIVERGED\>/
 syntax match PMBranch /\<DIFFERENT BRANCH\>/
 
+" Advanced error handling patterns
+syntax match PMErrorType /^PM_ERROR:[a-z]\+:/
+syntax match PMErrorComponent /\<git\>\|\<add\>\|\<remove\>\|\<update\>\|\<restore\>/ contained containedin=PMErrorType
+syntax match PMErrorMessage /Unexpected error:/
+syntax match PMStackTrace / at .*$/
+
 " Paths
 syntax match PMPath /\/\S\+\(\/\|\.\(vim\|txt\)\)\@=/
 
@@ -67,5 +73,11 @@ highlight default link PMChanged WarningMsg
 highlight default link PMDiverged Special  " Purple/Magenta color for diverged state
 highlight default link PMBranch PreProc    " Add the highlight for DIFFERENT BRANCH
 highlight default link PMPath Directory
+
+" Advanced error highlighting
+highlight default link PMErrorType Error
+highlight default link PMErrorComponent Statement
+highlight default link PMErrorMessage ErrorMsg
+highlight default link PMStackTrace Comment
 
 let b:current_syntax = "pluginmanager"
