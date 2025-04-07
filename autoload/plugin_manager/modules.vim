@@ -53,9 +53,15 @@ let s:update_in_progress = 0
     call plugin_manager#ui#open_sidebar(l:lines)
 endfunction
 
-" Improved status function with fixed column formatting
+" Improved status function with async support
   function! plugin_manager#modules#status()
     if !plugin_manager#utils#ensure_vim_directory()
+      return
+    endif
+    
+    " Check if job is already running
+    if exists('*plugin_manager#jobs#is_running') && plugin_manager#jobs#is_running('modules_status')
+      call plugin_manager#ui#open_sidebar(['Submodule Status:', repeat('-', 16), '', 'Status check is already running. Please wait...'])
       return
     endif
     
@@ -69,98 +75,121 @@ endfunction
       return
     endif
     
-    let l:lines = [l:header, repeat('-', len(l:header)), '']
-    call add(l:lines, 'Plugin'.repeat(' ', 16).'Commit'.repeat(' ', 14).'Branch'.repeat(' ', 8).'Last Updated'.repeat(' ', 18).'Status')
-    call add(l:lines, repeat('-', 120))
-    
-    " Fetch updates to ensure we have up-to-date status information
-    call plugin_manager#ui#update_sidebar(['Fetching updates from remote repositories...'], 1)
-    call system('git submodule foreach --recursive "git fetch -q origin 2>/dev/null || true"')
-    call plugin_manager#ui#update_sidebar(['Status information:'], 1)
-    
-    " Sort modules by name
-    let l:module_names = sort(keys(l:modules))
-    
-    for l:name in l:module_names
-      let l:module = l:modules[l:name]
-      if has_key(l:module, 'is_valid') && l:module.is_valid
-        let l:short_name = l:module.short_name
-        
-        " Initialize status to 'OK' by default
-        let l:status = 'OK'
-        
-        " Initialize other information as N/A in case checks fail
-        let l:commit = 'N/A'
-        let l:branch = 'N/A'
-        let l:last_updated = 'N/A'
-        
-        " Check if module exists
-        if !isdirectory(l:module.path)
-          let l:status = 'MISSING'
-        else
-          " Continue with all checks for existing modules
-          
-          " Get current commit
-          let l:commit = system('cd "' . l:module.path . '" && git rev-parse --short HEAD 2>/dev/null || echo "N/A"')
-          let l:commit = substitute(l:commit, '\n', '', 'g')
-          
-          " Get current branch
-          let l:branch = system('cd "' . l:module.path . '" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "N/A"')
-          let l:branch = substitute(l:branch, '\n', '', 'g')
-          
-          " Get last commit date
-          let l:last_updated = system('cd "' . l:module.path . '" && git log -1 --format=%cd --date=relative 2>/dev/null || echo "N/A"')
-          let l:last_updated = substitute(l:last_updated, '\n', '', 'g')
-          
-          " Use the new utility function to check for updates
-          let l:update_status = plugin_manager#utils#check_module_updates(l:module.path)
-          
-          " Get local changes status from the utility function
-          let l:has_changes = l:update_status.has_changes
-          
-          " Determine status combining local changes and remote status
-          if l:update_status.different_branch
-            let l:status = 'CUSTOM BRANCH (local: ' . l:update_status.branch . ', target: ' . l:update_status.remote_branch . ')'
-            if l:has_changes
-              let l:status .= ' + LOCAL CHANGES'
-            endif
-          elseif l:update_status.behind > 0 && l:update_status.ahead > 0
-            " DIVERGED state has highest priority after different branch
-            let l:status = 'DIVERGED (BEHIND ' . l:update_status.behind . ', AHEAD ' . l:update_status.ahead . ')'
-            if l:has_changes
-              let l:status .= ' + LOCAL CHANGES'
-            endif
-          elseif l:update_status.behind > 0
-            let l:status = 'BEHIND (' . l:update_status.behind . ')'
-            if l:has_changes
-              let l:status .= ' + LOCAL CHANGES'
-            endif
-          elseif l:update_status.ahead > 0
-            let l:status = 'AHEAD (' . l:update_status.ahead . ')'
-            if l:has_changes
-              let l:status .= ' + LOCAL CHANGES'
-            endif
-          elseif l:has_changes
-            let l:status = 'LOCAL CHANGES'
-          endif
-        endif
-        
-        if len(l:short_name) > 20
-          let l:short_name = l:short_name[0:19]
-        endif
-  
-        " Format the output with properly aligned columns
-        " Ensure fixed width with proper spacing between columns 
-        let l:name_col = l:short_name . repeat(' ', max([0, 22 - len(l:short_name)]))
-        let l:commit_col = l:commit . repeat(' ', max([0, 20 - len(l:commit)]))
-        let l:branch_col = l:branch . repeat(' ', max([0, 14 - len(l:branch)]))
-        let l:date_col = l:last_updated . repeat(' ', max([0, 30 - len(l:last_updated)]))
-        
-        call add(l:lines, l:name_col . l:commit_col . l:branch_col . l:date_col . l:status)
-      endif
-    endfor
-    
+    " Show initial status message
+    let l:lines = [l:header, repeat('-', len(l:header)), '', 'Fetching status information...']
     call plugin_manager#ui#open_sidebar(l:lines)
+    
+    " Function to handle async job completion
+    function! s:status_complete(status, output) closure
+      let l:modules = plugin_manager#utils#parse_gitmodules()
+      
+      " Start building the status display
+      let l:lines = [l:header, repeat('-', len(l:header)), '']
+      call add(l:lines, 'Plugin'.repeat(' ', 16).'Commit'.repeat(' ', 14).'Branch'.repeat(' ', 8).'Last Updated'.repeat(' ', 18).'Status')
+      call add(l:lines, repeat('-', 120))
+      
+      " Sort modules by name
+      let l:module_names = sort(keys(l:modules))
+      
+      " Process each module
+      for l:name in l:module_names
+        let l:module = l:modules[l:name]
+        if has_key(l:module, 'is_valid') && l:module.is_valid
+          let l:short_name = l:module.short_name
+          
+          " Initialize status to 'OK' by default
+          let l:status = 'OK'
+          
+          " Initialize other information as N/A in case checks fail
+          let l:commit = 'N/A'
+          let l:branch = 'N/A'
+          let l:last_updated = 'N/A'
+          
+          " Check if module exists
+          if !isdirectory(l:module.path)
+            let l:status = 'MISSING'
+          else
+            " Continue with all checks for existing modules
+            
+            " Get current commit
+            let l:commit = system('cd "' . l:module.path . '" && git rev-parse --short HEAD 2>/dev/null || echo "N/A"')
+            let l:commit = substitute(l:commit, '\n', '', 'g')
+            
+            " Get current branch
+            let l:branch = system('cd "' . l:module.path . '" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "N/A"')
+            let l:branch = substitute(l:branch, '\n', '', 'g')
+            
+            " Get last commit date
+            let l:last_updated = system('cd "' . l:module.path . '" && git log -1 --format=%cd --date=relative 2>/dev/null || echo "N/A"')
+            let l:last_updated = substitute(l:last_updated, '\n', '', 'g')
+            
+            " Use the utility function to check for updates
+            let l:update_status = plugin_manager#utils#check_module_updates(l:module.path)
+            
+            " Get local changes status from the utility function
+            let l:has_changes = l:update_status.has_changes
+            
+            " Determine status combining local changes and remote status
+            if l:update_status.different_branch
+              let l:status = 'CUSTOM BRANCH (local: ' . l:update_status.branch . ', target: ' . l:update_status.remote_branch . ')'
+              if l:has_changes
+                let l:status .= ' + LOCAL CHANGES'
+              endif
+            elseif l:update_status.behind > 0 && l:update_status.ahead > 0
+              " DIVERGED state has highest priority after different branch
+              let l:status = 'DIVERGED (BEHIND ' . l:update_status.behind . ', AHEAD ' . l:update_status.ahead . ')'
+              if l:has_changes
+                let l:status .= ' + LOCAL CHANGES'
+              endif
+            elseif l:update_status.behind > 0
+              let l:status = 'BEHIND (' . l:update_status.behind . ')'
+              if l:has_changes
+                let l:status .= ' + LOCAL CHANGES'
+              endif
+            elseif l:update_status.ahead > 0
+              let l:status = 'AHEAD (' . l:update_status.ahead . ')'
+              if l:has_changes
+                let l:status .= ' + LOCAL CHANGES'
+              endif
+            elseif l:has_changes
+              let l:status = 'LOCAL CHANGES'
+            endif
+          endif
+          
+          if len(l:short_name) > 20
+            let l:short_name = l:short_name[0:19]
+          endif
+    
+          " Format the output with properly aligned columns
+          " Ensure fixed width with proper spacing between columns 
+          let l:name_col = l:short_name . repeat(' ', max([0, 22 - len(l:short_name)]))
+          let l:commit_col = l:commit . repeat(' ', max([0, 20 - len(l:commit)]))
+          let l:branch_col = l:branch . repeat(' ', max([0, 14 - len(l:branch)]))
+          let l:date_col = l:last_updated . repeat(' ', max([0, 30 - len(l:last_updated)]))
+          
+          call add(l:lines, l:name_col . l:commit_col . l:branch_col . l:date_col . l:status)
+        endif
+      endfor
+      
+      call plugin_manager#ui#open_sidebar(l:lines)
+    endfunction
+    
+    " Command to run asynchronously
+    let l:cmd = 'git submodule foreach --recursive "git fetch -q origin 2>/dev/null || true"'
+    
+    " Run asynchronously if available
+    if exists('*plugin_manager#utils#execute_async')
+      call plugin_manager#utils#execute_async(l:cmd, {
+            \ 'name': 'modules_status',
+            \ 'description': 'Fetching plugin status information',
+            \ 'lock': 'git_operations',
+            \ 'on_complete': function('s:status_complete')
+            \ })
+    else
+      " Fallback to synchronous execution
+      let l:output = plugin_manager#utils#execute_with_sidebar('Fetching updates from remote repositories', l:cmd)
+      call s:status_complete(v:shell_error, split(l:output, "\n"))
+    endif
   endfunction
   
 " Show a summary of submodule changes
@@ -1452,4 +1481,360 @@ function! s:finalize_submodules()
   if v:shell_error != 0
     throw 'PM_ERROR:restore:Error during final submodule update: ' . l:result
   endif
-endfunction
+endfunction" autoload/plugin_manager/jobs.vim - Asynchronous jobs handling for vim-plugin-manager
+  " Maintainer: G.K.E. <gke@6admin.io>
+  " Version: 1.4
+  
+  " Global job state variables
+  let s:jobs = {}
+  let s:job_id_counter = 0
+  let s:locks = {}
+  let s:spinner_chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+  let s:spinner_idx = 0
+  let s:spinner_timer = 0
+  let s:status_line = ''
+  
+  " Feature detection for async support
+  let s:has_async = 0
+  let s:async_type = ''
+  
+  " Detect what type of async support is available
+  function! s:detect_async_support()
+    if has('nvim')
+      let s:has_async = 1
+      let s:async_type = 'nvim'
+      return 1
+    elseif has('job') && has('channel') && has('timers')
+      let s:has_async = 1
+      let s:async_type = 'vim'
+      return 1
+    else
+      let s:has_async = 0
+      let s:async_type = 'none'
+      return 0
+    endif
+  endfunction
+  
+  call s:detect_async_support()
+  
+  " Start a spinner timer
+  function! s:start_spinner()
+    if s:spinner_timer == 0 && s:has_async 
+      let s:spinner_timer = timer_start(100, function('s:update_spinner'), {'repeat': -1})
+    endif
+  endfunction
+  
+  " Update spinner animation frame
+  function! s:update_spinner(timer)
+    let s:spinner_idx = (s:spinner_idx + 1) % len(s:spinner_chars)
+    
+    " Only update if there are active jobs
+    if !empty(s:jobs)
+      call s:refresh_job_status()
+    else
+      call s:stop_spinner()
+    endif
+  endfunction
+  
+  " Stop the spinner
+  function! s:stop_spinner()
+    if s:spinner_timer != 0
+      call timer_stop(s:spinner_timer)
+      let s:spinner_timer = 0
+    endif
+  endfunction
+  
+  " Refresh the UI with current job status
+  function! s:refresh_job_status()
+    let l:active_count = len(s:jobs)
+    
+    if l:active_count > 0
+      " Get current spinner character
+      let l:spinner = s:spinner_chars[s:spinner_idx]
+      
+      " Create status message
+      let l:message = l:spinner . ' ' . l:active_count . ' job(s) running...'
+      
+      " Add specific job info
+      for [l:id, l:job] in items(s:jobs)
+        let l:message .= "\n  - " . l:job.description
+        if has_key(l:job, 'progress') && l:job.progress > 0
+          let l:message .= ' (' . l:job.progress . '%)'
+        endif
+      endfor
+      
+      " Update the status in the UI
+      if l:message != s:status_line
+        let s:status_line = l:message
+        call plugin_manager#ui#update_job_status(l:message)
+      endif
+    else
+      call plugin_manager#ui#clear_job_status()
+      let s:status_line = ''
+    endif
+  endfunction
+  
+  " Check if a job with the given name exists and is running
+  function! plugin_manager#jobs#is_running(job_name)
+    for [l:id, l:job] in items(s:jobs)
+      if l:job.name ==# a:job_name
+        return 1
+      endif
+    endfor
+    return 0
+  endfunction
+  
+  " Acquire a lock for a job
+  function! plugin_manager#jobs#acquire_lock(lock_name)
+    if has_key(s:locks, a:lock_name) && s:locks[a:lock_name]
+      return 0
+    endif
+    
+    let s:locks[a:lock_name] = 1
+    return 1
+  endfunction
+  
+  " Release a lock
+  function! plugin_manager#jobs#release_lock(lock_name)
+    let s:locks[a:lock_name] = 0
+  endfunction
+  
+  " Common function to handle job completion
+  function! s:job_complete(job_id, status, output)
+    if has_key(s:jobs, a:job_id)
+      let l:job = s:jobs[a:job_id]
+      
+      " Release lock if one was used
+      if has_key(l:job, 'lock') && !empty(l:job.lock)
+        call plugin_manager#jobs#release_lock(l:job.lock)
+      endif
+      
+      " Call completion callback with output and status
+      if has_key(l:job, 'on_complete') && type(l:job.on_complete) == v:t_func
+        call l:job.on_complete(a:status, a:output)
+      endif
+      
+      " Remove job from active jobs
+      call remove(s:jobs, a:job_id)
+      
+      " Stop spinner if no more jobs
+      if empty(s:jobs)
+        call s:stop_spinner()
+      endif
+      
+      " Update UI
+      call s:refresh_job_status()
+    endif
+  endfunction
+  
+  " Handle job output for Vim jobs
+  function! s:vim_job_out(channel, msg)
+    let l:job = ch_getjob(a:channel)
+    let l:job_id = string(l:job)
+    
+    if has_key(s:jobs, l:job_id)
+      call add(s:jobs[l:job_id].output, a:msg)
+    endif
+  endfunction
+  
+  " Handle job errors for Vim jobs
+  function! s:vim_job_err(channel, msg)
+    let l:job = ch_getjob(a:channel)
+    let l:job_id = string(l:job)
+    
+    if has_key(s:jobs, l:job_id)
+      call add(s:jobs[l:job_id].errors, a:msg)
+    endif
+  endfunction
+  
+  " Handle job exit for Vim jobs
+  function! s:vim_job_exit(job, status)
+    let l:job_id = string(a:job)
+    
+    if has_key(s:jobs, l:job_id)
+      " Combine output and errors
+      let l:output = s:jobs[l:job_id].output + s:jobs[l:job_id].errors
+      
+      " Call common completion handler
+      call s:job_complete(l:job_id, a:status, l:output)
+    endif
+  endfunction
+  
+  " Handle all Neovim job callbacks
+  function! s:nvim_job_handler(job_id, data, event)
+    let l:string_id = string(a:job_id)
+    
+    if !has_key(s:jobs, l:string_id)
+      return
+    endif
+    
+    if a:event == 'stdout'
+      if !empty(a:data) && a:data[0] != ''
+        call extend(s:jobs[l:string_id].output, a:data)
+      endif
+    elseif a:event == 'stderr'
+      if !empty(a:data) && a:data[0] != ''
+        call extend(s:jobs[l:string_id].errors, a:data)
+      endif
+    elseif a:event == 'exit'
+      " Combine output and errors, and filter empty lines
+      let l:output = filter(s:jobs[l:string_id].output + s:jobs[l:string_id].errors, 'v:val != ""')
+      
+      " Call common completion handler
+      call s:job_complete(l:string_id, a:data, l:output)
+    endif
+  endfunction
+  
+  " Start a new job (asynchronously if supported)
+  function! plugin_manager#jobs#start(cmd, options)
+    " Generate a unique job ID
+    let s:job_id_counter += 1
+    let l:job_id = s:job_id_counter
+    
+    " Prepare job data structure
+    let l:job = {
+          \ 'id': l:job_id,
+          \ 'name': get(a:options, 'name', 'job-' . l:job_id),
+          \ 'description': get(a:options, 'description', a:cmd),
+          \ 'output': [],
+          \ 'errors': [],
+          \ 'lock': get(a:options, 'lock', ''),
+          \ 'on_complete': get(a:options, 'on_complete', 0),
+          \ 'progress': 0,
+          \ 'cmd': a:cmd
+          \ }
+    
+    " Try to acquire lock if specified
+    if !empty(l:job.lock) && !plugin_manager#jobs#acquire_lock(l:job.lock)
+      " Lock not available, call completion callback with error
+      if type(l:job.on_complete) == v:t_func
+        call l:job.on_complete(1, ['Error: Another job is currently using this resource'])
+      endif
+      return -1
+    endif
+    
+    " Start spinner
+    call s:start_spinner()
+    
+    " Start job based on available async support
+    if s:has_async
+      let l:string_job_id = ''
+      
+      if s:async_type == 'nvim'
+        " Start job with Neovim's job API
+        let l:job_obj = jobstart(a:cmd, {
+              \ 'on_stdout': function('s:nvim_job_handler'),
+              \ 'on_stderr': function('s:nvim_job_handler'),
+              \ 'on_exit': function('s:nvim_job_handler')
+              \ })
+        
+        let l:string_job_id = string(l:job_obj)
+        let l:job.job_obj = l:job_obj
+        
+      elseif s:async_type == 'vim'
+        " Start job with Vim's job API
+        let l:job_obj = job_start(a:cmd, {
+              \ 'out_cb': function('s:vim_job_out'),
+              \ 'err_cb': function('s:vim_job_err'),
+              \ 'exit_cb': function('s:vim_job_exit')
+              \ })
+        
+        let l:string_job_id = string(l:job_obj)
+        let l:job.job_obj = l:job_obj
+      endif
+      
+      " Store job by its string ID
+      let s:jobs[l:string_job_id] = l:job
+      
+      " Update UI
+      call s:refresh_job_status()
+      
+      return l:string_job_id
+    else
+      " Fallback to synchronous execution
+      let l:output = system(a:cmd)
+      let l:status = v:shell_error
+      
+      " Split output into lines
+      let l:output_lines = split(l:output, "\n")
+      
+      " Call the completion callback directly
+      if type(l:job.on_complete) == v:t_func
+        call l:job.on_complete(l:status, l:output_lines)
+      endif
+      
+      " Release lock if one was acquired
+      if !empty(l:job.lock)
+        call plugin_manager#jobs#release_lock(l:job.lock)
+      endif
+      
+      return -1
+    endif
+  endfunction
+  
+  " Stop a specific job
+  function! plugin_manager#jobs#stop(job_id)
+    if !has_key(s:jobs, a:job_id)
+      return 0
+    endif
+    
+    let l:job = s:jobs[a:job_id]
+    
+    if s:async_type == 'nvim'
+      call jobstop(l:job.job_obj)
+    elseif s:async_type == 'vim'
+      call job_stop(l:job.job_obj)
+    endif
+    
+    " Mark job as cancelled in completion handler
+    call s:job_complete(a:job_id, -1, ['Job cancelled by user'])
+    
+    return 1
+  endfunction
+  
+  " Stop all running jobs
+  function! plugin_manager#jobs#stop_all()
+    for l:job_id in keys(s:jobs)
+      call plugin_manager#jobs#stop(l:job_id)
+    endfor
+    
+    call s:stop_spinner()
+    return len(keys(s:jobs))
+  endfunction
+  
+  " List all running jobs
+  function! plugin_manager#jobs#list()
+    let l:jobs_list = []
+    
+    for [l:id, l:job] in items(s:jobs)
+      call add(l:jobs_list, {
+            \ 'id': l:id,
+            \ 'name': l:job.name,
+            \ 'description': l:job.description,
+            \ 'progress': get(l:job, 'progress', 0)
+            \ })
+    endfor
+    
+    return l:jobs_list
+  endfunction
+  
+  " Update job progress
+  function! plugin_manager#jobs#update_progress(job_id, progress)
+    if has_key(s:jobs, a:job_id)
+      let s:jobs[a:job_id].progress = a:progress
+      call s:refresh_job_status()
+      return 1
+    endif
+    
+    return 0
+  endfunction
+  
+  " Check if async jobs are supported
+  function! plugin_manager#jobs#has_async()
+    return s:has_async
+  endfunction
+  
+  " Get the type of async support
+  function! plugin_manager#jobs#async_type()
+    return s:async_type
+  endfunction
