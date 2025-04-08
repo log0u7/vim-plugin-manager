@@ -50,8 +50,8 @@
         call plugin_manager#ui#open_sidebar(l:lines)
       endfunction
       
-      " Improved status function with fixed column formatting
-      function! plugin_manager#modules#list#status()
+" Improved status function with fixed column formatting and better branch display
+    function! plugin_manager#modules#list#status()
         if !plugin_manager#utils#ensure_vim_directory()
           return
         endif
@@ -101,16 +101,20 @@
               let l:commit = system('cd "' . l:module.path . '" && git rev-parse --short HEAD 2>/dev/null || echo "N/A"')
               let l:commit = substitute(l:commit, '\n', '', 'g')
               
-              " Get current branch
-              let l:branch = system('cd "' . l:module.path . '" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "N/A"')
-              let l:branch = substitute(l:branch, '\n', '', 'g')
-              
               " Get last commit date
               let l:last_updated = system('cd "' . l:module.path . '" && git log -1 --format=%cd --date=relative 2>/dev/null || echo "N/A"')
               let l:last_updated = substitute(l:last_updated, '\n', '', 'g')
               
-              " Use the new utility function to check for updates
+              " Use the utility function to check for updates
               let l:update_status = plugin_manager#utils#check_module_updates(l:module.path)
+              
+              " Use branch information from the utility function
+              let l:branch = l:update_status.branch
+              
+              " Simplify branch display
+              if l:branch == 'detached'
+                let l:branch = 'HEAD'
+              endif
               
               " Get local changes status from the utility function
               let l:has_changes = l:update_status.has_changes
