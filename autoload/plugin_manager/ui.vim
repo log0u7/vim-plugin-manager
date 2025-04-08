@@ -1,4 +1,4 @@
-" autoload/plugin_manager/ui.vim - UI functions for vim-plugin-manager
+" autoload/plugin_manager/ui.vim - Enhanced UI functions with async support for vim-plugin-manager
 
 " Terminal capability detection
 let s:unicode_support = has('multi_byte') && &encoding ==# 'utf-8'
@@ -28,6 +28,7 @@ let s:spinner_job = 0
 let s:spinner_pos = [0, 0]
 let s:spinner_frame = 0
 let s:progress_jobs = {}
+let s:update_timer = 0
 
 " Open the sidebar window with optimized logic and error handling
 function! plugin_manager#ui#open_sidebar(lines) abort
@@ -115,6 +116,106 @@ function! plugin_manager#ui#update_sidebar(lines, append) abort
     endif
   endtry
 endfunction
+
+" Enhanced async-friendly progress bar functions
+
+" Start a new task with progress tracking
+" Returns a job ID that can be used to update progress
+function! plugin_manager#ui#start_task(message, total_items) abort
+  let l:job_id = localtime() . '_' . rand()
+  
+  " Initialize progress bar at 0%
+  call plugin_manager#ui#update_sidebar([a:message], 1)
+  call plugin_manager#ui#progress_bar(0, a:total_items, 20, a:message, {'job_id': l:job_id})
+  
+  return l:job_id
+endfunction
+
+" Update task progress
+function! plugin_manager#ui#update_task(job_id, current, message) abort
+  if !has_key(s:progress_jobs, a:job_id)
+    return
+  endif
+  
+  let l:total = s:progress_jobs[a:job_id].total
+  call plugin_manager#ui#progress_bar(a:current, l:total, 20, a:message, {'job_id': a:job_id})
+endfunction
+
+" Complete a task
+function! plugin_manager#ui#complete_task(job_id, success, message) abort
+  if !has_key(s:progress_jobs, a:job_id)
+    return
+  endif
+  
+  let l:line_num = s:progress_jobs[a:job_id].line
+  let l:win_id = bufwinid(s:buffer_name)
+  
+  if l:win_id == -1
+    return
+  endif
+  
+  call win_gotoid(l:win_id)
+  setlocal modifiable
+  
+  " Update the line with completion status
+  let l:status_symbol = a:success ? s:symbols.tick : s:symbols.cross
+  let l:line = getline(l:line_num)
+  let l:line .= ' ' . l:status_symbol
+  call setline(l:line_num, l:line)
+  
+  " Add the completion message
+  call append(l:line_num, ['', a:message])
+  
+  " Remove from tracking
+  unlet s:progress_jobs[a:job_id]
+  
+  setlocal nomodifiable
+endfunction
+
+" Draw a progress bar
+function! plugin_manager#ui#progress_bar(current, total, width, message, ...) abort
+  let l:win_id = bufwinid(s:buffer_name)
+  if l:win_id == -1
+    return
+  endif
+  
+  call win_gotoid(l:win_id)
+  setlocal modifiable
+  
+  " Calculate progress percentage
+  let l:percent = a:current * 100 / max([a:total, 1])  " Avoid division by zero
+  let l:filled_width = a:current * a:width / max([a:total, 1])
+  
+  " Create progress bar
+  let l:progress_bar = ''
+  if s:fancy_ui
+    let l:progress_bar = repeat('█', l:filled_width) . repeat('░', a:width - l:filled_width)
+  else
+    let l:progress_bar = repeat('#', l:filled_width) . repeat('-', a:width - l:filled_width)
+  endif
+  
+  " Format the line with percentage
+  let l:line = printf("%s [%s] %3d%%", a:message, l:progress_bar, l:percent)
+  
+  " Find or create the line for this progress bar
+  let l:job_id = get(a:, 1, {})
+  let l:job_id = type(l:job_id) == v:t_dict ? get(l:job_id, 'job_id', '') : ''
+  
+  if !empty(l:job_id) && has_key(s:progress_jobs, l:job_id)
+    let l:line_num = s:progress_jobs[l:job_id].line
+    call setline(l:line_num, l:line)
+  else
+    " Append to the end and store the line number
+    call append(line('$'), l:line)
+    if !empty(l:job_id)
+      let s:progress_jobs[l:job_id] = {'line': line('$'), 'total': a:total}
+    endif
+  endif
+  
+  setlocal nomodifiable
+endfunction
+
+" Enhanced spinner functions for async operations
 
 " Start a spinner at the current cursor position
 function! plugin_manager#ui#start_spinner(message) abort
@@ -208,100 +309,7 @@ function! plugin_manager#ui#stop_spinner(success, result_message) abort
   setlocal nomodifiable
 endfunction
 
-" Draw a progress bar
-function! plugin_manager#ui#progress_bar(current, total, width, message, ...) abort
-  let l:win_id = bufwinid(s:buffer_name)
-  if l:win_id == -1
-    return
-  endif
-  
-  call win_gotoid(l:win_id)
-  setlocal modifiable
-  
-  " Calculate progress percentage
-  let l:percent = a:current * 100 / a:total
-  let l:filled_width = a:current * a:width / a:total
-  
-  " Create progress bar
-  let l:progress_bar = ''
-  if s:fancy_ui
-    let l:progress_bar = repeat('█', l:filled_width) . repeat('░', a:width - l:filled_width)
-  else
-    let l:progress_bar = repeat('#', l:filled_width) . repeat('-', a:width - l:filled_width)
-  endif
-  
-  " Format the line with percentage
-  let l:line = printf("%s [%s] %3d%%", a:message, l:progress_bar, l:percent)
-  
-  " Find or create the line for this progress bar
-  let l:job_id = get(a:, 1, {})
-  let l:job_id = type(l:job_id) == v:t_dict ? get(l:job_id, 'job_id', '') : ''
-  
-  if !empty(l:job_id) && has_key(s:progress_jobs, l:job_id)
-    let l:line_num = s:progress_jobs[l:job_id].line
-    call setline(l:line_num, l:line)
-  else
-    " Append to the end and store the line number
-    call append(line('$'), l:line)
-    if !empty(l:job_id)
-      let s:progress_jobs[l:job_id] = {'line': line('$'), 'total': a:total}
-    endif
-  endif
-  
-  setlocal nomodifiable
-endfunction
-
-" Start a new task with progress tracking
-function! plugin_manager#ui#start_task(message, total_items) abort
-  let l:job_id = localtime() . '_' . rand()
-  
-  " Initialize progress bar at 0%
-  call plugin_manager#ui#update_sidebar([a:message], 1)
-  call plugin_manager#ui#progress_bar(0, a:total_items, 20, a:message, {'job_id': l:job_id})
-  
-  return l:job_id
-endfunction
-
-" Update task progress
-function! plugin_manager#ui#update_task(job_id, current, message) abort
-  if !has_key(s:progress_jobs, a:job_id)
-    return
-  endif
-  
-  let l:total = s:progress_jobs[a:job_id].total
-  call plugin_manager#ui#progress_bar(a:current, l:total, 20, a:message, {'job_id': a:job_id})
-endfunction
-
-" Complete a task
-function! plugin_manager#ui#complete_task(job_id, success, message) abort
-  if !has_key(s:progress_jobs, a:job_id)
-    return
-  endif
-  
-  let l:line_num = s:progress_jobs[a:job_id].line
-  let l:win_id = bufwinid(s:buffer_name)
-  
-  if l:win_id == -1
-    return
-  endif
-  
-  call win_gotoid(l:win_id)
-  setlocal modifiable
-  
-  " Update the line with completion status
-  let l:status_symbol = a:success ? s:symbols.tick : s:symbols.cross
-  let l:line = getline(l:line_num)
-  let l:line .= ' ' . l:status_symbol
-  call setline(l:line_num, l:line)
-  
-  " Add the completion message
-  call append(l:line_num, ['', a:message])
-  
-  " Remove from tracking
-  unlet s:progress_jobs[a:job_id]
-  
-  setlocal nomodifiable
-endfunction
+" Utility functions for formatting messages
 
 " Format a message with a symbol
 function! plugin_manager#ui#format_message(message, symbol_key) abort
@@ -344,7 +352,32 @@ function! plugin_manager#ui#display_error(component, message) abort
   endtry
 endfunction
 
-" Display usage instructions
+" Enhanced task management UI
+function! plugin_manager#ui#display_task_result(task_id, success, message) abort
+  try
+    let l:status = a:success ? 'Successfully completed' : 'Failed'
+    let l:status_symbol = a:success ? s:symbols.tick : s:symbols.cross
+    
+    let l:header = 'Task Result:'
+    let l:lines = [
+          \ l:header, 
+          \ s:symbols.separator, 
+          \ '', 
+          \ l:status_symbol . ' Status: ' . l:status,
+          \ s:symbols.info . ' Message: ' . a:message
+          \ ]
+    
+    call plugin_manager#ui#update_sidebar(l:lines, 1)
+  catch
+    echohl ErrorMsg
+    echomsg "Failed to display task result: " . v:exception
+    echohl None
+  endtry
+endfunction
+
+" Interactive UI helper functions
+
+" Display usage instructions with enhanced formatting
 function! plugin_manager#ui#usage()
   try
     let l:arrow = s:symbols.arrow
@@ -383,7 +416,16 @@ function! plugin_manager#ui#usage()
           \ s:symbols.separator,
           \ "g:plugin_manager_vim_dir = \"" . g:plugin_manager_vim_dir . "\"",
           \ "g:plugin_manager_plugins_dir = \"" . g:plugin_manager_plugins_dir . "\"",
-          \ "g:plugin_manager_vimrc_path = \"" . expand(g:plugin_manager_vimrc_path) . "\""
+          \ "g:plugin_manager_vimrc_path = \"" . expand(g:plugin_manager_vimrc_path) . "\"",
+          \ "",
+          \ "Asynchronous Support:",
+          \ s:symbols.separator,
+          \ "Async available: " . (plugin_manager#async#has_async() ? "Yes" : "No"),
+          \ "When using async operations, Vim remains responsive during:",
+          \ l:bullet . " Plugin installation",
+          \ l:bullet . " Plugin updates",
+          \ l:bullet . " Status checks",
+          \ l:bullet . " Backup operations"
           \ ]
     
     call plugin_manager#ui#open_sidebar(l:lines)
@@ -410,4 +452,105 @@ function! plugin_manager#ui#toggle_sidebar()
     echomsg "Error toggling sidebar: " . v:exception
     echohl None
   endtry
+endfunction
+
+" Execute command with output in sidebar - redesigned for better efficiency
+" Returns the task ID if async is used, or empty string for sync operation
+function! plugin_manager#ui#execute_with_sidebar(title, cmd, options) abort
+  " Ensure we're in the Vim directory
+  if !plugin_manager#utils#ensure_vim_directory()
+    return ''
+  endif
+  
+  " Parse options
+  let l:use_async = get(a:options, 'use_async', plugin_manager#async#has_async())
+  let l:cwd = get(a:options, 'cwd', '')
+  let l:on_success = get(a:options, 'on_success', function('s:default_success_callback'))
+  let l:on_failure = get(a:options, 'on_failure', function('s:default_failure_callback'))
+  
+  " Create initial header only once
+  let l:header = [a:title, repeat('-', len(a:title)), '']
+  let l:initial_message = l:header + ['Executing operation, please wait...']
+  
+  " Create or update sidebar window with initial message
+  call plugin_manager#ui#open_sidebar(l:initial_message)
+  
+  " For synchronous execution (fallback)
+  if !l:use_async
+    let l:output = system(a:cmd)
+    let l:output_lines = split(l:output, "\n")
+    
+    " Prepare final output - reuse header
+    let l:final_output = l:header + l:output_lines + ['', 'Press q to close this window...']
+    
+    " Update sidebar with final content - replace entire contents
+    call plugin_manager#ui#update_sidebar(l:final_output, 0)
+    
+    " Call appropriate callback
+    if v:shell_error == 0
+      call l:on_success(l:output, 0)
+    else
+      call l:on_failure(l:output, v:shell_error)
+    endif
+    
+    return ''
+  endif
+  
+  " For asynchronous execution
+  " Start spinner
+  call plugin_manager#ui#start_spinner("Executing command")
+  
+  " Create success callback
+  function! s:on_async_success(output, status) closure
+    " Stop spinner with success indication
+    call plugin_manager#ui#stop_spinner(1, "Command completed successfully")
+    
+    " Prepare output display
+    let l:output_lines = split(a:output, "\n")
+    let l:display_lines = l:header + ['Command completed successfully:', ''] + l:output_lines + ['', 'Press q to close this window...']
+    
+    " Update sidebar with entire content
+    call plugin_manager#ui#update_sidebar(l:display_lines, 0)
+    
+    " Call user's success callback
+    call l:on_success(a:output, a:status)
+  endfunction
+  
+  " Create failure callback
+  function! s:on_async_failure(output, status) closure
+    " Stop spinner with failure indication
+    call plugin_manager#ui#stop_spinner(0, "Command failed with status " . a:status)
+    
+    " Prepare error output display
+    let l:output_lines = split(a:output, "\n")
+    let l:display_lines = l:header + ['Command failed with status ' . a:status . ':', ''] + l:output_lines + ['', 'Press q to close this window...']
+    
+    " Update sidebar with error content
+    call plugin_manager#ui#update_sidebar(l:display_lines, 0)
+    
+    " Call user's failure callback
+    call l:on_failure(a:output, a:status)
+  endfunction
+  
+  " Create completion callback
+  function! s:on_async_complete(output, status) closure
+    if a:status == 0
+      call s:on_async_success(a:output, a:status)
+    else
+      call s:on_async_failure(a:output, a:status)
+    endif
+  endfunction
+  
+  " Execute the command asynchronously
+  let l:job_id = plugin_manager#async#system(a:cmd, function('s:on_async_complete'))
+  return l:job_id
+endfunction
+
+" Default callbacks for execute_with_sidebar
+function! s:default_success_callback(output, status) abort
+  " Default implementation does nothing
+endfunction
+
+function! s:default_failure_callback(output, status) abort
+  " Default implementation does nothing
 endfunction
