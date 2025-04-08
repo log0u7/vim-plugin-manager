@@ -67,7 +67,7 @@ function! plugin_manager#modules#list#status()
     endif
     
     let l:lines = [l:header, repeat('-', len(l:header)), '']
-    call add(l:lines, 'Plugin'.repeat(' ', 16).'Commit'.repeat(' ', 14).'Branch'.repeat(' ', 8).'Last Updated'.repeat(' ', 18).'Status')
+    call add(l:lines, 'Plugin'.repeat(' ', 16).'Commit'.repeat(' ', 14).'Branch'.repeat(' ', 14).'Last Updated'.repeat(' ', 18).'Status')
     call add(l:lines, repeat('-', 120))
     
     " Fetch updates to ensure we have up-to-date status information
@@ -156,7 +156,7 @@ function! plugin_manager#modules#list#status()
         " Ensure fixed width with proper spacing between columns 
         let l:name_col = l:short_name . repeat(' ', max([0, 22 - len(l:short_name)]))
         let l:commit_col = l:commit . repeat(' ', max([0, 20 - len(l:commit)]))
-        let l:branch_col = l:branch . repeat(' ', max([0, 14 - len(l:branch)]))
+        let l:branch_col = l:branch . repeat(' ', max([0, 26 - len(l:branch)]))
         let l:date_col = l:last_updated . repeat(' ', max([0, 30 - len(l:last_updated)]))
         
         call add(l:lines, l:name_col . l:commit_col . l:branch_col . l:date_col . l:status)
