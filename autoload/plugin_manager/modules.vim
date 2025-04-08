@@ -1,22 +1,6 @@
 " autoload/plugin_manager/modules.vim - Module management functions for vim-plugin-manager
 " This file serves as the public API that loads specialized submodules
 
-" Initialize module loading
-let s:plugin_dir = fnamemodify(resolve(expand('<sfile>:p')), ':h')
-
-" Load all submodules
-function! s:load_submodule(name) abort
-  execute 'runtime! autoload/plugin_manager/modules/' . a:name . '.vim'
-endfunction
-
-call s:load_submodule('list')
-call s:load_submodule('add')
-call s:load_submodule('remove')
-call s:load_submodule('update')
-call s:load_submodule('backup')
-call s:load_submodule('helptags')
-call s:load_submodule('reload')
-
 " Public API wrappers for backward compatibility
 
 " List installed plugins
