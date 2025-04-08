@@ -1,4 +1,4 @@
-" Utility functions for vim-plugin-manager
+"autoload/plugin_manager/utils.vim - Utility functions for vim-plugin-manager
 
 " Function to ensure we're in the Vim config directory
 function! plugin_manager#utils#ensure_vim_directory()
