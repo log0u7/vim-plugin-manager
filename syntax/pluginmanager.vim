@@ -11,7 +11,7 @@ syntax clear
 
 " Headers
 syntax match PMHeader /^[A-Za-z0-9 ]\+:$/
-syntax match PMSubHeader /^-\+$/
+syntax match PMSubHeader /^-\+$\|^[⎯]\+$/
 
 " Keywords
 syntax keyword PMKeyword Usage Examples Configuration
@@ -32,15 +32,31 @@ syntax match PMCommand /^\s*\(PluginManager\|PluginManagerRemote\|PluginManagerT
 syntax match PMUrl /https\?:\/\/\S\+/
 
 " Success messages and statuses
-syntax match PMSuccess /\<successfully\>\|\<completed\>/
+syntax match PMSuccess /\<successfully\>\|\<completed\>\|✓\|+/
 syntax match PMOkStatus /\<OK\>/
 
 " Warning and error messages
-syntax match PMWarning /\<Warning\>\|\<BEHIND\>\|\<AHEAD\>/
-syntax match PMError /\<Error\>\|\<MISSING\>\|\<failed\>/
+syntax match PMWarning /\<Warning\>\|\<BEHIND\>\|\<AHEAD\>\|⚠\|!/
+syntax match PMError /\<Error\>\|\<MISSING\>\|\<failed\>\|✗\|x/
 syntax match PMChanged /\<LOCAL CHANGES\>\|\<+ LOCAL CHANGES\>/
 syntax match PMDiverged /\<DIVERGED\>/
-syntax match PMBranch /\<DIFFERENT BRANCH\>/
+syntax match PMBranch /\<DIFFERENT BRANCH\>\|\<CUSTOM BRANCH\>/
+
+" Unicode symbols
+syntax match PMSymbolSuccess /✓/
+syntax match PMSymbolError /✗/
+syntax match PMSymbolWarning /⚠/
+syntax match PMSymbolInfo /ℹ/
+syntax match PMSymbolArrow /→/
+syntax match PMSymbolBullet /•/
+syntax match PMSymbolEllipsis /…/
+
+" Progress bars
+syntax match PMProgressBar /\[\(█\|░\|#\|-\)\+\]/
+syntax match PMProgressPercent /\d\+%/
+
+" Spinners
+syntax match PMSpinner /[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏|\/\\-]/
 
 " Advanced error handling patterns
 syntax match PMErrorType /^PM_ERROR:[a-z]\+:/
@@ -73,6 +89,18 @@ highlight default link PMChanged WarningMsg
 highlight default link PMDiverged Special  " Purple/Magenta color for diverged state
 highlight default link PMBranch PreProc    " Add the highlight for DIFFERENT BRANCH
 highlight default link PMPath Directory
+
+" Progress bar and Unicode symbols highlighting
+highlight default link PMProgressBar Special
+highlight default link PMProgressPercent Number
+highlight default link PMSymbolSuccess String
+highlight default link PMSymbolError Error
+highlight default link PMSymbolWarning Todo
+highlight default link PMSymbolInfo Identifier
+highlight default link PMSymbolArrow Statement
+highlight default link PMSymbolBullet Identifier
+highlight default link PMSymbolEllipsis Comment
+highlight default link PMSpinner Type
 
 " Advanced error highlighting
 highlight default link PMErrorType Error
