@@ -13,6 +13,23 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 - Resolved issues with plugin installation path handling on Windows systems
 - Fixed plugin reloading mechanism for certain plugin types
 
+## [1.3.2] - 2025-04-09
+### Improvements
+- Enhanced error handling in module loading and plugin management
+- Improved cross-platform compatibility for file operations
+- More robust module detection and path resolution
+- Better handling of local plugin installations
+
+### Bug Fixes
+- Resolved edge cases in submodule status tracking
+- Improved error messages for plugin installation and removal
+- Fixed path handling for plugins with special characters in names
+
+### Refactoring
+- Simplified and optimized utility functions
+- Improved code modularity in add, remove, and update modules
+- Enhanced logging and error reporting mechanism
+
 ## [1.3.1] - 2025-04-08
 ### Fixed
 - Improved error handling for plugin removal process
