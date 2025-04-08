@@ -67,7 +67,7 @@ function! plugin_manager#modules#list#status()
     endif
     
     let l:lines = [l:header, repeat('-', len(l:header)), '']
-    call add(l:lines, 'Plugin'.repeat(' ', 16).'Commit'.repeat(' ', 14).'Branch'.repeat(' ', 14).'Last Updated'.repeat(' ', 18).'Status')
+    call add(l:lines, 'Plugin'.repeat(' ', 16).'Commit'.repeat(' ', 14).'Branch'.repeat(' ', 20).'Last Updated'.repeat(' ', 18).'Status')
     call add(l:lines, repeat('-', 120))
     
     " Fetch updates to ensure we have up-to-date status information
