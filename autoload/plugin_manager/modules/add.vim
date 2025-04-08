@@ -53,10 +53,10 @@ function! plugin_manager#modules#add#plugin(...)
       call plugin_manager#ui#open_sidebar(l:lines)
       return 1
     endtry
-endfunction
+  endfunction
   
-" Helper function to process options and determine installation path
-function! s:process_add_options(moduleUrl, isLocalPath, args)
+  " Helper function to process options and determine installation path
+  function! s:process_add_options(moduleUrl, isLocalPath, args)
     " Extract the actual path for local plugins
     let l:localPath = a:isLocalPath ? substitute(a:moduleUrl, '^local:', '', '') : ''
     
@@ -113,10 +113,10 @@ function! s:process_add_options(moduleUrl, isLocalPath, args)
     let l:installDir = g:plugin_manager_plugins_dir . "/" . l:loadDir . "/" . l:dirName
     
     return [l:options, l:installDir, l:localPath]
-endfunction
+  endfunction
   
-" Add a new plugin from remote repository
-function! s:add_module(moduleUrl, installDir, options)
+  " Add a new plugin from remote repository
+  function! s:add_module(moduleUrl, installDir, options)
     try
       if !plugin_manager#utils#ensure_vim_directory()
         throw 'PM_ERROR:add:Not in Vim configuration directory'
@@ -160,10 +160,10 @@ function! s:add_module(moduleUrl, installDir, options)
       
       call plugin_manager#ui#update_sidebar(['Error: ' . l:error], 1)
     endtry
-endfunction
+  endfunction
   
-" Add a plugin from local directory
-function! s:add_local_module(localPath, installDir, options)
+  " Add a plugin from local directory
+  function! s:add_local_module(localPath, installDir, options)
     try
       if !plugin_manager#utils#ensure_vim_directory()
         throw 'PM_ERROR:add:Not in Vim configuration directory'
@@ -204,15 +204,15 @@ function! s:add_local_module(localPath, installDir, options)
       
       call plugin_manager#ui#update_sidebar(['Error: ' . l:error], 1)
     endtry
-endfunction
+  endfunction
   
-" Helper function to check and create parent directory
-function! s:prepare_parent_directory(installDir)
+  " Helper function to check and create parent directory
+  function! s:prepare_parent_directory(installDir)
     let l:parentDir = fnamemodify(a:installDir, ':h')
     if !isdirectory(l:parentDir)
       call mkdir(l:parentDir, 'p')
     endif
-endfunction
+  endfunction
   
   " Helper function to check if submodule exists
   function! s:check_submodule_exists(relativeInstallDir)
