@@ -1,8 +1,5 @@
 " autoload/plugin_manager/modules/update.vim - Functions for updating plugins
 
-" Variable to prevent multiple concurrent updates
-let s:update_in_progress = 0
-
 " Update plugins
 function! plugin_manager#modules#update#plugins(...)
   try
@@ -44,9 +41,6 @@ function! plugin_manager#modules#update#plugins(...)
           \ : 'Unexpected error during update: ' . v:exception
     
     call plugin_manager#ui#open_sidebar([l:title, repeat('-', len(l:title)), '', l:error])
-  finally 
-    " Reset any in-progress flags
-    let s:update_in_progress = 0
   endtry
 endfunction
 

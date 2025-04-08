@@ -18,7 +18,7 @@ function! plugin_manager#modules#backup#execute()
       
       " Push to remote repositories
       call s:push_to_remotes()
-      
+
     catch
       let l:error = plugin_manager#utils#is_pm_error(v:exception) 
             \ ? plugin_manager#utils#format_error(v:exception)
@@ -26,10 +26,10 @@ function! plugin_manager#modules#backup#execute()
       
       call plugin_manager#ui#update_sidebar(['Error: ' . l:error], 1)
     endtry
-  endfunction
-  
-  " Helper function to backup vimrc file
-  function! s:backup_vimrc_file()
+endfunction
+
+" Helper function to backup vimrc file
+function! s:backup_vimrc_file()
     " Check if vimrc or init.vim exists in the vim directory
     let l:vimrc_basename = fnamemodify(g:plugin_manager_vimrc_path, ':t')
     let l:local_vimrc = g:plugin_manager_vim_dir . '/' . l:vimrc_basename
@@ -58,10 +58,10 @@ function! plugin_manager#modules#backup#execute()
         call plugin_manager#ui#update_sidebar(['Warning: ' . l:vimrc_basename . ' file not found at ' . g:plugin_manager_vimrc_path], 1)
       endif
     endif
-  endfunction
-  
-  " Helper function to commit local changes
-  function! s:commit_local_changes()
+endfunction
+
+" Helper function to commit local changes
+function! s:commit_local_changes()
     " Check if there are changes to commit
     let l:gitStatus = system('git status -s')
     
@@ -72,10 +72,10 @@ function! plugin_manager#modules#backup#execute()
     else
       call plugin_manager#ui#update_sidebar(['No local changes to commit.'], 1)
     endif
-  endfunction
-  
-  " Helper function to push to remote repositories
-  function! s:push_to_remotes()
+endfunction
+
+" Helper function to push to remote repositories
+function! s:push_to_remotes()
     call plugin_manager#ui#update_sidebar(['Pushing changes to remote repositories...'], 1)
     
     " Check if any remotes exist
@@ -90,10 +90,10 @@ function! plugin_manager#modules#backup#execute()
     endif
     
     call plugin_manager#ui#update_sidebar(['Backup completed successfully.'], 1)
-  endfunction
-  
-  " Add a remote backup repository
-  function! plugin_manager#modules#backup#add_remote(url)
+endfunction
+
+" Add a remote backup repository
+function! plugin_manager#modules#backup#add_remote(url)
     try
       if !plugin_manager#utils#ensure_vim_directory()
         throw 'PM_ERROR:remote:Not in Vim configuration directory'
@@ -130,10 +130,10 @@ function! plugin_manager#modules#backup#execute()
       
       call plugin_manager#ui#open_sidebar(['Add Remote Error:', repeat('-', 17), '', l:error])
     endtry
-  endfunction
-  
-  " Restore all plugins from .gitmodules
-  function! plugin_manager#modules#backup#restore()
+endfunction
+
+" Restore all plugins from .gitmodules
+function! plugin_manager#modules#backup#restore()
     try
       if !plugin_manager#utils#ensure_vim_directory()
         throw 'PM_ERROR:restore:Not in Vim configuration directory'
@@ -157,39 +157,39 @@ function! plugin_manager#modules#backup#execute()
       
       call plugin_manager#ui#update_sidebar(['Error: ' . l:error], 1)
     endtry
-  endfunction
-  
-  " Helper function to check if .gitmodules exists
-  function! s:check_gitmodules_exists()
+endfunction
+
+" Helper function to check if .gitmodules exists
+function! s:check_gitmodules_exists()
     if !filereadable('.gitmodules')
       throw 'PM_ERROR:restore:.gitmodules file not found'
     endif
     
     call plugin_manager#ui#update_sidebar(['Found .gitmodules file.'], 1)
-  endfunction
-  
-  " Helper function to initialize submodules
-  function! s:initialize_submodules()
+endfunction
+
+" Helper function to initialize submodules
+function! s:initialize_submodules()
     call plugin_manager#ui#update_sidebar(['Initializing submodules...'], 1)
     
     let l:result = system('git submodule init')
     if v:shell_error != 0
       throw 'PM_ERROR:restore:Error initializing submodules: ' . l:result
     endif
-  endfunction
-  
-  " Helper function to update submodules
-  function! s:update_submodules()
+endfunction
+
+" Helper function to update submodules
+function! s:update_submodules()
     call plugin_manager#ui#update_sidebar(['Fetching and updating all submodules...'], 1)
     
     let l:result = system('git submodule update --init --recursive')
     if v:shell_error != 0
       throw 'PM_ERROR:restore:Error updating submodules: ' . l:result
     endif
-  endfunction
-  
-  " Helper function to finalize submodule restoration
-  function! s:finalize_submodules()
+endfunction
+
+" Helper function to finalize submodule restoration
+function! s:finalize_submodules()
     call plugin_manager#ui#update_sidebar(['Ensuring all submodules are at the correct commit...'], 1)
     
     call system('git submodule sync')
@@ -197,4 +197,4 @@ function! plugin_manager#modules#backup#execute()
     if v:shell_error != 0
       throw 'PM_ERROR:restore:Error during final submodule update: ' . l:result
     endif
-  endfunction
+endfunction

@@ -161,8 +161,5 @@ function! plugin_manager#main(...)
           \ : 'Unexpected error: ' . v:exception . ' at ' . v:throwpoint
     
     call plugin_manager#ui#open_sidebar(['Error:', repeat('-', 6), '', l:formatted_error])
-  finally
-    " Reset any in-progress flags
-    let s:update_in_progress = 0
   endtry
 endfunction
