@@ -13,11 +13,23 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 - Resolved issues with plugin installation path handling on Windows systems
 - Fixed plugin reloading mechanism for certain plugin types
 
+## [1.3.1] - 2025-04-08
+### Fixed
+- Improved error handling for plugin removal process
+- Fixed potential race condition during concurrent updates
+- Corrected path handling for Windows environments during plugin copy operations
+- Better handling of non-Git local plugin installations
+
+### Changed
+- Enhanced module update status detection with more accurate branch comparison
+- Improved helptags generation for specific plugins
+- More robust stashing of local changes during updates
+
 ## [1.3.0] - 2025-03-15
 ### Added
 - Declarative configuration syntax with `PluginBegin`, `Plugin`, and `PluginEnd` blocks
 - Advanced plugin options including branch, tag, and exec parameters
-- Options dictionary syntax for plugin installation: `{'dir':'name', 'load':'start|opt', 'branch':'name'}`
+- Options dictionary syntax for plugin installation: `{'dir':'name', 'load':'start|opt', 'branch':'name', 'exec':'localscript --arguments'}`
 - Local plugin installation support via filesystem paths
 - Improved plugin reloading functionality
 - More robust error handling and reporting
