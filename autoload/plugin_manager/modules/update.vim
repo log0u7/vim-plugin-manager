@@ -2,93 +2,98 @@
 
 " Update plugins
 function! plugin_manager#modules#update#plugins(...)
-  try
-    if !plugin_manager#utils#ensure_vim_directory()
-      return
-    endif
+    try
+      if !plugin_manager#utils#ensure_vim_directory()
+        return
+      endif
+      
+      " Use the gitmodules cache
+      let l:modules = plugin_manager#utils#parse_gitmodules()
+      let l:title = 'Updating Plugins:'
+      
+      if empty(l:modules)
+        throw 'PM_ERROR:update:No plugins to update (.gitmodules not found)'
+      endif
+      
+      " Initialize header once
+      let l:header = [l:title, repeat('-', len(l:title)), '']
+      
+      " Check if a specific module was specified
+      let l:specific_module = a:0 > 0 ? a:1 : 'all'
+      
+      " List to track modules that have been updated
+      let l:updated_modules = []
+      
+      if l:specific_module == 'all'
+        let l:updated_modules = s:update_all_plugins(l:header, l:modules)
+      else
+        call s:update_specific_plugin(l:header, l:modules, l:specific_module, l:updated_modules)
+      endif
+      
+      " Process update results and generate helptags
+      call s:process_update_results(l:updated_modules)
+      
+      " Force refresh the cache after updates
+      call plugin_manager#utils#refresh_modules_cache()
+    catch
+      let l:error = plugin_manager#utils#is_pm_error(v:exception) 
+            \ ? plugin_manager#utils#format_error(v:exception)
+            \ : 'Unexpected error during update: ' . v:exception
+      
+      call plugin_manager#ui#open_sidebar([l:title, repeat('-', len(l:title)), '', l:error])
+    endtry
+endfunction
+  
+" Helper function for updating all plugins
+function! s:update_all_plugins(header, modules) abort
+    let l:initial_message = a:header + ['Checking for updates on all plugins...']
+    call plugin_manager#ui#open_sidebar(l:initial_message)
     
-    " Use the gitmodules cache
-    let l:modules = plugin_manager#utils#parse_gitmodules()
-    let l:title = 'Updating Plugins:'
-    
-    if empty(l:modules)
-      throw 'PM_ERROR:update:No plugins to update (.gitmodules not found)'
-    endif
-    
-    " Initialize header once
-    let l:header = [l:title, repeat('-', len(l:title)), '']
-    
-    " Check if a specific module was specified
-    let l:specific_module = a:0 > 0 ? a:1 : 'all'
-    
-    " List to track modules that have been updated
+    " List to track updated modules
     let l:updated_modules = []
     
-    if l:specific_module == 'all'
-      call s:update_all_plugins(l:header, l:modules, l:updated_modules)
+    " Handle helptags files differently to avoid merge conflicts
+    call plugin_manager#ui#update_sidebar(['Preparing modules for update...'], 1)
+    call system('git submodule foreach --recursive "rm -f doc/tags doc/*/tags */tags 2>/dev/null || true"')
+    
+    " Stash local changes if needed
+    call s:stash_local_changes(a:modules)
+    
+    " Fetch updates from remote repositories
+    call plugin_manager#ui#update_sidebar(['Fetching updates from remote repositories...'], 1)
+    call system('git submodule foreach --recursive "git fetch origin"')
+    
+    " Check which modules have updates available
+    let l:modules_with_updates = []
+    let l:modules_on_diff_branch = []
+    
+    call s:analyze_modules_status(a:modules, l:modules_with_updates, l:modules_on_diff_branch)
+    
+    " Report on modules with custom branches
+    if !empty(l:modules_on_diff_branch)
+      call s:report_custom_branches(l:modules_on_diff_branch)
+    endif
+    
+    if empty(l:modules_with_updates)
+      call plugin_manager#ui#update_sidebar(['All plugins are up-to-date.'], 1)
     else
-      call s:update_specific_plugin(l:header, l:modules, l:specific_module, l:updated_modules)
+      call plugin_manager#ui#update_sidebar(['Found ' . len(l:modules_with_updates) . ' plugins with updates available. Updating...'], 1)
+      
+      " Execute update commands
+      call system('git submodule sync')
+      let l:updateResult = system('git submodule update --remote --merge --force')
+      
+      " Check if commit is needed
+      let l:gitStatus = system('git status -s')
+      if !empty(l:gitStatus)
+        call system('git commit -am "Update Modules"')
+      endif
+      
+      " Copy modules with updates
+      let l:updated_modules = l:modules_with_updates
     endif
     
-    " Process update results and generate helptags
-    call s:process_update_results(l:updated_modules)
-    
-    " Force refresh the cache after updates
-    call plugin_manager#utils#refresh_modules_cache()
-  catch
-    let l:error = plugin_manager#utils#is_pm_error(v:exception) 
-          \ ? plugin_manager#utils#format_error(v:exception)
-          \ : 'Unexpected error during update: ' . v:exception
-    
-    call plugin_manager#ui#open_sidebar([l:title, repeat('-', len(l:title)), '', l:error])
-  endtry
-endfunction
-
-" Helper function for updating all plugins
-function! s:update_all_plugins(header, modules, updated_modules)
-  let l:initial_message = a:header + ['Checking for updates on all plugins...']
-  call plugin_manager#ui#open_sidebar(l:initial_message)
-  
-  " Handle helptags files differently to avoid merge conflicts
-  call plugin_manager#ui#update_sidebar(['Preparing modules for update...'], 1)
-  call system('git submodule foreach --recursive "rm -f doc/tags doc/*/tags */tags 2>/dev/null || true"')
-  
-  " Stash local changes if needed
-  call s:stash_local_changes(a:modules)
-  
-  " Fetch updates from remote repositories
-  call plugin_manager#ui#update_sidebar(['Fetching updates from remote repositories...'], 1)
-  call system('git submodule foreach --recursive "git fetch origin"')
-  
-  " Check which modules have updates available
-  let l:modules_with_updates = []
-  let l:modules_on_diff_branch = []
-  
-  call s:analyze_modules_status(a:modules, l:modules_with_updates, l:modules_on_diff_branch)
-  
-  " Report on modules with custom branches
-  if !empty(l:modules_on_diff_branch)
-    call s:report_custom_branches(l:modules_on_diff_branch)
-  endif
-  
-  if empty(l:modules_with_updates)
-    call plugin_manager#ui#update_sidebar(['All plugins are up-to-date.'], 1)
-  else
-    call plugin_manager#ui#update_sidebar(['Found ' . len(l:modules_with_updates) . ' plugins with updates available. Updating...'], 1)
-    
-    " Execute update commands
-    call system('git submodule sync')
-    let l:updateResult = system('git submodule update --remote --merge --force')
-    
-    " Check if commit is needed
-    let l:gitStatus = system('git status -s')
-    if !empty(l:gitStatus)
-      call system('git commit -am "Update Modules"')
-    endif
-    
-    " Record which modules were updated
-    let a:updated_modules += l:modules_with_updates
-  endif
+    return l:updated_modules
 endfunction
 
 " Helper function for updating a specific plugin
