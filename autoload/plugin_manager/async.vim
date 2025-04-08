@@ -9,6 +9,7 @@ let s:nvim = has('nvim')
 let s:vim8 = !s:nvim && has('job') && has('channel') && has('lambda')
 let s:job_map = {}  " Maps job IDs to job data
 let s:job_id_counter = 1
+let s:callback_counter = 0  " Counter for unique callback function names
 
 " Check if async is supported
 function! plugin_manager#async#has_async() abort
@@ -263,23 +264,28 @@ function! plugin_manager#async#system(cmd, callback) abort
     return 0
   endif
   
+  " Increment the counter to create unique function names
+  let s:callback_counter += 1
+  let l:counter = s:callback_counter
+  
   " Collect stdout and stderr
   let l:output = []
   let l:error_output = []
   
-  function! s:on_stdout(job_id, data, event) closure
+  " Use unique function names with the counter
+  function! s:on_stdout_{l:counter}(job_id, data, event) closure
     if len(a:data) > 0
       call extend(l:output, a:data)
     endif
   endfunction
   
-  function! s:on_stderr(job_id, data, event) closure
+  function! s:on_stderr_{l:counter}(job_id, data, event) closure
     if len(a:data) > 0
       call extend(l:error_output, a:data)
     endif
   endfunction
   
-  function! s:on_exit(job_id, status, event) closure
+  function! s:on_exit_{l:counter}(job_id, status, event) closure
     " Combine stdout and stderr
     " Remove empty string at the end if present
     if !empty(l:output) && l:output[-1] == ''
@@ -294,9 +300,9 @@ function! plugin_manager#async#system(cmd, callback) abort
   
   " Start the async job
   let l:job_id = plugin_manager#async#job_start(a:cmd, {
-        \ 'on_stdout': function('s:on_stdout'),
-        \ 'on_stderr': function('s:on_stderr'),
-        \ 'on_exit': function('s:on_exit'),
+        \ 'on_stdout': function('s:on_stdout_' . l:counter),
+        \ 'on_stderr': function('s:on_stderr_' . l:counter),
+        \ 'on_exit': function('s:on_exit_' . l:counter),
         \ })
   
   return l:job_id
