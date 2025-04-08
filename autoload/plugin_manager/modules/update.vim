@@ -22,7 +22,7 @@ function! plugin_manager#modules#update#plugins(...)
       let l:updated_modules = []
       
       if l:specific_module == 'all'
-        call s:update_all_plugins(l:title, l:modules, l:updated_modules)
+        let l:updated_modules = s:update_all_plugins(l:title, l:modules)
       else
         call s:update_specific_plugin(l:title, l:modules, l:specific_module, l:updated_modules)
       endif
@@ -42,8 +42,12 @@ function! plugin_manager#modules#update#plugins(...)
 endfunction
   
 " Helper function for updating all plugins
-function! s:update_all_plugins(title, modules, updated_modules) abort
+function! s:update_all_plugins(title, modules) abort
     let l:header = [a:title, repeat('-', len(a:title)), '']
+    call plugin_manager#ui#open_sidebar(l:header)
+    
+    " Create a variable to track updated modules
+    let l:updated_modules = []
     
     " Start a task for the overall update process
     let l:job_id = plugin_manager#ui#start_task('Plugin update process', len(a:modules))
@@ -116,12 +120,15 @@ function! s:update_all_plugins(title, modules, updated_modules) abort
       let l:current_progress += 1
       call plugin_manager#ui#update_task(l:job_id, l:current_progress, 'Changes committed')
       
-      " Copy modules with updates to the result list
-      let a:updated_modules = l:modules_with_updates
+      " Save the updated modules to our local variable
+      let l:updated_modules = l:modules_with_updates
       
       " Complete the overall task
       call plugin_manager#ui#complete_task(l:job_id, 1, 'Update process completed successfully!')
     endif
+    
+    " Return the updated modules
+    return l:updated_modules
 endfunction
 
 " Helper function for updating a specific plugin
