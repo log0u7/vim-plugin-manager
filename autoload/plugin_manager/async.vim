@@ -54,6 +54,10 @@ function! plugin_manager#async#job_start(cmd, opts) abort
     throw 'PM_ERROR:async:Async operations not supported in this Vim version'
   endif
   
+  " Increment the counter for unique function names
+  let s:callback_counter += 1
+  let l:counter = s:callback_counter
+  
   let l:job_info = {}
   let l:job_id = 0
   let l:opts = copy(a:opts)
@@ -72,24 +76,25 @@ function! plugin_manager#async#job_start(cmd, opts) abort
     " Neovim specific setup
     let l:wrapped_opts = {}
     
-    function! s:on_stdout_nvim(job_id, data, event) closure
+    " Use unique function names with the counter
+    function! s:on_stdout_nvim_{l:counter}(job_id, data, event) closure
       call l:job_info.on_stdout(a:job_id, a:data, a:event)
     endfunction
 
-    function! s:on_stderr_nvim(job_id, data, event) closure
+    function! s:on_stderr_nvim_{l:counter}(job_id, data, event) closure
       call l:job_info.on_stderr(a:job_id, a:data, a:event)
     endfunction
     
-    function! s:on_exit_nvim(job_id, data, event) closure
+    function! s:on_exit_nvim_{l:counter}(job_id, data, event) closure
       call l:job_info.on_exit(a:job_id, a:data, a:event)
       if has_key(s:job_map, a:job_id)
         unlet s:job_map[a:job_id]
       endif
     endfunction
     
-    let l:wrapped_opts.on_stdout = function('s:on_stdout_nvim')
-    let l:wrapped_opts.on_stderr = function('s:on_stderr_nvim')
-    let l:wrapped_opts.on_exit = function('s:on_exit_nvim')
+    let l:wrapped_opts.on_stdout = function('s:on_stdout_nvim_' . l:counter)
+    let l:wrapped_opts.on_stderr = function('s:on_stderr_nvim_' . l:counter)
+    let l:wrapped_opts.on_exit = function('s:on_exit_nvim_' . l:counter)
     
     " Handle CWD option
     if has_key(l:opts, 'cwd')
@@ -119,15 +124,16 @@ function! plugin_manager#async#job_start(cmd, opts) abort
     " Vim 8 specific setup
     let l:wrapped_opts = {}
     
-    function! s:on_stdout_vim8(channel, data) closure
+    " Use unique function names with the counter
+    function! s:on_stdout_vim8_{l:counter}(channel, data) closure
       call l:job_info.on_stdout(s:channel_to_job_id(a:channel), [a:data], 'stdout')
     endfunction
     
-    function! s:on_stderr_vim8(channel, data) closure
+    function! s:on_stderr_vim8_{l:counter}(channel, data) closure
       call l:job_info.on_stderr(s:channel_to_job_id(a:channel), [a:data], 'stderr')
     endfunction
     
-    function! s:on_exit_vim8(channel, data) closure
+    function! s:on_exit_vim8_{l:counter}(channel, data) closure
       let l:job_id = s:channel_to_job_id(a:channel)
       call l:job_info.on_exit(l:job_id, a:data, 'exit')
       if has_key(s:job_map, l:job_id)
@@ -137,9 +143,9 @@ function! plugin_manager#async#job_start(cmd, opts) abort
     
     " Vim 8 channels are very different from Neovim callbacks
     let l:wrapped_opts = {
-          \ 'out_cb': function('s:on_stdout_vim8'),
-          \ 'err_cb': function('s:on_stderr_vim8'),
-          \ 'exit_cb': function('s:on_exit_vim8'),
+          \ 'out_cb': function('s:on_stdout_vim8_' . l:counter),
+          \ 'err_cb': function('s:on_stderr_vim8_' . l:counter),
+          \ 'exit_cb': function('s:on_exit_vim8_' . l:counter),
           \ 'out_mode': 'nl',
           \ 'err_mode': 'nl',
           \ 'mode': 'nl',
