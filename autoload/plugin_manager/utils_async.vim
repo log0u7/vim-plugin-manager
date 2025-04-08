@@ -6,7 +6,7 @@
         " Use git ls-remote to check if the repository exists
         let l:cmd = 'git ls-remote --exit-code "' . a:url . '" HEAD > /dev/null 2>&1'
         
-        " Create completion callback
+        " Create completion callback - Capital letter for Funcref
         function! s:on_repo_check_complete(output, status) closure
           " Call the provided callback with result (true if repo exists, false otherwise)
           call a:callback(a:status == 0)
@@ -106,7 +106,7 @@
           call a:callback(g:pm_gitmodules_cache)
         endfunction
         
-        " Create and start task
+        " Create and start task - Use s:TYPE_SINGLE constant
         let l:task_options = {
               \ 'name': 'Parse gitmodules',
               \ 'commands': function('s:parse_gitmodules_task'),
@@ -160,7 +160,9 @@
           call a:callback({})
         endfunction
         
-        return plugin_manager#utils_async#parse_gitmodules(function('s:on_parse_complete'))
+        " Capital letter for Funcref in calling function
+        let l:Callback = function('s:on_parse_complete')
+        return plugin_manager#utils_async#parse_gitmodules(l:Callback)
       endfunction
       
       " Refresh the gitmodules cache asynchronously
@@ -303,7 +305,7 @@
             call a:callback(l:result)
           endfunction
           
-          " Create and start task for additional info
+          " Create and start task for additional info - Use string constant
           let l:task_options = {
                 \ 'name': 'Get more git info for ' . a:module_path,
                 \ 'commands': function('s:get_more_git_info'),
@@ -315,7 +317,7 @@
           call plugin_manager#tasks#start(l:task_id)
         endfunction
         
-        " Create and start task
+        " Create and start task - Use string constant instead of s:TYPE_SINGLE
         let l:task_options = {
               \ 'name': 'Checking updates for ' . a:module_path,
               \ 'commands': function('s:check_updates_task'),
@@ -328,8 +330,3 @@
         
         return l:task_id
       endfunction
-      
-      " Task type constants - mirror those in tasks.vim
-      let s:TYPE_SINGLE = 'single'
-      let s:TYPE_SEQUENCE = 'sequence'
-      let s:TYPE_PARALLEL = 'parallel'

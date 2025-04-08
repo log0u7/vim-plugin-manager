@@ -82,9 +82,9 @@ function! plugin_manager#modules#list_async#status()
         return
       endif
       
-      " Get status for this module asynchronously
-      let l:callback = function('s:module_status_callback', [a:modules, a:module_names, a:index, l:short_name])
-      call plugin_manager#utils_async#check_module_updates(l:module.path, l:callback)
+      " Get status for this module asynchronously - Use capital letter for Funcref
+      let l:Callback = function('s:module_status_callback', [a:modules, a:module_names, a:index, l:short_name])
+      call plugin_manager#utils_async#check_module_updates(l:module.path, l:Callback)
     endfunction
     
     " Callback for module status check
