@@ -21,7 +21,7 @@ call s:load_submodule('reload')
 
 " List installed plugins
 function! plugin_manager#modules#list()
-  return plugin_manager#modules#list#list()
+  return plugin_manager#modules#list#all()
 endfunction
 
 " Show status of installed plugins
@@ -36,7 +36,7 @@ endfunction
 
 " Add a new plugin
 function! plugin_manager#modules#add(...)
-  return call('plugin_manager#modules#add#add', a:000)
+  return call('plugin_manager#modules#add#plugin', a:000)
 endfunction
 
 " Add a remote backup repository
@@ -46,12 +46,12 @@ endfunction
 
 " Remove a plugin
 function! plugin_manager#modules#remove(...)
-  return call('plugin_manager#modules#remove#remove', a:000)
+  return call('plugin_manager#modules#remove#plugin', a:000)
 endfunction
 
 " Update plugins
 function! plugin_manager#modules#update(...)
-  return call('plugin_manager#modules#update#update', a:000)
+  return call('plugin_manager#modules#update#plugins', a:000)
 endfunction
 
 " Generate helptags
@@ -61,7 +61,7 @@ endfunction
 
 " Backup configuration to remote repositories
 function! plugin_manager#modules#backup()
-  return plugin_manager#modules#backup#backup()
+  return plugin_manager#modules#backup#execute()
 endfunction
 
 " Restore all plugins from .gitmodules
@@ -71,5 +71,5 @@ endfunction
 
 " Reload a specific plugin or all Vim configuration
 function! plugin_manager#modules#reload(...)
-  return call('plugin_manager#modules#reload#reload', a:000)
+  return call('plugin_manager#modules#reload#plugin', a:000)
 endfunction
