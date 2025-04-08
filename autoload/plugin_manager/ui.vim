@@ -209,7 +209,7 @@ function! plugin_manager#ui#stop_spinner(success, result_message) abort
 endfunction
 
 " Draw a progress bar
-function! plugin_manager#ui#progress_bar(current, total, width, message) abort
+function! plugin_manager#ui#progress_bar(current, total, width, message, ...) abort
   let l:win_id = bufwinid(s:buffer_name)
   if l:win_id == -1
     return
@@ -234,16 +234,17 @@ function! plugin_manager#ui#progress_bar(current, total, width, message) abort
   let l:line = printf("%s [%s] %3d%%", a:message, l:progress_bar, l:percent)
   
   " Find or create the line for this progress bar
-  let l:job_id = get(a:, 'job_id', '')
+  let l:job_id = get(a:, 1, {})
+  let l:job_id = type(l:job_id) == v:t_dict ? get(l:job_id, 'job_id', '') : ''
   
   if !empty(l:job_id) && has_key(s:progress_jobs, l:job_id)
-    let l:line_num = s:progress_jobs[l:job_id]
+    let l:line_num = s:progress_jobs[l:job_id].line
     call setline(l:line_num, l:line)
   else
     " Append to the end and store the line number
     call append(line('$'), l:line)
     if !empty(l:job_id)
-      let s:progress_jobs[l:job_id] = line('$')
+      let s:progress_jobs[l:job_id] = {'line': line('$'), 'total': a:total}
     endif
   endif
   
@@ -277,7 +278,7 @@ function! plugin_manager#ui#complete_task(job_id, success, message) abort
     return
   endif
   
-  let l:line_num = s:progress_jobs[a:job_id]
+  let l:line_num = s:progress_jobs[a:job_id].line
   let l:win_id = bufwinid(s:buffer_name)
   
   if l:win_id == -1
@@ -334,7 +335,7 @@ endfunction
 function! plugin_manager#ui#display_error(component, message) abort
   try
     let l:header = 'Error in ' . a:component . ':'
-    let l:lines = [l:header, repeat('-', len(l:header)), '', plugin_manager#ui#error(a:message)]
+    let l:lines = [l:header, s:symbols.separator, '', plugin_manager#ui#error(a:message)]
     call plugin_manager#ui#open_sidebar(l:lines)
   catch
     echohl ErrorMsg
@@ -346,9 +347,12 @@ endfunction
 " Display usage instructions
 function! plugin_manager#ui#usage()
   try
+    let l:arrow = s:symbols.arrow
+    let l:bullet = s:symbols.bullet
+    
     let l:lines = [
           \ "PluginManager Commands:",
-          \ "---------------------",
+          \ s:symbols.separator,
           \ "add <plugin_url> [options]    - Add a new plugin with options",
           \ "                                Options: {'dir':'name', 'load':'start|opt', 'branch':'branch',",
           \ "                                          'tag':'tag', 'exec':'cmd'}",
@@ -363,7 +367,7 @@ function! plugin_manager#ui#usage()
           \ "restore                       - Reinstall all modules",
           \ "",
           \ "Sidebar Keyboard Shortcuts:",
-          \ "-------------------------",
+          \ s:symbols.separator,
           \ "q - Close the sidebar",
           \ "l - List installed plugins",
           \ "u - Update all plugins",
@@ -376,7 +380,7 @@ function! plugin_manager#ui#usage()
           \ "? - Show this help",
           \ "",
           \ "Configuration:",
-          \ "-------------",
+          \ s:symbols.separator,
           \ "g:plugin_manager_vim_dir = \"" . g:plugin_manager_vim_dir . "\"",
           \ "g:plugin_manager_plugins_dir = \"" . g:plugin_manager_plugins_dir . "\"",
           \ "g:plugin_manager_vimrc_path = \"" . expand(g:plugin_manager_vimrc_path) . "\""
