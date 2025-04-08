@@ -24,10 +24,10 @@ function! plugin_manager#modules#reload#plugin(...)
       
       call plugin_manager#ui#open_sidebar(['Reload Error:', repeat('-', 13), '', l:error])
     endtry
-  endfunction
-  
-  " Helper function to reload a specific plugin
-  function! s:reload_specific_plugin(header, module_name)
+endfunction
+
+" Helper function to reload a specific plugin
+function! s:reload_specific_plugin(header, module_name)
     call plugin_manager#ui#open_sidebar(a:header + ['Reloading plugin: ' . a:module_name . '...'])
     
     " Find the module path
@@ -50,10 +50,10 @@ function! plugin_manager#modules#reload#plugin(...)
     
     call plugin_manager#ui#update_sidebar(['Plugin "' . a:module_name . '" reloaded successfully.', 
           \ 'Note: Some plugins may require restarting Vim for a complete reload.'], 1)
-  endfunction
-  
-  " Helper function to reload all Vim configuration
-  function! s:reload_all_configuration(header)
+endfunction
+
+" Helper function to reload all Vim configuration
+function! s:reload_all_configuration(header)
     call plugin_manager#ui#open_sidebar(a:header + ['Reloading entire Vim configuration...'])
     
     " Unload all plugins
@@ -67,29 +67,29 @@ function! plugin_manager#modules#reload#plugin(...)
     
     call plugin_manager#ui#update_sidebar(['Vim configuration reloaded successfully.', 
           \ 'Note: Some plugins may require restarting Vim for a complete reload.'], 1)
-  endfunction
-  
-  " Helper function to find plugin path
-  function! s:find_plugin_path(module_name)
+endfunction
+
+" Helper function to find plugin path
+function! s:find_plugin_path(module_name)
     let l:grep_cmd = 'grep -A1 "path = .*' . a:module_name . '" .gitmodules | grep "path =" | cut -d "=" -f2 | tr -d " "'
     let l:module_path = system(l:grep_cmd)
     let l:module_path = substitute(l:module_path, '\n$', '', '')
     
     return l:module_path
-  endfunction
-  
-  " Helper function to remove plugin from runtimepath
-  function! s:remove_from_runtimepath(module_path)
+endfunction
+
+" Helper function to remove plugin from runtimepath
+function! s:remove_from_runtimepath(module_path)
     execute 'set rtp-=' . a:module_path
-  endfunction
-  
-  " Helper function to add plugin to runtimepath
-  function! s:add_to_runtimepath(module_path)
+endfunction
+
+" Helper function to add plugin to runtimepath
+function! s:add_to_runtimepath(module_path)
     execute 'set rtp+=' . a:module_path
-  endfunction
-  
-  " Helper function to unload plugin scripts
-  function! s:unload_plugin_scripts(module_path)
+endfunction
+
+" Helper function to unload plugin scripts
+function! s:unload_plugin_scripts(module_path)
     let l:runtime_paths = split(globpath(a:module_path, '**/*.vim'), '\n')
     for l:rtp in l:runtime_paths
       " Only try to clear files that are in autoload, plugin, or ftplugin directories
@@ -114,32 +114,32 @@ function! plugin_manager#modules#reload#plugin(...)
         endif
       endif
     endfor
-  endfunction
-  
-  " Helper function to reload plugin runtime files
-  function! s:reload_plugin_runtime_files(module_path)
+endfunction
+
+" Helper function to reload plugin runtime files
+function! s:reload_plugin_runtime_files(module_path)
     let l:runtime_paths = split(globpath(a:module_path, '**/*.vim'), '\n')
     for l:rtp in l:runtime_paths
       if l:rtp =~ '/plugin/' || l:rtp =~ '/ftplugin/'
         execute 'runtime! ' . l:rtp
       endif
     endfor
-  endfunction
-  
-  " Helper function to reload all runtime files
-  function! s:reload_all_runtime_files()
+endfunction
+
+" Helper function to reload all runtime files
+function! s:reload_all_runtime_files()
     execute 'runtime! plugin/**/*.vim'
     execute 'runtime! ftplugin/**/*.vim'
     execute 'runtime! syntax/**/*.vim'
     execute 'runtime! indent/**/*.vim'
-  endfunction
-  
-  " Helper function to source vimrc file
-  function! s:source_vimrc()
+endfunction
+
+" Helper function to source vimrc file
+function! s:source_vimrc()
     if filereadable(expand(g:plugin_manager_vimrc_path))
       call plugin_manager#ui#update_sidebar(['Sourcing ' . g:plugin_manager_vimrc_path . '...'], 1)
       execute 'source ' . g:plugin_manager_vimrc_path
     else
       call plugin_manager#ui#update_sidebar(['Warning: Vimrc file not found at ' . g:plugin_manager_vimrc_path], 1)
     endif
-  endfunction
+endfunction

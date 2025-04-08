@@ -46,10 +46,10 @@ function! plugin_manager#modules#remove#plugin(...)
       call plugin_manager#ui#open_sidebar(l:lines)
       return 1
     endtry
-  endfunction
-  
-  " Helper function to find a module for removal
-  function! s:find_module_for_removal(module_name)
+endfunction
+
+" Helper function to find a module for removal
+function! s:find_module_for_removal(module_name)
     " Use the module finder from the cache system
     let l:module_info = plugin_manager#utils#find_module(a:module_name)
     
@@ -68,16 +68,16 @@ function! plugin_manager#modules#remove#plugin(...)
     endif
     
     return [0, '', '']
-  endfunction
-  
-  " Helper function to confirm module removal
-  function! s:confirm_removal(module_name, module_path)
+endfunction
+
+" Helper function to confirm module removal
+function! s:confirm_removal(module_name, module_path)
     let l:response = input("Are you sure you want to remove " . a:module_name . " (" . a:module_path . ")? [y/N] ")
     return l:response =~? '^y\(es\)\?$'
-  endfunction
-  
-  " Remove an existing plugin
-  function! s:remove_module(moduleName, removedPluginPath)
+endfunction
+
+" Remove an existing plugin
+function! s:remove_module(moduleName, removedPluginPath)
     try
       if !plugin_manager#utils#ensure_vim_directory()
         throw 'PM_ERROR:remove:Not in Vim configuration directory'
@@ -134,10 +134,10 @@ function! plugin_manager#modules#remove#plugin(...)
       
       call plugin_manager#ui#update_sidebar(['Error: ' . l:error], 1)
     endtry
-  endfunction
-  
-  " Helper to get module info
-  function! s:get_module_info(module_path)
+endfunction
+
+" Helper to get module info
+function! s:get_module_info(module_path)
     let l:modules = plugin_manager#utils#parse_gitmodules()
     let l:module_info = {}
     
@@ -154,10 +154,10 @@ function! plugin_manager#modules#remove#plugin(...)
     endfor
     
     return l:module_info
-  endfunction
-  
-  " Helper to clean .git/modules directory
-  function! s:clean_git_modules(module_path)
+endfunction
+
+" Helper to clean .git/modules directory
+function! s:clean_git_modules(module_path)
     call plugin_manager#ui#update_sidebar(['Cleaning .git modules...'], 1)
     
     if isdirectory('.git/modules/' . a:module_path)
@@ -170,10 +170,10 @@ function! plugin_manager#modules#remove#plugin(...)
     else
       call plugin_manager#ui#update_sidebar(['No module directory to clean in .git/modules.'], 1)
     endif
-  endfunction
-  
-  " Helper to commit removal
-  function! s:commit_removal(module_name, module_info)
+endfunction
+
+" Helper to commit removal
+function! s:commit_removal(module_name, module_info)
     call plugin_manager#ui#update_sidebar(['Committing changes...'], 1)
     
     " Create a commit message with module info if available
@@ -188,4 +188,4 @@ function! plugin_manager#modules#remove#plugin(...)
     else
       call plugin_manager#ui#update_sidebar(['Changes committed successfully.'], 1)
     endif
-  endfunction
+endfunction
