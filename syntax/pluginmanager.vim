@@ -64,7 +64,7 @@ syntax match PMErrorMessage /Unexpected error:/
 syntax match PMStackTrace / at .*$/
 
 " Paths
-syntax match PMPath /\(\/\|\~\/\)[[:alnum:]_\-\.\/]\+\(\/\|\.vim\|\.txt\)\?/
+syntax match PMPath /\(\/\|\~\/\)\?[[:alnum:]_\-\.]\+\/[[:alnum:]_\-\.\/]\+/
 
 " Color configuration
 highlight default link PMHeader Title
