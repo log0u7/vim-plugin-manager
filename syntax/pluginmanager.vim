@@ -32,31 +32,30 @@ syntax match PMCommand /^\s*\(PluginManager\|PluginManagerRemote\|PluginManagerT
 syntax match PMUrl /https\?:\/\/\S\+/
 
 " Success messages and statuses
-syntax match PMSuccess /\<successfully\>\|\<completed\>\|✓\|+/
+syntax match PMSuccess /\<successfully\>\|\<completed\>/
 syntax match PMOkStatus /\<OK\>/
 
 " Warning and error messages
-syntax match PMWarning /\<Warning\>\|\<BEHIND\>\|\<AHEAD\>\|⚠\|!/
-syntax match PMError /\<Error\>\|\<MISSING\>\|\<failed\>\|✗\|x/
+syntax match PMWarning /\<Warning\>\|\<BEHIND\>\|\<AHEAD\>/
+syntax match PMError /\<Error\>\|\<MISSING\>\|\<failed\>/
 syntax match PMChanged /\<LOCAL CHANGES\>\|\<+ LOCAL CHANGES\>/
 syntax match PMDiverged /\<DIVERGED\>/
 syntax match PMBranch /\<DIFFERENT BRANCH\>\|\<CUSTOM BRANCH\>/
 
-" Unicode symbols
-syntax match PMSymbolSuccess /✓/
-syntax match PMSymbolError /✗/
-syntax match PMSymbolWarning /⚠/
-syntax match PMSymbolInfo /ℹ/
-syntax match PMSymbolArrow /→/
-syntax match PMSymbolBullet /•/
-syntax match PMSymbolEllipsis /…/
+" Unicode symbols - using more specific patterns to avoid false matches
+syntax match PMSymbolSuccess /^.*\s\+✓/ contains=NONE
+syntax match PMSymbolError /^.*\s\+✗/ contains=NONE
+syntax match PMSymbolWarning /^.*\s\+⚠/ contains=NONE
+syntax match PMSymbolInfo /^.*\s\+ℹ/ contains=NONE
+syntax match PMSymbolArrow /^.*\s\+→/ contains=NONE
+syntax match PMSymbolBullet /^\s*•\s/ contains=NONE
 
-" Progress bars
-syntax match PMProgressBar /\[\(█\|░\|#\|-\)\+\]/
-syntax match PMProgressPercent /\d\+%/
+" Progress bars - very specific pattern
+syntax match PMProgressBar /\[█\+░\+\]\|\[#\+-\+\]/
 
-" Spinners
-syntax match PMSpinner /[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏|\/\\-]/
+" Spinners - very specific pattern
+syntax match PMSpinner /\s[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]\(\s\|$\)/ contains=NONE
+syntax match PMSpinner /\s[|\/\\-]\(\s\|$\)/ contains=NONE
 
 " Advanced error handling patterns
 syntax match PMErrorType /^PM_ERROR:[a-z]\+:/
@@ -75,9 +74,9 @@ highlight default link PMOperation Function
 highlight default link PMSecondaryOp Identifier
 
 " Special highlighting for important operations
-highlight default link PMUpdateOp MoreMsg  " Green
-highlight default link PMInstallOp Type    " Blue/Cyan
-highlight default link PMRemoveOp WarningMsg " Red/Orange
+highlight default link PMUpdateOp MoreMsg
+highlight default link PMInstallOp Type
+highlight default link PMRemoveOp WarningMsg
 
 highlight default link PMCommand Function
 highlight default link PMUrl Underlined
@@ -86,20 +85,18 @@ highlight default link PMOkStatus String
 highlight default link PMWarning Todo
 highlight default link PMError Error
 highlight default link PMChanged WarningMsg
-highlight default link PMDiverged Special  " Purple/Magenta color for diverged state
-highlight default link PMBranch PreProc    " Add the highlight for DIFFERENT BRANCH
+highlight default link PMDiverged Special
+highlight default link PMBranch PreProc
 highlight default link PMPath Directory
 
 " Progress bar and Unicode symbols highlighting
 highlight default link PMProgressBar Special
-highlight default link PMProgressPercent Number
 highlight default link PMSymbolSuccess String
 highlight default link PMSymbolError Error
 highlight default link PMSymbolWarning Todo
 highlight default link PMSymbolInfo Identifier
 highlight default link PMSymbolArrow Statement
 highlight default link PMSymbolBullet Identifier
-highlight default link PMSymbolEllipsis Comment
 highlight default link PMSpinner Type
 
 " Advanced error highlighting
