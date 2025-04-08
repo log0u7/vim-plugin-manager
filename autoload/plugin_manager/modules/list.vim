@@ -49,7 +49,7 @@ function! plugin_manager#modules#list#all()
     
     call plugin_manager#ui#open_sidebar(l:lines)
 endfunction
-    
+
 " Improved status function with fixed column formatting and better branch display
 function! plugin_manager#modules#list#status()
     if !plugin_manager#utils#ensure_vim_directory()
@@ -111,9 +111,11 @@ function! plugin_manager#modules#list#status()
             " Use branch information from the utility function
             let l:branch = l:update_status.branch
             
-            " Simplify branch display
+            " Display target branch instead of HEAD for detached state
             if l:branch == 'detached'
-            let l:branch = 'HEAD'
+                let l:remote_branch = l:update_status.remote_branch
+                let l:remote_branch_name = substitute(l:remote_branch, '^origin/', '', '')
+                let l:branch = 'detached@' . l:remote_branch_name
             endif
             
             " Get local changes status from the utility function
@@ -163,7 +165,7 @@ function! plugin_manager#modules#list#status()
     
     call plugin_manager#ui#open_sidebar(l:lines)
 endfunction
-    
+
 " Show a summary of submodule changes
 function! plugin_manager#modules#list#summary()
     if !plugin_manager#utils#ensure_vim_directory()
