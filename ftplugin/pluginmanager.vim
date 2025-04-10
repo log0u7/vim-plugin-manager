@@ -32,39 +32,39 @@ if exists("b:did_ftplugin")
   
   " Local call function for main plugin
     function! s:List()
-      call plugin_manager#api#dispatch("list")
+      call plugin_manager#cmd#dispatch("list")
     endfunction
     
     function! s:Update()
-      call plugin_manager#api#dispatch("update")
+      call plugin_manager#cmd#dispatch("update")
     endfunction
     
     function! s:GenerateHelptags()
-      call plugin_manager#api#dispatch("helptags")
+      call plugin_manager#cmd#dispatch("helptags")
     endfunction
     
     function! s:Status()
-      call plugin_manager#api#dispatch("status")
+      call plugin_manager#cmd#dispatch("status")
     endfunction
     
     function! s:Summary()
-      call plugin_manager#api#dispatch("summary")
+      call plugin_manager#cmd#dispatch("summary")
     endfunction
     
     function! s:Backup()
-      call plugin_manager#api#dispatch("backup")
+      call plugin_manager#cmd#dispatch("backup")
     endfunction
     
     function! s:Restore()
-      call plugin_manager#api#dispatch("restore")
+      call plugin_manager#cmd#dispatch("restore")
     endfunction
     
     function! s:Reload()
-      call plugin_manager#api#dispatch("reload")
+      call plugin_manager#cmd#dispatch("reload")
     endfunction
     
     function! s:Usage()
-      call plugin_manager#api#dispatch()
+      call plugin_manager#cmd#dispatch()
     endfunction
     
   " Output Options
