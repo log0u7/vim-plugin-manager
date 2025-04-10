@@ -98,50 +98,72 @@ The plugin is designed using a modular architecture that follows the principles 
 The project is organized into several key components:
 
 1. **Plugin Entry Point**
-   - `plugin/plugin_manager.vim`: Defines commands, initializes global variables, and provides the main entry point function `plugin_manager#main()`.
+   - `plugin/plugin_manager.vim`: Defines commands, initializes global variables, and provides the main entry point function.
 
-2. **Core Command Handler**
-   - `autoload/plugin_manager.vim`: Contains the main command parser and dispatcher.
+2. **Command Dispatcher**
+   - `autoload/plugin_manager/cmd.vim`: Parses command arguments and dispatches to specialized command modules.
 
-3. **Modular Architecture**
-   - `autoload/plugin_manager/modules.vim`: Acts as a façade that loads and coordinates specialized submodules.
-   - `autoload/plugin_manager/ui.vim`: Handles all user interface operations and visualizations.
-   - `autoload/plugin_manager/utils.vim`: Contains utility functions used throughout the codebase.
+3. **Public API Façade**
+   - `autoload/plugin_manager/api.vim`: Provides a unified API for all plugin operations.
 
-4. **Feature-specific Modules**
-   - `autoload/plugin_manager/modules/add.vim`: Handles plugin installation logic.
-   - `autoload/plugin_manager/modules/remove.vim`: Manages plugin removal operations.
-   - `autoload/plugin_manager/modules/list.vim`: Implements plugin listing and status reporting.
-   - `autoload/plugin_manager/modules/update.vim`: Manages plugin update operations.
-   - `autoload/plugin_manager/modules/backup.vim`: Handles configuration backup and restore.
-   - `autoload/plugin_manager/modules/helptags.vim`: Manages generation of helptags.
-   - `autoload/plugin_manager/modules/reload.vim`: Handles plugin reloading operations.
+4. **Core Functionality**
+   - `autoload/plugin_manager/core.vim`: Contains fundamental utilities, error handling, path management and configuration functions.
+   - `autoload/plugin_manager/git.vim`: Abstracts all Git operations and submodule management.
+   - `autoload/plugin_manager/async.vim`: Provides unified async operations with Vim/Neovim compatibility.
+   - `autoload/plugin_manager/ui.vim`: Handles user interface, sidebar rendering, and progress indication.
 
-5. **Filetype Support**
+5. **Command Modules**
+   - `autoload/plugin_manager/cmd/*.vim`: Contains implementation of specific commands:
+     - `add.vim`: Plugin installation logic.
+     - `remove.vim`: Plugin removal operations.
+     - `list.vim`: Plugin listing and status reporting.
+     - `update.vim`: Plugin update operations.
+     - `backup.vim`: Configuration backup operations.
+     - `restore.vim`: Plugin restoration operations.
+     - `helptags.vim`: Helptags generation.
+     - `reload.vim`: Plugin reloading operations.
+     - `status.vim`: Plugin status reporting.
+     - `declare.vim`: Declarative plugin configuration.
+     - `remote.vim`: Remote repository management.
+
+6. **Utility Files**
    - `ftdetect/pluginmanager.vim`: Defines filetype detection rules.
-   - `ftplugin/pluginmanager.vim`: Sets buffer configuration and provides key mappings.
+   - `ftplugin/pluginmanager.vim`: Sets buffer configuration and key mappings.
    - `syntax/pluginmanager.vim`: Defines syntax highlighting for the plugin interface.
 
 ### Control Flow
 
-1. User commands are processed through `:PluginManager` which calls `plugin_manager#main()`.
-2. `plugin_manager#main()` parses arguments and dispatches to appropriate module functions.
-3. Module functions perform specific tasks using utilities from `plugin_manager/utils.vim`.
-4. UI feedback is provided through functions in `plugin_manager/ui.vim`.
+1. User commands are processed through `:PluginManager` which calls `plugin_manager#cmd#dispatch()`.
+2. The dispatcher parses arguments and routes to the appropriate command module.
+3. Command modules implement specific operations using the core functionality.
+4. UI feedback is provided through the UI module.
+5. Git operations are abstracted through the Git module.
+6. Asynchronous operations are handled through the Async module.
+
+### Error Handling
+
+Errors follow a structured format:
+- `PM_ERROR:component:message` for internal errors
+- The Core module provides utilities for creating, handling, and formatting errors.
+- UI error display is handled through the UI module.
 
 ### Extending the Plugin
 
 When adding new features:
 
-1. **Determine the Appropriate Module**: New functionality should be placed in the most relevant module, or a new one if needed.
-2. **Follow the API Pattern**: Public functions should be named `plugin_manager#modules#<module>#<function>()`.
-3. **Use Utility Functions**: Leverage existing utility functions from `utils.vim` and UI functions from `ui.vim`.
-4. **Add Documentation**: Update help docs and README.md with new functionality.
-5. **Update Command Handling**: If adding a new command, update the command processing in `plugin_manager#main()`.
+1. **Determine the Appropriate Module**: New functionality should be placed in the most relevant module, or create a new one if needed.
+2. **Follow the API Pattern**: 
+   - Internal functions should be prefixed with `s:`.
+   - Public functions should follow the naming pattern `plugin_manager#modulename#functionname()`.
+3. **Use Core Utilities**: Leverage existing utilities from the Core, Git, UI, and Async modules.
+4. **Add Command Implementation**: Place new commands in the cmd/ directory.
+5. **Update API**: Add API functions to api.vim for new commands.
+6. **Add Documentation**: Update help docs and README.md with new functionality.
+7. **Update Command Handling**: Update the command dispatcher in cmd.vim.
 
 ### Configuration System
 
-The plugin uses several configuration variables defined in `plugin/plugin_manager.vim`:
+The plugin uses global configuration variables defined in `plugin/plugin_manager.vim`, and accessed via `plugin_manager#core#get_config()`:
 
 - `g:plugin_manager_vim_dir`: Base directory for Vim configuration.
 - `g:plugin_manager_plugins_dir`: Directory for storing plugins.
@@ -150,7 +172,7 @@ The plugin uses several configuration variables defined in `plugin/plugin_manage
 - `g:plugin_manager_vimrc_path`: Path to vimrc file.
 - `g:plugin_manager_sidebar_width`: Width of the sidebar UI.
 - `g:plugin_manager_default_git_host`: Default Git host for short plugin names.
-- `g:plugin_manager_fancy_ui`: Controls whether to use Unicode symbols in the UI (true by default if supported).
+- `g:plugin_manager_fancy_ui`: Controls whether to use Unicode symbols in the UI.
 
 When adding new configuration options, follow this pattern and provide sensible defaults.
 
@@ -196,19 +218,25 @@ Understanding the project's complete structure will help you contribute effectiv
 ```
 .
 ├── autoload/
-│   ├── plugin_manager.vim           # Main autoload file (command dispatcher)
-│   └── plugin_manager/              # Core functionality modules
-│       ├── modules.vim              # Module façade and API
-│       ├── ui.vim                   # User interface components
-│       ├── utils.vim                # Utility functions
-│       └── modules/                 # Feature-specific modules
-│           ├── add.vim              # Plugin installation
-│           ├── backup.vim           # Configuration backup and restore
-│           ├── helptags.vim         # Help documentation generation
-│           ├── list.vim             # Plugin listing and status
-│           ├── reload.vim           # Plugin reloading
-│           ├── remove.vim           # Plugin removal
-│           └── update.vim           # Plugin updating
+│   ├── plugin_manager/
+│   │   ├── api.vim                  # Public API façade
+│   │   ├── async.vim                # Asynchronous operations support
+│   │   ├── cmd.vim                  # Command dispatcher
+│   │   ├── core.vim                 # Core utilities and error handling
+│   │   ├── git.vim                  # Git operations abstraction
+│   │   ├── ui.vim                   # User interface components
+│   │   └── cmd/                     # Command implementations
+│   │       ├── add.vim              # Plugin installation
+│   │       ├── backup.vim           # Configuration backup
+│   │       ├── declare.vim          # Declarative plugin configuration
+│   │       ├── helptags.vim         # Help documentation generation
+│   │       ├── list.vim             # Plugin listing and status
+│   │       ├── reload.vim           # Plugin reloading
+│   │       ├── remote.vim           # Remote repository management
+│   │       ├── remove.vim           # Plugin removal
+│   │       ├── restore.vim          # Plugin restoration
+│   │       ├── status.vim           # Plugin status reporting
+│   │       └── update.vim           # Plugin updating
 ├── doc/                             # Documentation
 │   └── plugin_manager.txt           # Help documentation
 ├── ftdetect/                        # Filetype detection
@@ -219,10 +247,11 @@ Understanding the project's complete structure will help you contribute effectiv
 │   └── plugin_manager.vim           # Entry point and command definitions
 ├── syntax/                          # Syntax highlighting
 │   └── pluginmanager.vim            # Syntax definitions for the UI
-├── README.md                        # Project overview and usage information
-├── CONTRIBUTING.md                  # Contribution guidelines (this file)
 ├── CHANGELOG.md                     # History of changes and versions
-└── LICENSE                          # License information
+├── CONTRIBUTING.md                  # Contribution guidelines (this file)
+├── LICENSE                          # License information
+├── Makefile                         # Build and version management
+└── README.md                        # Project overview and usage information
 ```
 
 ## License

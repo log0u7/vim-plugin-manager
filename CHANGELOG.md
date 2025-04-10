@@ -13,6 +13,28 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 - Resolved issues with plugin installation path handling on Windows systems
 - Fixed plugin reloading mechanism for certain plugin types
 
+## [1.3.4] - 2025-04-11
+### Improvements
+- Merged refactorization branch with modular architecture into main
+- Enhanced code organization with SOLID principles
+- Improved error handling with structured error types
+- Added better async operations support with unified API
+- Strengthened cross-platform compatibility with robust path handling
+
+### Bug Fixes
+- Fixed edge case in plugin update detection for detached HEAD states
+- Corrected path normalization issues on Windows systems
+- Improved plugin removal process when git modules structure changes
+- Fixed status detection when plugins are on custom branches
+
+### Code Structure
+- Reorganized codebase into functional modules with clear responsibilities:
+  - core.vim: Core utilities, error handling, path management
+  - git.vim: Git operations abstraction with comprehensive repository status
+  - async.vim: Unified async API with Vim/Neovim compatibility
+  - ui.vim: Enhanced user interface with progress indicators
+  - api.vim: Public API façade with backward compatibility
+
 ## [1.3.3] - 2025-04-10
 ### Improvements
 - Enhanced plugin update detection algorithm for more accurate updates
