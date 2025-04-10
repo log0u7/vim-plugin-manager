@@ -1,6 +1,6 @@
 " autoload/plugin_manager/ui.vim - UI functions for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.4-dev
+" Version: refacto2 v1.3.3 d4f8fda
 
 " Terminal capability detection
 let s:unicode_support = has('multi_byte') && &encoding ==# 'utf-8'

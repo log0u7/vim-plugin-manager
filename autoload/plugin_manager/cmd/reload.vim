@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/reload.vim - Reload command for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.4-dev
+" Version: refacto2 v1.3.3 d4f8fda
 
 " Reload a specific plugin or all Vim configuration
 function! plugin_manager#cmd#reload#execute(...) abort

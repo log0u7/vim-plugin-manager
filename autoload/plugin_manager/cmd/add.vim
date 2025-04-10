@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/add.vim - Add command for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.4-dev
+" Version: refacto2 v1.3.3 d4f8fda
 
 " Main function to add a plugin
     function! plugin_manager#cmd#add#execute(...) abort

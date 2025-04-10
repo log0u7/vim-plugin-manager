@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/backup.vim - Backup command for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.4-dev
+" Version: refacto2 v1.3.3 d4f8fda
 
 " Backup configuration to remote repositories
 function! plugin_manager#cmd#backup#execute() abort
