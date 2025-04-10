@@ -28,18 +28,18 @@ endfunction
 function! plugin_manager#async#start_job(cmd, opts) abort
     " If async is not supported, execute synchronously
     if !s:has_async
-    let l:output = system(a:cmd)
-    let l:status = v:shell_error
-    
-    if has_key(a:opts, 'callback')
-        call a:opts.callback({
-            \ 'id': -1,
-            \ 'status': l:status,
-            \ 'output': l:output
-            \ })
-    endif
-    
-    return -1
+        let l:output = system(a:cmd)
+        let l:status = v:shell_error
+        
+        if has_key(a:opts, 'callback')
+            call a:opts.callback({
+                \ 'id': -1,
+                \ 'status': l:status,
+                \ 'output': l:output
+                \ })
+        endif
+        
+        return -1
     endif
     
     " Generate a unique job ID
@@ -62,57 +62,57 @@ function! plugin_manager#async#start_job(cmd, opts) abort
     " Change directory if specified
     let l:cmd = a:cmd
     if has_key(a:opts, 'dir') && !empty(a:opts.dir)
-    let l:cmd = 'cd ' . shellescape(a:opts.dir) . ' && ' . l:cmd
+        let l:cmd = 'cd ' . shellescape(a:opts.dir) . ' && ' . l:cmd
     endif
     
     " Report job start to UI if needed
     if has_key(a:opts, 'ui_message') && !empty(a:opts.ui_message) && exists('*plugin_manager#ui#update_sidebar')
-    call plugin_manager#ui#update_sidebar(['Starting: ' . a:opts.ui_message], 1)
+        call plugin_manager#ui#update_sidebar(['Starting: ' . a:opts.ui_message], 1)
     endif
     
     " Start the job with appropriate platform-specific method
     if s:is_nvim
-    " Neovim implementation
-    let l:job_opts = {
-            \ 'on_stdout': function('s:nvim_callback'),
-            \ 'on_stderr': function('s:nvim_callback'),
-            \ 'on_exit': function('s:nvim_exit'),
-            \ 'stdout_buffered': 1,
-            \ 'stderr_buffered': 1,
-            \ }
-    
-    let l:job = jobstart(['sh', '-c', l:cmd], l:job_opts)
-    
-    if l:job > 0
-        let s:jobs[l:job_id].job = l:job
-        let s:jobs[l:job_id].nvim_job_id = l:job
+        " Neovim implementation
+        let l:job_opts = {
+                \ 'on_stdout': function('s:nvim_callback'),
+                \ 'on_stderr': function('s:nvim_callback'),
+                \ 'on_exit': function('s:nvim_exit'),
+                \ 'stdout_buffered': 1,
+                \ 'stderr_buffered': 1,
+                \ }
+        
+        let l:job = jobstart(['sh', '-c', l:cmd], l:job_opts)
+        
+        if l:job > 0
+            let s:jobs[l:job_id].job = l:job
+            let s:jobs[l:job_id].nvim_job_id = l:job
+        else
+            " Job failed to start
+            let s:jobs[l:job_id].status = 127
+            let s:jobs[l:job_id].finished = localtime()
+            call s:process_job_completion(l:job_id)
+            return -1
+        endif
     else
-        " Job failed to start
-        let s:jobs[l:job_id].status = 127
-        let s:jobs[l:job_id].finished = localtime()
-        call s:process_job_completion(l:job_id)
-        return -1
-    endif
-    else
-    " Vim implementation
-    let l:job_opts = {
-            \ 'out_cb': function('s:vim_out_cb', [l:job_id]),
-            \ 'err_cb': function('s:vim_err_cb', [l:job_id]),
-            \ 'exit_cb': function('s:vim_exit_cb', [l:job_id]),
-            \ 'mode': 'raw',
-            \ }
-    
-    let l:job = job_start(['sh', '-c', l:cmd], l:job_opts)
-    
-    if job_status(l:job) !=# 'fail'
-        let s:jobs[l:job_id].job = l:job
-    else
-        " Job failed to start
-        let s:jobs[l:job_id].status = 127
-        let s:jobs[l:job_id].finished = localtime()
-        call s:process_job_completion(l:job_id)
-        return -1
-    endif
+        " Vim implementation
+        let l:job_opts = {
+                \ 'out_cb': function('s:vim_out_cb', [l:job_id]),
+                \ 'err_cb': function('s:vim_err_cb', [l:job_id]),
+                \ 'exit_cb': function('s:vim_exit_cb', [l:job_id]),
+                \ 'mode': 'raw',
+                \ }
+        
+        let l:job = job_start(['sh', '-c', l:cmd], l:job_opts)
+        
+        if job_status(l:job) !=# 'fail'
+            let s:jobs[l:job_id].job = l:job
+        else
+            " Job failed to start
+            let s:jobs[l:job_id].status = 127
+            let s:jobs[l:job_id].finished = localtime()
+            call s:process_job_completion(l:job_id)
+            return -1
+        endif
     endif
     
     return l:job_id
@@ -121,25 +121,25 @@ endfunction
 " Stop a running job
 function! plugin_manager#async#stop_job(job_id) abort
     if !has_key(s:jobs, a:job_id)
-    return 0
+        return 0
     endif
     
     let l:job = s:jobs[a:job_id].job
     
     if s:is_nvim
-    if jobstop(l:job)
-        let s:jobs[a:job_id].status = -2  " Manually stopped
-        let s:jobs[a:job_id].finished = localtime()
-        call s:process_job_completion(a:job_id)
-        return 1
-    endif
+        if jobstop(l:job)
+            let s:jobs[a:job_id].status = -2  " Manually stopped
+            let s:jobs[a:job_id].finished = localtime()
+            call s:process_job_completion(a:job_id)
+            return 1
+        endif
     else
-    if job_stop(l:job)
-        let s:jobs[a:job_id].status = -2  " Manually stopped
-        let s:jobs[a:job_id].finished = localtime()
-        call s:process_job_completion(a:job_id)
-        return 1
-    endif
+        if job_stop(l:job)
+            let s:jobs[a:job_id].status = -2  " Manually stopped
+            let s:jobs[a:job_id].finished = localtime()
+            call s:process_job_completion(a:job_id)
+            return 1
+        endif
     endif
     
     return 0
@@ -148,32 +148,32 @@ endfunction
 " Get job status
 function! plugin_manager#async#job_status(job_id) abort
     if !has_key(s:jobs, a:job_id)
-    return 'invalid'
+        return 'invalid'
     endif
     
     let l:job = s:jobs[a:job_id]
     
     if l:job.finished
-    return 'finished'
+        return 'finished'
     endif
     
     if s:is_nvim
-    try
-        let l:status = jobwait([l:job.nvim_job_id], 0)[0]
-        return l:status == -1 ? 'running' : 'finished'
-    catch
-        return 'error'
-    endtry
+        try
+            let l:status = jobwait([l:job.nvim_job_id], 0)[0]
+            return l:status == -1 ? 'running' : 'finished'
+        catch
+            return 'error'
+        endtry
     else
-    let l:status = job_status(l:job.job)
-    return l:status ==# 'run' ? 'running' : 'finished'
+        let l:status = job_status(l:job.job)
+        return l:status ==# 'run' ? 'running' : 'finished'
     endif
 endfunction
 
 " Get job information
 function! plugin_manager#async#job_info(job_id) abort
     if !has_key(s:jobs, a:job_id)
-    return {}
+        return {}
     endif
     
     " Return a copy of job info to prevent modification
@@ -187,14 +187,14 @@ endfunction
 " Add a callback for when a job finishes
 function! plugin_manager#async#on_complete(job_id, callback) abort
     if !has_key(s:jobs, a:job_id)
-    return 0
+        return 0
     endif
     
     let s:jobs[a:job_id].callback = a:callback
     
     " If the job is already finished, call the callback immediately
     if s:jobs[a:job_id].finished
-    call s:process_job_completion(a:job_id)
+        call s:process_job_completion(a:job_id)
     endif
     
     return 1
@@ -305,7 +305,7 @@ function! s:nvim_exit(job_id, status, event) dict abort
     call s:process_job_completion(l:our_job_id)
 endfunction
 
-" Vim callbacks
+" Vim callbacks - FIXED with correct signatures
 function! s:vim_out_cb(job_id, channel, msg) abort
     if !has_key(s:jobs, a:job_id)
         return
@@ -322,7 +322,7 @@ function! s:vim_err_cb(job_id, channel, msg) abort
     let s:jobs[a:job_id].errors .= a:msg
 endfunction
 
-function! s:vim_exit_cb(job_id, status) abort
+function! s:vim_exit_cb(job_id, job, status) abort
     if !has_key(s:jobs, a:job_id)
         return
     endif
