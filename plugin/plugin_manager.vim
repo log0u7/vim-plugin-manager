@@ -75,7 +75,7 @@ if exists('g:loaded_plugin_manager') || &cp
   " ------------------------------------------------------------------------------
   
   " Main command for plugin operations
-  command! -nargs=* PluginManager call plugin_manager#api#dispatch(<f-args>)
+  command! -nargs=* PluginManager call plugin_manager#cmd#dispatch(<f-args>)
   
   " Command to add remote repositories
   command! -nargs=1 PluginManagerRemote call plugin_manager#api#add_remote(<f-args>)
