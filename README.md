@@ -13,6 +13,7 @@ A lightweight Vim/Neovim plugin manager that uses Git submodules and Vim 8's nat
 - Support for optional (lazy-loaded) plugins
 - Interactive sidebar interface
 - Compatible with both Vim and Neovim
+- Asynchronous operations for better performance
 
 ## Requirements
 
@@ -456,4 +457,4 @@ Copyright (c) 2018 - 2025 G.K.E. <gke@6admin.io>
 
 - Maintained by: G.K.E. <gke@6admin.io>
 - Source: https://github.com/username/vim-plugin-manager
-- Version: 1.3
+- Version: 1.3.4

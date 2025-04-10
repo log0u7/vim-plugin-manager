@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/helptags.vim - Helptags command for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: refacto2 v1.3.3 d4f8fda
+" Version: 1.3.4
 
 " Generate helptags for all or a specific plugin
     function! plugin_manager#cmd#helptags#execute(...) abort

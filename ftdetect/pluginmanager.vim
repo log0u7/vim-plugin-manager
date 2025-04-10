@@ -1,6 +1,6 @@
 " ftdetect/pluginmanager.vim - Filetype detection for PluginManager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: refacto2 v1.3.3 d4f8fda
+" Version: 1.3.4
 
 augroup pluginmanager_ftdetect
   autocmd!
