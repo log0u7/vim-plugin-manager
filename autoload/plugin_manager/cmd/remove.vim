@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/remove.vim - Remove command for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: refacto2 v1.3.3 d4f8fda
+" Version: 1.3.4
 
 " Execute the remove command
 function! plugin_manager#cmd#remove#execute(module_name, force_flag) abort

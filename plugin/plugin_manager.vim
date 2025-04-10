@@ -1,6 +1,6 @@
 " plugin/plugin_manager.vim - Main entry point for Vim Plugin Manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: refacto2 v1.3.3 d4f8fda
+" Version: 1.3.4
 
 " Prevent loading the plugin multiple times
 if exists('g:loaded_plugin_manager') || &cp

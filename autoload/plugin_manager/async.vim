@@ -1,6 +1,6 @@
 " autoload/plugin_manager/async.vim - Asynchronous operations for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: refacto2 v1.3.3 d4f8fda
+" Version: 1.3.4
 
 " ------------------------------------------------------------------------------
 " PLATFORM DETECTION AND INITIALIZATION
