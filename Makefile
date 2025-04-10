@@ -31,7 +31,7 @@ update-version:
 		echo "Processing $(FILE)..."; \
 		sed -i -E 's/(^.*Version[ ]*:).*/\1 $(VERSION_STRING)/' "$(FILE)"; \
 	else \
-		find . -type f \( -name "*.vim" -o -name "*.txt" \) | while read file; do \
+		find . -type f \( -name "*.vim" -o -name "*.txt" -o -name "README.md" \) | while read file; do \
 			echo "Processing $$file..."; \
 			sed -i -E 's/(^.*Version[ ]*:).*/\1 $(VERSION_STRING)/' "$$file"; \
 		done; \
