@@ -6,47 +6,159 @@
 " ERROR HANDLING SYSTEM
 " ------------------------------------------------------------------------------
 
-" Create a standardized error with component information
-function! plugin_manager#core#throw(component, message) abort
-  throw 'PM_ERROR:' . a:component . ':' . a:message
+" Improved error types - add structured error codes
+let s:error_types = {
+      \ 'add': ['INVALID_URL', 'REPO_NOT_FOUND', 'TARGET_EXISTS', 'COPY_FAILED'],
+      \ 'remove': ['MODULE_NOT_FOUND', 'DELETE_FAILED'],
+      \ 'update': ['MODULE_NOT_FOUND', 'FETCH_FAILED', 'UPDATE_FAILED'],
+      \ 'backup': ['GIT_ERROR', 'NO_REMOTES'],
+      \ 'restore': ['GITMODULES_NOT_FOUND', 'INIT_FAILED'],
+      \ 'git': ['COMMAND_FAILED', 'REPO_NOT_FOUND', 'MERGE_CONFLICT'],
+      \ 'core': ['NOT_VIM_DIR', 'NOT_GIT_REPO', 'PATH_NOT_FOUND', 'PERMISSION_DENIED'],
+      \ 'async': ['JOB_FAILED', 'TIMEOUT'],
+      \ 'ui': ['RENDER_FAILED']
+      \ }
+
+" Create a standardized error with component and specific error code
+function! plugin_manager#core#throw(component, error_code, message) abort
+  " Validate the error type if possible
+  if has_key(s:error_types, a:component) && index(s:error_types[a:component], a:error_code) == -1
+    " Invalid error code - create a special meta-error but don't crash
+    echohl WarningMsg
+    echomsg 'Plugin Manager: Invalid error code ' . a:error_code . ' for component ' . a:component
+    echohl None
+    let l:error_code = 'UNKNOWN'
+  else
+    let l:error_code = a:error_code
+  endif
+  
+  throw 'PM_ERROR:' . a:component . ':' . l:error_code . ':' . a:message
 endfunction
 
-" Check if an error is a plugin manager error
+" Check if an error is a plugin manager error with enhanced parsing
 function! plugin_manager#core#is_pm_error(error) abort
   return a:error =~# '^PM_ERROR:'
 endfunction
 
-" Format plugin manager error for user display
-function! plugin_manager#core#format_error(error) abort
-  if plugin_manager#core#is_pm_error(a:error)
-    let l:parts = split(a:error, ':')
-    return l:parts[2:]->join(':')
+" Parse plugin manager error into structured format
+function! plugin_manager#core#parse_error(error) abort
+  if !plugin_manager#core#is_pm_error(a:error)
+    return {'type': 'external', 'component': 'vim', 'code': 'EXTERNAL', 'message': a:error}
   endif
-  return a:error
+  
+  let l:parts = split(a:error, ':')
+  
+  " Handle both new format (with error code) and old format
+  if len(l:parts) >= 4  " New format: PM_ERROR:component:code:message
+    return {
+          \ 'type': 'internal',
+          \ 'component': l:parts[1],
+          \ 'code': l:parts[2],
+          \ 'message': join(l:parts[3:], ':')
+          \ }
+  else  " Old format: PM_ERROR:component:message
+    return {
+          \ 'type': 'internal',
+          \ 'component': l:parts[1],
+          \ 'code': 'LEGACY',
+          \ 'message': join(l:parts[2:], ':')
+          \ }
+  endif
 endfunction
 
-" Handle errors consistently throughout the plugin
+" Format plugin manager error for user display with improved organization
+function! plugin_manager#core#format_error(error) abort
+  let l:parsed = plugin_manager#core#parse_error(a:error)
+  
+  if l:parsed.type ==# 'external'
+    return l:parsed.message
+  endif
+  
+  " Return a user-friendly message
+  if l:parsed.code ==# 'LEGACY'
+    return l:parsed.message
+  else
+    return l:parsed.code . ': ' . l:parsed.message
+  endif
+endfunction
+
+" Handle errors consistently throughout the plugin with better diagnostics
 function! plugin_manager#core#handle_error(error, component) abort
-  let l:error = plugin_manager#core#is_pm_error(a:error) 
-          \ ? plugin_manager#core#format_error(a:error)
-          \ : 'Unexpected error in ' . a:component . ': ' . a:error
+  let l:parsed = plugin_manager#core#parse_error(a:error)
+  
+  " Generate a detailed error message
+  if l:parsed.type ==# 'internal'
+    let l:title = 'Error in ' . l:parsed.component
+    let l:message = l:parsed.message
+    
+    " Add specific tips based on error code
+    let l:tips = []
+    
+    if l:parsed.component ==# 'git' && l:parsed.code ==# 'COMMAND_FAILED'
+      call add(l:tips, 'Make sure Git is installed and in your PATH')
+      call add(l:tips, 'Verify you have permission to access the repository')
+    elseif l:parsed.component ==# 'add' && l:parsed.code ==# 'REPO_NOT_FOUND'
+      call add(l:tips, 'Check the repository URL for typos')
+      call add(l:tips, 'Verify the repository exists and is publicly accessible')
+    elseif l:parsed.component ==# 'core' && l:parsed.code ==# 'NOT_GIT_REPO'
+      call add(l:tips, 'Initialize your Vim config as a Git repository first:')
+      call add(l:tips, '  cd ' . plugin_manager#core#get_config('vim_dir', '~/.vim'))
+      call add(l:tips, '  git init')
+    endif
+  else
+    let l:title = 'Error in ' . a:component
+    let l:message = 'Unexpected error: ' . l:parsed.message
+    let l:tips = ['This may be a bug in the plugin. Consider reporting it.']
+  endif
   
   " Display error in UI if loaded
   if exists('*plugin_manager#ui#open_sidebar')
-    call plugin_manager#ui#open_sidebar([
-          \ 'Error in ' . a:component . ':',
-          \ repeat('-', len(a:component) + 10),
-          \ '',
-          \ l:error
-          \ ])
+    let l:lines = [l:title, repeat('-', len(l:title)), '', l:message]
+    
+    " Add diagnostic information
+    if !empty(l:tips)
+      call add(l:lines, '')
+      call add(l:lines, 'Suggestions:')
+      call extend(l:lines, map(l:tips, {idx, val -> '- ' . val}))
+    endif
+    
+    call plugin_manager#ui#open_sidebar(l:lines)
   else
     " Fallback if UI isn't loaded
     echohl ErrorMsg
-    echomsg l:error
+    echomsg l:message
+    if !empty(l:tips)
+      for l:tip in l:tips
+        echomsg '- ' . l:tip
+      endfor
+    endif
     echohl None
   endif
   
-  return l:error
+  return l:message
+endfunction
+
+" Log errors to a log file for troubleshooting
+function! plugin_manager#core#log_error(error, component) abort
+  let l:parsed = plugin_manager#core#parse_error(a:error)
+  let l:log_dir = plugin_manager#core#get_config('vim_dir', '') . '/logs'
+  
+  " Ensure log directory exists
+  if !isdirectory(l:log_dir)
+    call mkdir(l:log_dir, 'p')
+  endif
+  
+  let l:log_file = l:log_dir . '/plugin_manager.log'
+  let l:timestamp = strftime('%Y-%m-%d %H:%M:%S')
+  
+  " Format the log entry
+  let l:entry = l:timestamp . ' | ' . 
+        \ l:parsed.component . ' | ' . 
+        \ (l:parsed.type ==# 'internal' ? l:parsed.code : 'EXTERNAL') . ' | ' . 
+        \ l:parsed.message
+  
+  " Append to log file
+  call writefile([l:entry], l:log_file, 'a')
 endfunction
 
 " ------------------------------------------------------------------------------
