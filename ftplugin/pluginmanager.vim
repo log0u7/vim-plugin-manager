@@ -4,68 +4,69 @@
 
 " Ensure it's loaded once
 if exists("b:did_ftplugin")
-  finish
-endif
-let b:did_ftplugin = 1
-
-" Buffer config
-setlocal buftype=nofile
-setlocal bufhidden=hide
-setlocal noswapfile
-setlocal nowrap
-setlocal nobuflisted
-setlocal nonumber
-setlocal nofoldenable
-setlocal updatetime=3000
-
-" Buffer mapping for PluginManager
-nnoremap <buffer> q :bd<CR>
-nnoremap <buffer> l :call <SID>List()<CR>
-nnoremap <buffer> u :call <SID>Update()<CR>
-nnoremap <buffer> h :call <SID>GenerateHelptags()<CR>
-nnoremap <buffer> s :call <SID>Status()<CR>
-nnoremap <buffer> S :call <SID>Summary()<CR>
-nnoremap <buffer> b :call <SID>Backup()<CR>
-nnoremap <buffer> r :call <SID>Restore()<CR>
-nnoremap <buffer> R :call <SID>Reload()<CR>
-nnoremap <buffer> ? :call <SID>Usage()<CR>
-
-" Local call function for main plugin
-  function! s:List()
-    call plugin_manager#main("list")
-  endfunction
+    finish
+  endif
+  let b:did_ftplugin = 1
   
-  function! s:Update()
-    call plugin_manager#main("update")
-  endfunction
+  " Buffer config
+  setlocal buftype=nofile
+  setlocal bufhidden=hide
+  setlocal noswapfile
+  setlocal nowrap
+  setlocal nobuflisted
+  setlocal nonumber
+  setlocal nofoldenable
+  setlocal updatetime=3000
   
-  function! s:GenerateHelptags()
-    call plugin_manager#main("helptags")
-  endfunction
+  " Buffer mapping for PluginManager
+  nnoremap <buffer> q :bd<CR>
+  nnoremap <buffer> l :call <SID>List()<CR>
+  nnoremap <buffer> u :call <SID>Update()<CR>
+  nnoremap <buffer> h :call <SID>GenerateHelptags()<CR>
+  nnoremap <buffer> s :call <SID>Status()<CR>
+  nnoremap <buffer> S :call <SID>Summary()<CR>
+  nnoremap <buffer> b :call <SID>Backup()<CR>
+  nnoremap <buffer> r :call <SID>Restore()<CR>
+  nnoremap <buffer> R :call <SID>Reload()<CR>
+  nnoremap <buffer> ? :call <SID>Usage()<CR>
   
-  function! s:Status()
-    call plugin_manager#main("status")
-  endfunction
+  " Local call function for main plugin
+    function! s:List()
+      call plugin_manager#api#dispatch("list")
+    endfunction
+    
+    function! s:Update()
+      call plugin_manager#api#dispatch("update")
+    endfunction
+    
+    function! s:GenerateHelptags()
+      call plugin_manager#api#dispatch("helptags")
+    endfunction
+    
+    function! s:Status()
+      call plugin_manager#api#dispatch("status")
+    endfunction
+    
+    function! s:Summary()
+      call plugin_manager#api#dispatch("summary")
+    endfunction
+    
+    function! s:Backup()
+      call plugin_manager#api#dispatch("backup")
+    endfunction
+    
+    function! s:Restore()
+      call plugin_manager#api#dispatch("restore")
+    endfunction
+    
+    function! s:Reload()
+      call plugin_manager#api#dispatch("reload")
+    endfunction
+    
+    function! s:Usage()
+      call plugin_manager#api#dispatch()
+    endfunction
+    
+  " Output Options
+  let b:undo_ftplugin = "setlocal buftype< bufhidden< swapfile< wrap< buflisted< number< foldenable< updatetime<"
   
-  function! s:Summary()
-    call plugin_manager#main("summary")
-  endfunction
-  
-  function! s:Backup()
-    call plugin_manager#main("backup")
-  endfunction
-  
-  function! s:Restore()
-    call plugin_manager#main("restore")
-  endfunction
-  
-  function! s:Reload()
-    call plugin_manager#main("reload")
-  endfunction
-  
-  function! s:Usage()
-    call plugin_manager#main()
-  endfunction
-  
-" Output Options
-let b:undo_ftplugin = "setlocal buftype< bufhidden< swapfile< wrap< buflisted< number< foldenable< updatetime<"
