@@ -7,15 +7,13 @@
 " ------------------------------------------------------------------------------
 
 " Add a plugin
-function! plugin_manager#api#add(url, ...) abort
-  let l:options = a:0 > 0 ? a:1 : {}
-  return plugin_manager#cmd#add#execute(a:url, l:options)
+function! plugin_manager#api#add(url, options) abort
+  return plugin_manager#cmd#add#execute(a:url, a:options)
 endfunction
 
 " Remove a plugin
-function! plugin_manager#api#remove(module_name, ...) abort
-  let l:force_flag = a:0 > 0 ? a:1 : ''
-  return plugin_manager#cmd#remove#execute(a:module_name, l:force_flag)
+function! plugin_manager#api#remove(module_name, force_flag) abort
+  return plugin_manager#cmd#remove#execute(a:module_name, a:force_flag)
 endfunction
 
 " List installed plugins
@@ -34,9 +32,8 @@ function! plugin_manager#api#summary() abort
 endfunction
 
 " Update plugins
-function! plugin_manager#api#update(...) abort
-  let l:module_name = a:0 > 0 ? a:1 : 'all'
-  return plugin_manager#cmd#update#execute(l:module_name)
+function! plugin_manager#api#update(module_name) abort
+  return plugin_manager#cmd#update#execute(a:module_name)
 endfunction
 
 " Backup configuration
@@ -50,16 +47,13 @@ function! plugin_manager#api#restore() abort
 endfunction
 
 " Generate helptags
-function! plugin_manager#api#helptags(...) abort
-  let l:create_header = 1
-  let l:module_name = a:0 > 0 ? a:1 : ''
-  return plugin_manager#cmd#helptags#execute(l:create_header, l:module_name)
+function! plugin_manager#api#helptags(module_name) abort
+  return plugin_manager#cmd#helptags#execute(1, a:module_name)
 endfunction
 
 " Reload plugins
-function! plugin_manager#api#reload(...) abort
-  let l:module_name = a:0 > 0 ? a:1 : ''
-  return plugin_manager#cmd#reload#execute(l:module_name)
+function! plugin_manager#api#reload(module_name) abort
+  return plugin_manager#cmd#reload#execute(a:module_name)
 endfunction
 
 " Add a remote repository
@@ -77,21 +71,8 @@ function! plugin_manager#api#begin() abort
 endfunction
 
 " Add a plugin declaration to the current block
-function! plugin_manager#api#plugin(...) abort
-  let l:url = a:0 > 0 ? a:1 : ''
-  let l:options = a:0 > 1 ? a:2 : {}
-  
-  if a:0 > 2 && a:3 ==# 'opt'
-    " Handle old format with third parameter for opt
-    if type(l:options) == v:t_dict
-      let l:options.load = 'opt'
-    else
-      let l:dir = l:options
-      let l:options = {'dir': l:dir, 'load': 'opt'}
-    endif
-  endif
-  
-  call plugin_manager#cmd#declare#plugin(l:url, l:options)
+function! plugin_manager#api#plugin(url, options) abort
+  call plugin_manager#cmd#declare#plugin(a:url, a:options)
 endfunction
 
 " End a plugin declaration block and process all declarations

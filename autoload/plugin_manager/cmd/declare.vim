@@ -21,7 +21,7 @@ function! plugin_manager#cmd#declare#begin() abort
 endfunction
 
 " Add a plugin declaration to the current block
-function! plugin_manager#cmd#declare#plugin(...) abort
+function! plugin_manager#cmd#declare#plugin(url, options) abort
   if !s:plugin_block_active
     echohl WarningMsg
     echomsg "Plugin called outside of PluginBegin/PluginEnd block"
@@ -29,31 +29,8 @@ function! plugin_manager#cmd#declare#plugin(...) abort
     return
   endif
   
-  " Must have at least the plugin name
-  if a:0 < 1
-    return
-  endif
-  
-  let l:plugin_url = a:1
-  
-  " Check if options were provided
-  let l:options = {}
-  if a:0 >= 2
-    if type(a:2) == v:t_dict
-      let l:options = a:2
-    else
-      " Old format compatibility - second arg is dir
-      let l:options.dir = a:2
-      
-      " Check for third arg - load type
-      if a:0 >= 3 && a:3 ==# 'opt'
-        let l:options.load = 'opt'
-      endif
-    endif
-  endif
-  
   " Add to declarations list
-  call add(s:plugin_declarations, {'url': l:plugin_url, 'options': l:options})
+  call add(s:plugin_declarations, {'url': a:url, 'options': a:options})
 endfunction
 
 " End a plugin declaration block and process all declarations
@@ -117,7 +94,7 @@ function! s:process_plugin_declarations() abort
       
       " Install the plugin
       try
-        call plugin_manager#cmd#add#execute(l:url, l:options)
+        call plugin_manager#api#add(l:url, l:options)
       catch
         call plugin_manager#ui#update_sidebar(['Error installing ' . l:url . ': ' . 
               \ plugin_manager#core#format_error(v:exception)], 1)
