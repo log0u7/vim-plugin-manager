@@ -1,11 +1,15 @@
 .DEFAULT_GOAL := help
 
-DEFAULT_BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
-DEFAULT_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "no-tag")
-DEFAULT_COMMIT := $(shell git rev-parse --short HEAD)
+BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
+TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "no-tag")
+COMMIT := $(shell git rev-parse --short HEAD)
 
 ifeq ($(origin VERSION), undefined)
-	VERSION_STRING := $(DEFAULT_BRANCH) $(DEFAULT_TAG) $(DEFAULT_COMMIT)
+	ifeq ($(filter $(BRANCH),main master),)
+		VERSION_STRING := $(BRANCH) $(TAG) $(COMMIT)
+	else
+		VERSION_STRING := $(TAG) $(COMMIT)
+	endif
 else
 	VERSION_STRING := $(VERSION)
 endif
