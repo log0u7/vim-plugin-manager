@@ -93,6 +93,16 @@ function! s:detect_terminal_capabilities() abort
   endif
 endfunction
 
+" Function to retrieve a specific UI symbol
+function! plugin_manager#ui#get_symbol(symbol_key) abort
+  " Check if the requested symbol exists in the symbols dictionary
+  if has_key(s:symbols, a:symbol_key)
+    return s:symbols[a:symbol_key]
+  endif
+  " Return empty string if symbol not found
+  return ''
+endfunction
+
 " Open the sidebar window with optimized UI
 function! plugin_manager#ui#open_sidebar(lines) abort
   try
