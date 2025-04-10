@@ -1,6 +1,6 @@
 " syntax/pluginmanager.vim - Syntax coloration for PluginManager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.3
+" Version: refacto2 v1.3.3 d4f8fda
 
 " Ensure it's loaded once
 if exists("b:current_syntax")

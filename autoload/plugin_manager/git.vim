@@ -1,6 +1,6 @@
 " autoload/plugin_manager/git.vim - Git operations abstraction for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.4-dev
+" Version: refacto2 v1.3.3 d4f8fda
 
 " ------------------------------------------------------------------------------
 " GITMODULES CACHE AND PARSING

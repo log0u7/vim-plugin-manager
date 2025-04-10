@@ -1,6 +1,6 @@
 " ftplugin/pluginmanager.vim - Buffers config for PluginManager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.4-dev
+" Version: refacto2 v1.3.3 d4f8fda
 
 " Ensure it's loaded once
 if exists("b:did_ftplugin")
@@ -30,43 +30,42 @@ if exists("b:did_ftplugin")
   nnoremap <buffer> R :call <SID>Reload()<CR>
   nnoremap <buffer> ? :call <SID>Usage()<CR>
   
-  " Local call function for main plugin
-    function! s:List()
-      call plugin_manager#cmd#dispatch("list")
-    endfunction
-    
-    function! s:Update()
-      call plugin_manager#cmd#dispatch("update")
-    endfunction
-    
-    function! s:GenerateHelptags()
-      call plugin_manager#cmd#dispatch("helptags")
-    endfunction
-    
-    function! s:Status()
-      call plugin_manager#cmd#dispatch("status")
-    endfunction
-    
-    function! s:Summary()
-      call plugin_manager#cmd#dispatch("summary")
-    endfunction
-    
-    function! s:Backup()
-      call plugin_manager#cmd#dispatch("backup")
-    endfunction
-    
-    function! s:Restore()
-      call plugin_manager#cmd#dispatch("restore")
-    endfunction
-    
-    function! s:Reload()
-      call plugin_manager#cmd#dispatch("reload")
-    endfunction
-    
-    function! s:Usage()
-      call plugin_manager#cmd#dispatch()
-    endfunction
-    
-  " Output Options
-  let b:undo_ftplugin = "setlocal buftype< bufhidden< swapfile< wrap< buflisted< number< foldenable< updatetime<"
-  
+" Local call function for main plugin
+function! s:List()
+    call plugin_manager#cmd#dispatch("list")
+endfunction
+
+function! s:Update()
+    call plugin_manager#cmd#dispatch("update")
+endfunction
+
+function! s:GenerateHelptags()
+    call plugin_manager#cmd#dispatch("helptags")
+endfunction
+
+function! s:Status()
+    call plugin_manager#cmd#dispatch("status")
+endfunction
+
+function! s:Summary()
+    call plugin_manager#cmd#dispatch("summary")
+endfunction
+
+function! s:Backup()
+    call plugin_manager#cmd#dispatch("backup")
+endfunction
+
+function! s:Restore()
+    call plugin_manager#cmd#dispatch("restore")
+endfunction
+
+function! s:Reload()
+    call plugin_manager#cmd#dispatch("reload")
+endfunction
+
+function! s:Usage()
+    call plugin_manager#cmd#dispatch()
+endfunction
+
+" Output Options
+let b:undo_ftplugin = "setlocal buftype< bufhidden< swapfile< wrap< buflisted< number< foldenable< updatetime<"
