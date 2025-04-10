@@ -246,44 +246,70 @@ function! s:finalize_status_async(ctx) abort
   call plugin_manager#ui#complete_task(a:ctx.task_id, 1, 'Status check completed for ' . a:ctx.processed . ' plugins')
 endfunction
 
-" Format a module status line from stored info
-function! s:format_module_status_line_from_info(info) abort
-  let l:module = a:info.module
-  let l:short_name = l:module.short_name
+" Function for determining status with the appropriate UI symbol
+function! s:determine_status_with_symbol(update_status) abort
+  let l:status = 'OK'
+  let l:symbol_key = 'tick'  " Default OK
   
-  if len(l:short_name) > 20
-    let l:short_name = l:short_name[0:19]
+  if a:update_status.different_branch
+    " Plugin is on a different branch than target
+    let l:status = 'CUSTOM BRANCH (local: ' . a:update_status.branch . ', target: ' . a:update_status.remote_branch . ')'
+    let l:symbol_key = 'warning'
+    if a:update_status.has_changes
+      let l:status .= ' + LOCAL CHANGES'
+    endif
+  elseif a:update_status.behind > 0 && a:update_status.ahead > 0
+    " Plugin has diverged from remote
+    let l:status = 'DIVERGED (BEHIND ' . a:update_status.behind . ', AHEAD ' . a:update_status.ahead . ')'
+    let l:symbol_key = 'warning'
+    if a:update_status.has_changes
+      let l:status .= ' + LOCAL CHANGES'
+    endif
+  elseif a:update_status.behind > 0
+    " Plugin is behind remote
+    let l:status = 'BEHIND (' . a:update_status.behind . ')'
+    let l:symbol_key = 'info'
+    if a:update_status.has_changes
+      let l:status .= ' + LOCAL CHANGES'
+    endif
+  elseif a:update_status.ahead > 0
+    " Plugin is ahead of remote
+    let l:status = 'AHEAD (' . a:update_status.ahead . ')'
+    let l:symbol_key = 'info'
+    if a:update_status.has_changes
+      let l:status .= ' + LOCAL CHANGES'
+    endif
+  elseif a:update_status.has_changes
+    " Plugin has local changes
+    let l:status = 'LOCAL CHANGES'
+    let l:symbol_key = 'warning'
   endif
   
-  " Format the output with properly aligned columns  
-  let l:name_col = l:short_name . repeat(' ', max([0, 22 - len(l:short_name)]))
-  let l:commit_col = a:info.commit . repeat(' ', max([0, 20 - len(a:info.commit)]))
-  let l:branch_col = a:info.branch . repeat(' ', max([0, 26 - len(a:info.branch)]))
-  let l:date_col = a:info.last_updated . repeat(' ', max([0, 30 - len(a:info.last_updated)]))
+  " Get the symbol from UI module
+  let l:symbol = plugin_manager#ui#get_symbol(l:symbol_key)
   
-  return l:name_col . l:commit_col . l:branch_col . l:date_col . a:info.status
+  return {'text': l:status, 'symbol': l:symbol}
 endfunction
 
-" Format a module status line directly from a module
+" Format a status line for a module (synchronous method)
 function! s:format_module_status_line(module) abort
   let l:short_name = a:module.short_name
   let l:path = a:module.path
   
-  " Initialize status to 'OK' by default
+  " Initialize default values
   let l:status = 'OK'
+  let l:symbol = plugin_manager#ui#get_symbol('tick')
   
-  " Initialize other information as N/A in case checks fail
   let l:commit = 'N/A'
   let l:branch = 'N/A'
   let l:last_updated = 'N/A'
   
-  " Check if module exists
+  " Check if module directory exists
   if !isdirectory(l:path)
     let l:status = 'MISSING'
+    let l:symbol = plugin_manager#ui#get_symbol('cross')
   else
-    " Continue with all checks for existing modules
-    
-    " Get current commit
+    " Get current commit hash
     let l:result = plugin_manager#git#execute('git rev-parse --short HEAD', l:path, 0, 0)
     if l:result.success
       let l:commit = substitute(l:result.output, '\n', '', 'g')
@@ -295,55 +321,67 @@ function! s:format_module_status_line(module) abort
       let l:last_updated = substitute(l:result.output, '\n', '', 'g')
     endif
     
-    " Use the git utility function to check for updates
+    " Check for updates using git utility function
     let l:update_status = plugin_manager#git#check_updates(l:path)
     
-    " Use branch information from the utility function
+    " Get branch information
     let l:branch = l:update_status.branch
     
-    " Display target branch instead of HEAD for detached state
+    " Format detached HEAD state more clearly
     if l:branch ==# 'detached'
       let l:remote_branch = l:update_status.remote_branch
       let l:remote_branch_name = substitute(l:remote_branch, '^origin/', '', '')
       let l:branch = 'detached@' . l:remote_branch_name
     endif
     
-    " Determine status combining local changes and remote status
-    if l:update_status.different_branch
-      let l:status = 'CUSTOM BRANCH (local: ' . l:update_status.branch . ', target: ' . l:update_status.remote_branch . ')'
-      if l:update_status.has_changes
-        let l:status .= ' + LOCAL CHANGES'
-      endif
-    elseif l:update_status.behind > 0 && l:update_status.ahead > 0
-      " DIVERGED state has highest priority after different branch
-      let l:status = 'DIVERGED (BEHIND ' . l:update_status.behind . ', AHEAD ' . l:update_status.ahead . ')'
-      if l:update_status.has_changes
-        let l:status .= ' + LOCAL CHANGES'
-      endif
-    elseif l:update_status.behind > 0
-      let l:status = 'BEHIND (' . l:update_status.behind . ')'
-      if l:update_status.has_changes
-        let l:status .= ' + LOCAL CHANGES'
-      endif
-    elseif l:update_status.ahead > 0
-      let l:status = 'AHEAD (' . l:update_status.ahead . ')'
-      if l:update_status.has_changes
-        let l:status .= ' + LOCAL CHANGES'
-      endif
-    elseif l:update_status.has_changes
-      let l:status = 'LOCAL CHANGES'
-    endif
+    " Determine status and get the appropriate symbol
+    let l:status_info = s:determine_status_with_symbol(l:update_status)
+    let l:status = l:status_info.text
+    let l:symbol = l:status_info.symbol
   endif
   
+  " Trim long plugin names to fit in display
   if len(l:short_name) > 20
     let l:short_name = l:short_name[0:19]
   endif
   
-  " Format the output with properly aligned columns
+  " Format columns with appropriate spacing
   let l:name_col = l:short_name . repeat(' ', max([0, 22 - len(l:short_name)]))
   let l:commit_col = l:commit . repeat(' ', max([0, 20 - len(l:commit)]))
   let l:branch_col = l:branch . repeat(' ', max([0, 26 - len(l:branch)]))
   let l:date_col = l:last_updated . repeat(' ', max([0, 30 - len(l:last_updated)]))
   
-  return l:name_col . l:commit_col . l:branch_col . l:date_col . l:status
+  " Return the formatted line with status and symbol
+  return l:name_col . l:commit_col . l:branch_col . l:date_col . l:status . ' ' . l:symbol
+endfunction
+
+" Format a status line from stored info (for asynchronous method)
+function! s:format_module_status_line_from_info(info) abort
+  let l:module = a:info.module
+  let l:short_name = l:module.short_name
+  
+  " Determine the appropriate symbol based on status
+  let l:symbol = plugin_manager#ui#get_symbol('tick')  " Default OK
+  
+  if a:info.status ==# 'MISSING'
+    let l:symbol = plugin_manager#ui#get_symbol('cross')
+  elseif a:info.status =~# 'CUSTOM BRANCH\|DIVERGED\|LOCAL CHANGES'
+    let l:symbol = plugin_manager#ui#get_symbol('warning')
+  elseif a:info.status =~# 'BEHIND\|AHEAD'
+    let l:symbol = plugin_manager#ui#get_symbol('info')
+  endif
+  
+  " Trim long plugin names to fit in display
+  if len(l:short_name) > 20
+    let l:short_name = l:short_name[0:19]
+  endif
+  
+  " Format columns with appropriate spacing
+  let l:name_col = l:short_name . repeat(' ', max([0, 22 - len(l:short_name)]))
+  let l:commit_col = a:info.commit . repeat(' ', max([0, 20 - len(a:info.commit)]))
+  let l:branch_col = a:info.branch . repeat(' ', max([0, 26 - len(a:info.branch)]))
+  let l:date_col = a:info.last_updated . repeat(' ', max([0, 30 - len(a:info.last_updated)]))
+  
+  " Return the formatted line with status and symbol
+  return l:name_col . l:commit_col . l:branch_col . l:date_col . a:info.status . ' ' . l:symbol
 endfunction
