@@ -419,7 +419,8 @@ function! s:format_module_status_line(module) abort
   let l:date_col = l:last_updated . repeat(' ', max([0, 30 - len(l:last_updated)]))
   
   " Return the formatted line with status and symbol
-  return l:name_col . l:commit_col . l:branch_col . l:date_col . l:status . ' ' . l:symbol
+  "return l:name_col . l:commit_col . l:branch_col . l:date_col . l:status . ' ' . l:symbol
+  return l:name_col . l:commit_col . l:branch_col . l:date_col . l:status . ' '
 endfunction
 
 " Format a status line from stored info (for asynchronous method)
