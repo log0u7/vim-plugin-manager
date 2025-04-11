@@ -327,8 +327,8 @@ function! s:on_fetch_complete(ctx, result) abort
       call plugin_manager#ui#update_task(l:task_id, 4, '', 'No updates available')
       call plugin_manager#ui#complete_task(l:task_id, 1, 'Plugin is already up-to-date')
       
-      " Show temporary message that will disappear after 3 seconds
-      call plugin_manager#ui#show_temporary_message(a:ctx.action_line, 'No updates needed for ' . l:module_name, 3)
+      " Show temporary message that will disappear after 1 seconds
+      call plugin_manager#ui#show_temporary_message(a:ctx.action_line, 'No updates needed for ' . l:module_name, 1)
       return
     endif
     
@@ -595,8 +595,8 @@ function! s:finalize_update_all(ctx) abort
     call plugin_manager#ui#update_task(a:ctx.task_id, a:ctx.total, 'All plugins are up-to-date')
     call plugin_manager#ui#complete_task(a:ctx.task_id, 1, 'All plugins are up-to-date')
     
-    " Show temporary message that will disappear after 3 seconds
-    call plugin_manager#ui#show_temporary_message(a:ctx.action_line, 'No updates were needed', 3)
+    " Show temporary message that will disappear after 1 seconds
+    call plugin_manager#ui#show_temporary_message(a:ctx.action_line, 'No updates were needed', 1)
     
     return
   endif
