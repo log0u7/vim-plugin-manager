@@ -303,44 +303,47 @@ endfunction
 
 " After fetching updates - determine if updates are available
 function! s:on_fetch_complete(ctx, result) abort
-  let l:task_id = a:ctx.task_id
-  let l:module_path = a:ctx.module_path
-  let l:module_name = a:ctx.module_name
-  
-  call s:update_current_action(a:ctx, 'Comparing with remote')
-  call plugin_manager#ui#update_task(l:task_id, 3, '', 'Determining update status...')
-  
-  " Check update status (this is sync but typically fast)
-  let l:update_status = plugin_manager#git#check_updates(l:module_path)
-  let a:ctx.update_status = l:update_status
-  
-  " Handle custom branch scenario
-  if l:update_status.different_branch && l:update_status.branch != 'detached'
-    call plugin_manager#ui#update_task(l:task_id, 4, '', 'Plugin is on a custom branch: ' . l:update_status.branch)
-    call plugin_manager#ui#complete_task(l:task_id, 1, 'Plugin is on a custom branch (skipped)')
-    call s:report_custom_branch(l:module_name, l:update_status)
-    return
-  endif
-  
-  " Check if module has updates
-  if !l:update_status.has_updates
-    call plugin_manager#ui#update_task(l:task_id, 4, '', 'No updates available')
-    call plugin_manager#ui#complete_task(l:task_id, 1, 'Plugin is already up-to-date')
-    return
-  endif
-  
-  " Set flag for updates
-  let a:ctx.has_updates = 1
-  
-  " Step 3: Update the module
-  call s:update_current_action(a:ctx, 'Pulling updates')
-  call plugin_manager#ui#update_task(l:task_id, 3, '', 'Updates available. Updating plugin...')
-  
-  " Execute the update command
-  call plugin_manager#async#git('git -C "' . l:module_path . '" pull origin ' . l:update_status.remote_branch . ' --ff-only', {
-        \ 'callback': function('s:on_update_complete', [a:ctx]),
-        \ 'ui_message': ''
-        \ })
+    let l:task_id = a:ctx.task_id
+    let l:module_path = a:ctx.module_path
+    let l:module_name = a:ctx.module_name
+    
+    call s:update_current_action(a:ctx, 'Comparing with remote')
+    call plugin_manager#ui#update_task(l:task_id, 3, '', 'Determining update status...')
+    
+    " Check update status (this is sync but typically fast)
+    let l:update_status = plugin_manager#git#check_updates(l:module_path)
+    let a:ctx.update_status = l:update_status
+    
+    " Handle custom branch scenario
+    if l:update_status.different_branch && l:update_status.branch != 'detached'
+      call plugin_manager#ui#update_task(l:task_id, 4, '', 'Plugin is on a custom branch: ' . l:update_status.branch)
+      call plugin_manager#ui#complete_task(l:task_id, 1, 'Plugin is on a custom branch (skipped)')
+      call s:report_custom_branch(l:module_name, l:update_status)
+      return
+    endif
+    
+    " Check if module has updates
+    if !l:update_status.has_updates
+      call plugin_manager#ui#update_task(l:task_id, 4, '', 'No updates available')
+      call plugin_manager#ui#complete_task(l:task_id, 1, 'Plugin is already up-to-date')
+      
+      " Show temporary message that will disappear after 3 seconds
+      call plugin_manager#ui#show_temporary_message(a:ctx.action_line, 'No updates needed for ' . l:module_name, 3)
+      return
+    endif
+    
+    " Set flag for updates
+    let a:ctx.has_updates = 1
+    
+    " Step 3: Update the module
+    call s:update_current_action(a:ctx, 'Pulling updates')
+    call plugin_manager#ui#update_task(l:task_id, 3, '', 'Updates available. Updating plugin...')
+    
+    " Execute the update command
+    call plugin_manager#async#git('git -C "' . l:module_path . '" pull origin ' . l:update_status.remote_branch . ' --ff-only', {
+          \ 'callback': function('s:on_update_complete', [a:ctx]),
+          \ 'ui_message': ''
+          \ })
 endfunction
 
 " After updating - finalize and generate helptags
@@ -592,14 +595,8 @@ function! s:finalize_update_all(ctx) abort
     call plugin_manager#ui#update_task(a:ctx.task_id, a:ctx.total, 'All plugins are up-to-date')
     call plugin_manager#ui#complete_task(a:ctx.task_id, 1, 'All plugins are up-to-date')
     
-    " Replace the current module line with completion message
-    let l:win_id = bufwinid('PluginManager')
-    if l:win_id != -1
-      call win_gotoid(l:win_id)
-      setlocal modifiable
-      call setline(a:ctx.action_line, 'No updates were needed')
-      setlocal nomodifiable
-    endif
+    " Show temporary message that will disappear after 3 seconds
+    call plugin_manager#ui#show_temporary_message(a:ctx.action_line, 'No updates were needed', 3)
     
     return
   endif
