@@ -204,6 +204,52 @@ function! plugin_manager#ui#update_sidebar(lines, append) abort
   endtry
 endfunction
 
+" Show a message that will automatically disappear after a delay
+function! plugin_manager#ui#show_temporary_message(line_number, message, seconds) abort
+  let l:win_id = bufwinid(s:buffer_name)
+  if l:win_id == -1
+    return
+  endif
+  
+  " Show the initial message
+  call win_gotoid(l:win_id)
+  setlocal modifiable
+  call setline(a:line_number, a:message)
+  setlocal nomodifiable
+  
+  " Schedule removal of the message after delay
+  let l:timer_ctx = {
+        \ 'line': a:line_number,
+        \ 'buffer': bufnr(s:buffer_name)
+        \ }
+  
+  call timer_start(a:seconds * 1000, function('s:clear_temporary_message', [l:timer_ctx]))
+endfunction
+
+" Callback to clear the temporary message
+function! s:clear_temporary_message(ctx, timer) abort
+  " Check if buffer still exists
+  if !bufexists(a:ctx.buffer)
+    return
+  endif
+  
+  " Check if window is still visible
+  let l:win_id = bufwinid(a:ctx.buffer)
+  if l:win_id == -1
+    return
+  endif
+  
+  " Clear the message
+  call win_gotoid(l:win_id)
+  
+  " Make sure the line still exists
+  if a:ctx.line <= line('$')
+    setlocal modifiable
+    call setline(a:ctx.line, '')
+    setlocal nomodifiable
+  endif
+endfunction
+
 " Start a new asynchronous task with modern UI
 function! plugin_manager#ui#start_task(message, total_items, ...) abort
   " Generate a unique ID for this task
