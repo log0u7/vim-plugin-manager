@@ -204,26 +204,32 @@ function! plugin_manager#ui#update_sidebar(lines, append) abort
   endtry
 endfunction
 
-" Show a message that will automatically disappear after a delay
-function! plugin_manager#ui#show_temporary_message(line_number, message, seconds) abort
+" Display a message at a specific line, optionally with auto-removal after a delay
+function! plugin_manager#ui#show_message(line_number, message, ...) abort
+  " Optional third parameter for seconds (if provided)
+  let l:is_temporary = a:0 > 0
+  let l:seconds = l:is_temporary ? a:1 : 0
+  
   let l:win_id = bufwinid(s:buffer_name)
   if l:win_id == -1
     return
   endif
   
-  " Show the initial message
+  " Show the message
   call win_gotoid(l:win_id)
   setlocal modifiable
   call setline(a:line_number, a:message)
   setlocal nomodifiable
   
-  " Schedule removal of the message after delay
-  let l:timer_ctx = {
-        \ 'line': a:line_number,
-        \ 'buffer': bufnr(s:buffer_name)
-        \ }
-  
-  call timer_start(a:seconds * 1000, function('s:clear_temporary_message', [l:timer_ctx]))
+  " If seconds are specified, schedule removal of the message
+  if l:is_temporary && l:seconds > 0
+    let l:timer_ctx = {
+          \ 'line': a:line_number,
+          \ 'buffer': bufnr(s:buffer_name)
+          \ }
+    
+    call timer_start(l:seconds * 1000, function('s:clear_temporary_message', [l:timer_ctx]))
+  endif
 endfunction
 
 " Callback to clear the temporary message
