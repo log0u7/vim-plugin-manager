@@ -213,7 +213,7 @@ function! s:on_fetch_complete(ctx, result) abort
     call plugin_manager#ui#complete_task(l:task_id, 1, 'Plugin is already up-to-date')
     
     " Show temporary message that will disappear after 1 seconds
-    call plugin_manager#ui#show_temporary_message(a:ctx.action_line, 'No updates needed for ' . l:module_name, 1)
+    call plugin_manager#ui#show_message(a:ctx.action_line, 'No updates needed for ' . l:module_name, 1)
     return
   endif
   
@@ -494,7 +494,7 @@ function! s:finalize_update_all(ctx) abort
     call plugin_manager#ui#complete_task(a:ctx.task_id, 1, 'All plugins are up-to-date')
     
     " Show temporary message that will disappear after 1 seconds
-    call plugin_manager#ui#show_temporary_message(a:ctx.action_line, 'No updates were needed', 1)
+    call plugin_manager#ui#show_message(a:ctx.action_line, 'No updates were needed', 1)
     
     return
   endif
@@ -533,13 +533,7 @@ function! s:finalize_update_all(ctx) abort
   endif
   
   call plugin_manager#ui#complete_task(a:ctx.task_id, 1, l:summary)
-  let l:win_id = bufwinid('PluginManager')
-  if l:win_id != -1
-    call win_gotoid(l:win_id)
-    setlocal modifiable
-    call setline(a:ctx.action_line, 'Update completed successfully')
-    setlocal nomodifiable
-  endif
+  call plugin_manager#ui#show_message(a:ctx.action_line, 'Update completed successfully')
 endfunction
 
 " ------------------------------------------------------------------------------
@@ -612,40 +606,16 @@ endfunction
 
 " Update the current action display for async operations
 function! s:update_current_action(ctx, message) abort
-  let l:win_id = bufwinid('PluginManager')
-  if l:win_id == -1
-    return
-  endif
-  
-  " Focus the window to update the action line
-  call win_gotoid(l:win_id)
-  setlocal modifiable
-  
-  " Update the action line with info symbol
-  let l:info_symbol = plugin_manager#ui#get_symbol('info')
-  let l:action_text = l:info_symbol . 'Current action: ' . a:message 
-  call setline(a:ctx.action_line, l:action_text)
-  
-  setlocal nomodifiable
+    let l:info_symbol = plugin_manager#ui#get_symbol('info')
+    let l:action_text = l:info_symbol . 'Current action: ' . a:message
+    call plugin_manager#ui#show_message(a:ctx.action_line, l:action_text)
 endfunction
 
 " Update the current plugin display for async operations
 function! s:update_current_plugin(ctx, message) abort
-  let l:win_id = bufwinid('PluginManager')
-  if l:win_id == -1
-    return
-  endif
-  
-  " Focus the window to update the action line
-  call win_gotoid(l:win_id)
-  setlocal modifiable
-  
-  " Update the action line with info symbol
-  let l:info_symbol = plugin_manager#ui#get_symbol('info')
-  let l:action_text = l:info_symbol . ' Current plugin: ' . a:message
-  call setline(a:ctx.action_line, l:action_text)
-  
-  setlocal nomodifiable
+    let l:info_symbol = plugin_manager#ui#get_symbol('info')
+    let l:action_text = l:info_symbol . ' Current plugin: ' . a:message
+    call plugin_manager#ui#show_message(a:ctx.action_line, l:action_text)
 endfunction
 
 " Commit updates to main repository asynchronously

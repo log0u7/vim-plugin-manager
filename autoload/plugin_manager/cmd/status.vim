@@ -235,17 +235,9 @@ function! s:process_next_module_async(ctx) abort
   call plugin_manager#ui#update_task(a:ctx.task_id, a:ctx.processed, 'Processed ' . a:ctx.processed . '/' . a:ctx.total . ' plugins')
   
   " Update current module display
-  let l:win_id = bufwinid('PluginManager')
-  if l:win_id != -1
-    call win_gotoid(l:win_id)
-    setlocal modifiable
-    
-    let l:info_symbol = plugin_manager#ui#get_symbol('info')
-    let l:status_line = l:info_symbol . ' Current module: ' . l:short_name
-    call setline(a:ctx.module_line, l:status_line)
-    
-    setlocal nomodifiable
-  endif
+  let l:info_symbol = plugin_manager#ui#get_symbol('info')
+  let l:status_line = l:info_symbol . ' Current module: ' . l:short_name
+  call plugin_manager#ui#show_message(a:ctx.module_line, l:status_line)
   
   " Process module status and create info object
   let l:info = s:get_module_status_info(l:module)
@@ -272,7 +264,7 @@ function! s:finalize_status_async(ctx) abort
   endfor
   
   " Show temporary message that will disappear after 1 seconds
-  call plugin_manager#ui#show_temporary_message(a:ctx.module_line, 'Completed processing all modules', 1)
+  call plugin_manager#ui#show_message(a:ctx.module_line, 'Completed processing all modules', 1)
   
   " Display table header 
   call s:display_status_header()
@@ -340,7 +332,7 @@ function! s:collect_module_info(info, module_path) abort
   
   " Format detached HEAD state more clearly
   if a:info.branch ==# 'detached'
-    let l:remote_branch = l:update_status.remote_branch
+    let l:remote_branch = l:update_status.remote_branchshow_message
     let l:remote_branch_name = substitute(l:remote_branch, '^origin/', '', '')
     let a:info.branch = 'detached@' . l:remote_branch_name
   endif
