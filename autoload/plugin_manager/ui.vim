@@ -783,16 +783,24 @@ function! plugin_manager#ui#usage()
   endtry
 endfunction
   
-" Function to toggle the Plugin Manager sidebar
 function! plugin_manager#ui#toggle_sidebar()
   try
     let l:win_id = bufwinid(s:buffer_name)
     if l:win_id != -1
-      " Sidebar is visible, close it
-      execute 'bd ' . bufnr(s:buffer_name)
+      " Sidebar is visible, hide it without deleting the buffer
+      execute 'hide'
     else
-      " Open sidebar with usage info
-      call plugin_manager#ui#usage()
+      " Check if the buffer already exists
+      let l:buf_id = bufnr(s:buffer_name)
+      if l:buf_id != -1
+        " Reopen the existing buffer
+        execute 'vertical rightbelow sbuffer ' . l:buf_id
+        " Ensure proper width
+        execute 'vertical resize ' . g:plugin_manager_sidebar_width
+      else
+        " Create new sidebar with usage info
+        call plugin_manager#ui#usage()
+      endif
     endif
   catch
     echohl ErrorMsg
