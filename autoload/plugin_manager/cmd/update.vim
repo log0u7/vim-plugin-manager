@@ -234,7 +234,7 @@ function! s:update_specific_plugin_async(module_name) abort
   
   " Update sidebar with current action
   let l:info_symbol = plugin_manager#ui#get_symbol('info')
-  call plugin_manager#ui#update_sidebar(['Current action: Checking repository status ' . l:info_symbol], 1)
+  call plugin_manager#ui#update_sidebar([l:info_symbol . 'Current action: Checking repository status'], 1)
   let l:action_line = line('$')
   
   " Check if directory exists
@@ -279,7 +279,7 @@ function! s:update_current_action(ctx, message) abort
   
   " Update the action line with info symbol
   let l:info_symbol = plugin_manager#ui#get_symbol('info')
-  let l:action_text = 'Current action: ' . a:message . ' ' . l:info_symbol
+  let l:action_text = l:info_symbol . 'Current action: ' . a:message 
   call setline(a:ctx.action_line, l:action_text)
   
   setlocal nomodifiable
@@ -427,7 +427,7 @@ function! s:update_all_plugins_async() abort
   
   " Add line for current action
   let l:info_symbol = plugin_manager#ui#get_symbol('info')
-  call plugin_manager#ui#update_sidebar(['Current plugin: Initializing... ' . l:info_symbol], 1)
+  call plugin_manager#ui#update_sidebar([l:info_symbol . ' Current plugin: Initializing... '], 1)
   let l:action_line = line('$')
   
   " Store context for callbacks
@@ -468,7 +468,7 @@ function! s:update_current_plugin(ctx, message) abort
   
   " Update the action line with info symbol
   let l:info_symbol = plugin_manager#ui#get_symbol('info')
-  let l:action_text = 'Current plugin: ' . a:message . ' ' . l:info_symbol
+  let l:action_text = l:info_symbol . ' Current plugin: ' . a:message
   call setline(a:ctx.action_line, l:action_text)
   
   setlocal nomodifiable
