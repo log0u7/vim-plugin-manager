@@ -72,7 +72,8 @@ function! s:fetch_status_async(modules) abort
   " Sort modules by name for consistent display
   let l:module_names = sort(keys(a:modules))
   let l:total_modules = len(l:module_names)
-  
+  " Add a line for the current module with info symbol
+  let l:info_symbol = plugin_manager#ui#get_symbol('info')
   " Create task for tracking overall progress first - this creates the progress bar immediately
   let l:task_id = plugin_manager#ui#start_task(l:info_symbol . ' Fetching status for ' . l:total_modules . ' plugins', l:total_modules, {
         \ 'type': 'status',
@@ -80,10 +81,7 @@ function! s:fetch_status_async(modules) abort
         \ })
   
   " Update sidebar with fetching message
-  call plugin_manager#ui#update_sidebar(['Starting: Fetching updates from remote repositories...'], 1)
-  
-  " Add a line for the current module with info symbol
-  let l:info_symbol = plugin_manager#ui#get_symbol('info')
+  "call plugin_manager#ui#update_sidebar(['Starting: Fetching updates from remote repositories...'], 1)
   call plugin_manager#ui#update_sidebar([l:info_symbol . ' Current module: Preparing...'], 1)
   
   " Store context for callbacks
