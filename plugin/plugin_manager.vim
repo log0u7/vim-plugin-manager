@@ -70,6 +70,22 @@ if !exists('g:plugin_manager_default_git_host')
     let g:plugin_manager_default_git_host = "github.com"
 endif
 
+" Enable/disable automatic error logging
+if !exists('g:plugin_manager_enable_logging')
+    let g:plugin_manager_enable_logging = 1
+endif
+
+" Maximum log file size in KB before rotation (default: 1MB)
+if !exists('g:plugin_manager_max_log_size')
+    let g:plugin_manager_max_log_size = 1024
+endif
+
+" Number of log files to keep in rotation
+if !exists('g:plugin_manager_log_history_count')
+    let g:plugin_manager_log_history_count = 3
+endif
+
+
 " ------------------------------------------------------------------------------
 " COMMAND DEFINITIONS
 " ------------------------------------------------------------------------------
@@ -87,5 +103,9 @@ command! PluginManagerToggle call plugin_manager#ui#toggle_sidebar()
 command! -nargs=0 PluginBegin call plugin_manager#api#begin()
 command! -nargs=+ -complete=file Plugin call plugin_manager#api#plugin(<args>)
 command! -nargs=0 PluginEnd call plugin_manager#api#end()
+
+" Commands for log management
+command! PluginManagerViewLog call plugin_manager#core#view_log()
+command! PluginManagerClearLog call plugin_manager#core#clear_log()
 
 " vim:set ft=vim ts=2 sw=2 et:
