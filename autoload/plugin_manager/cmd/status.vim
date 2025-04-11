@@ -74,7 +74,7 @@ function! s:fetch_status_async(modules) abort
   let l:total_modules = len(l:module_names)
   
   " Create task for tracking overall progress first - this creates the progress bar immediately
-  let l:task_id = plugin_manager#ui#start_task('Fetching status for ' . l:total_modules . ' plugins', l:total_modules, {
+  let l:task_id = plugin_manager#ui#start_task(l:info_symbol . ' Fetching status for ' . l:total_modules . ' plugins', l:total_modules, {
         \ 'type': 'status',
         \ 'progress': 1
         \ })
@@ -84,7 +84,7 @@ function! s:fetch_status_async(modules) abort
   
   " Add a line for the current module with info symbol
   let l:info_symbol = plugin_manager#ui#get_symbol('info')
-  call plugin_manager#ui#update_sidebar(['Current module: Preparing... ' . l:info_symbol], 1)
+  call plugin_manager#ui#update_sidebar([l:info_symbol . ' Current module: Preparing...'], 1)
   
   " Store context for callbacks
   let l:ctx = {
@@ -139,7 +139,7 @@ function! s:on_fetch_complete(ctx, result) abort
       setlocal modifiable
       
       let l:info_symbol = plugin_manager#ui#get_symbol('info')
-      let l:status_line = 'Current module: ' . l:first_module_short_name . ' ' . l:info_symbol
+      let l:status_line = l:info_symbol . ' Current module: ' . l:first_module_short_name
       call setline(a:ctx.module_line, l:status_line)
       
       setlocal nomodifiable
@@ -182,7 +182,7 @@ function! s:process_next_module_async(ctx) abort
     setlocal modifiable
     " Directly update the module line with info symbol
     let l:info_symbol = plugin_manager#ui#get_symbol('info')
-    let l:status_line = 'Current module: ' . l:short_name . ' ' . l:info_symbol
+    let l:status_line = l:info_symbol . ' Current module: ' . l:short_name
     call setline(a:ctx.module_line, l:status_line)
     setlocal nomodifiable
   endif
