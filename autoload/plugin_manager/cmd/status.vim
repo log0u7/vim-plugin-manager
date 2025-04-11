@@ -332,7 +332,7 @@ function! s:collect_module_info(info, module_path) abort
   
   " Format detached HEAD state more clearly
   if a:info.branch ==# 'detached'
-    let l:remote_branch = l:update_status.remote_branchshow_message
+    let l:remote_branch = l:update_status.remote_branch
     let l:remote_branch_name = substitute(l:remote_branch, '^origin/', '', '')
     let a:info.branch = 'detached@' . l:remote_branch_name
   endif
