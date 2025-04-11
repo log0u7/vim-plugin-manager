@@ -471,25 +471,22 @@ function! s:update_current_plugin(ctx, message) abort
   setlocal nomodifiable
 endfunction
 
-" After stashing all modules - start fetching
+" After stashing all modules - start processing immediately while fetch runs in background
 function! s:on_all_stashed(ctx, result) abort
-  call s:update_current_plugin(a:ctx, 'Fetching updates from all repositories')
-  call plugin_manager#ui#update_task(a:ctx.task_id, 0, 'Fetching updates')
-  
-  " Fetch updates from all repositories
+  " Start the fetch in background - don't wait for it to complete
   call plugin_manager#async#git('git submodule foreach --recursive "git fetch origin"', {
-        \ 'callback': function('s:on_all_fetched', [a:ctx]),
         \ 'ui_message': ''
         \ })
+  
+  " Begin processing modules immediately
+  call s:update_current_plugin(a:ctx, 'Starting to process plugins')
+  call plugin_manager#ui#update_task(a:ctx.task_id, 0, 'Processing plugins')
+  
+  " Start processing modules without waiting for fetch to complete
+  call timer_start(50, {timer -> s:process_next_module_update(a:ctx)})
 endfunction
 
-" After fetching all modules - process them one by one
-function! s:on_all_fetched(ctx, result) abort
-  " Start processing modules one by one
-  call s:process_next_module_update(a:ctx)
-endfunction
-
-" Process next module for update
+" Process next module for update with parallel fetch
 function! s:process_next_module_update(ctx) abort
   " Check if we're done
   if a:ctx.current_index >= len(a:ctx.modules)
@@ -509,13 +506,29 @@ function! s:process_next_module_update(ctx) abort
   " Update current module display
   call s:update_current_plugin(a:ctx, 'Checking ' . l:module_name)
   
+  " First make sure this module has been fetched
+  " This ensures we don't try to make decisions before fetch completes for this module
+  call plugin_manager#async#git('git -C "' . l:module_path . '" fetch origin', {
+        \ 'callback': function('s:on_module_fetched', [a:ctx, l:module]),
+        \ 'ui_message': ''
+        \ })
+endfunction
+
+" After an individual module fetch completes, check its status
+function! s:on_module_fetched(ctx, module, result) abort
+  let l:module_path = a:module.path
+  let l:module_name = a:module.short_name
+  
+  " Update current module display
+  call s:update_current_plugin(a:ctx, 'Analyzing ' . l:module_name)
+  
   " Check update status
   let l:update_status = plugin_manager#git#check_updates(l:module_path)
   
   " Handle custom branch scenario
   if l:update_status.different_branch && l:update_status.branch != 'detached'
     call add(a:ctx.skipped_custom_branch, {
-          \ 'module': l:module,
+          \ 'module': a:module,
           \ 'status': l:update_status
           \ })
     
@@ -523,7 +536,7 @@ function! s:process_next_module_update(ctx) abort
     let a:ctx.current_index += 1
     let a:ctx.processed += 1
     let a:ctx.skipped += 1
-    call timer_start(10, {timer -> s:process_next_module_update(a:ctx)})
+    call s:process_next_module_update(a:ctx)
     return
   endif
   
@@ -532,7 +545,7 @@ function! s:process_next_module_update(ctx) abort
     " No updates needed
     let a:ctx.current_index += 1
     let a:ctx.processed += 1
-    call timer_start(10, {timer -> s:process_next_module_update(a:ctx)})
+    call s:process_next_module_update(a:ctx)
     return
   endif
   
@@ -542,7 +555,7 @@ function! s:process_next_module_update(ctx) abort
   " Update this module
   let l:update_cmd = 'git submodule update --remote --merge --force -- ' . shellescape(l:module_path)
   call plugin_manager#async#git(l:update_cmd, {
-        \ 'callback': function('s:on_module_updated', [a:ctx, l:module]),
+        \ 'callback': function('s:on_module_updated', [a:ctx, a:module]),
         \ 'ui_message': ''
         \ })
 endfunction
@@ -568,7 +581,7 @@ function! s:on_module_updated(ctx, module, result) abort
   " Move to next module
   let a:ctx.current_index += 1
   let a:ctx.processed += 1
-  call timer_start(10, {timer -> s:process_next_module_update(a:ctx)})
+  call s:process_next_module_update(a:ctx)
 endfunction
 
 " Finalize the update all process
@@ -630,8 +643,6 @@ function! s:finalize_update_all(ctx) abort
   endif
   
   call plugin_manager#ui#complete_task(a:ctx.task_id, 1, l:summary)
-  
-  " Replace the current module line with completion message
   let l:win_id = bufwinid('PluginManager')
   if l:win_id != -1
     call win_gotoid(l:win_id)
