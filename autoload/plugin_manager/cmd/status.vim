@@ -420,7 +420,7 @@ function! s:format_module_status_line(module) abort
   
   " Return the formatted line with status and symbol
   "return l:name_col . l:commit_col . l:branch_col . l:date_col . l:status . ' ' . l:symbol
-  return l:name_col . l:commit_col . l:branch_col . l:date_col . l:status . ' '
+  return l:name_col . l:commit_col . l:branch_col . l:date_col . l:status
 endfunction
 
 " Format a status line from stored info (for asynchronous method)
@@ -450,6 +450,7 @@ function! s:format_module_status_line_from_info(info) abort
   let l:branch_col = a:info.branch . repeat(' ', max([0, 26 - len(a:info.branch)]))
   let l:date_col = a:info.last_updated . repeat(' ', max([0, 30 - len(a:info.last_updated)]))
   
-  "return l:name_col . l:commit_col . l:branch_col . l:date_col . l:status . ' ' . l:symbol
-  return l:name_col . l:commit_col . l:branch_col . l:date_col . l:status . ' '
+  " Return the formatted line with status and symbol
+  "return l:name_col . l:commit_col . l:branch_col . l:date_col . a:info.status . ' ' . l:symbol
+  return l:name_col . l:commit_col . l:branch_col . l:date_col . a:info.status
 endfunction
