@@ -125,7 +125,7 @@ function! s:on_fetch_complete(ctx, result) abort
   call s:process_next_module_async(a:ctx)
 endfunction
 
-" Process next module in the queue
+" Process next module in the queue - without spinner
 function! s:process_next_module_async(ctx) abort
   " Check if we're done
   if a:ctx.current_index >= len(a:ctx.module_names)
@@ -150,19 +150,17 @@ function! s:process_next_module_async(ctx) abort
   " Update progress bar
   call plugin_manager#ui#update_task(a:ctx.task_id, a:ctx.processed, 'Processed ' . a:ctx.processed . '/' . a:ctx.total . ' plugins')
   
-  " Update current module display with spinner
+  " Update current module display (without spinner)
   let l:win_id = bufwinid('PluginManager')
   if l:win_id != -1
     call win_gotoid(l:win_id)
     setlocal modifiable
-    " Directly update the module line
-    let l:status_line = 'Current module: ' . l:short_name . ' '
+    " Directly update the module line with info symbol
+    let l:info_symbol = plugin_manager#ui#get_symbol('info')
+    let l:status_line = 'Current module: ' . l:short_name . ' ' . l:info_symbol
     call setline(a:ctx.module_line, l:status_line)
     setlocal nomodifiable
   endif
-  
-  " Start spinner for this module
-  let l:spinner_id = plugin_manager#ui#start_spinner(l:short_name)
   
   " Collect basic module info (these commands are fast)
   let l:info = {
