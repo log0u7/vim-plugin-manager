@@ -292,7 +292,7 @@ function! s:finalize_status_async(ctx) abort
     call win_gotoid(l:win_id)
     setlocal modifiable
     " Directly update the module line
-    call setline(a:ctx.module_line, 'Completed processing all modules')
+    call setline(a:ctx.module_line, '')
     setlocal nomodifiable
   endif
   
