@@ -67,20 +67,23 @@ function! s:fetch_status_sync(modules) abort
   call plugin_manager#ui#update_sidebar(['', 'Status check completed.'], 1)
 endfunction
 
-" Asynchronous status fetching with improved UI flow
+" Asynchronous status fetching with improved UI flow and module spinner
 function! s:fetch_status_async(modules) abort
   " Sort modules by name for consistent display
   let l:module_names = sort(keys(a:modules))
   let l:total_modules = len(l:module_names)
   
-  " Create task for tracking progress first - this creates the progress bar immediately
+  " Create task for tracking overall progress first - this creates the progress bar immediately
   let l:task_id = plugin_manager#ui#start_task('Fetching status for ' . l:total_modules . ' plugins', l:total_modules, {
         \ 'type': 'status',
         \ 'progress': 1
         \ })
   
-  " Update progress to show we're starting
-  call plugin_manager#ui#update_task(l:task_id, 0, 'Preparing to fetch updates...')
+  " Update sidebar with fetching message
+  call plugin_manager#ui#update_sidebar(['Starting: Fetching updates from remote repositories...'], 1)
+  
+  " Add a line for the current module with spinner (will be updated during processing)
+  call plugin_manager#ui#update_sidebar(['Current module: Initializing...'], 1)
   
   " Store context for callbacks
   let l:ctx = {
@@ -90,10 +93,11 @@ function! s:fetch_status_async(modules) abort
         \ 'current_index': 0,
         \ 'total': l:total_modules,
         \ 'processed': 0,
-        \ 'results': []
+        \ 'results': [],
+        \ 'module_line': line('$'), 
         \ }
   
-  " Add a small delay to let the UI render the progress bar first, then start fetching
+  " Add a small delay to let the UI render first, then start fetching
   call timer_start(50, function('s:start_fetch_async', [l:ctx]))
   
   return l:task_id
@@ -103,13 +107,10 @@ endfunction
 function! s:start_fetch_async(ctx, timer) abort
   let l:task_id = a:ctx.task_id
   
-  " Update the progress bar message to indicate we're now fetching
-  call plugin_manager#ui#update_task(l:task_id, 0, 'Fetching updates from remote repositories...')
-  
   " Start fetching updates in background
   call plugin_manager#async#git('git submodule foreach --recursive "git fetch -q origin 2>/dev/null || true"', {
         \ 'callback': function('s:on_fetch_complete', [a:ctx]),
-        \ 'ui_message': 'Fetching updates from remote repositories'
+        \ 'ui_message': ''  
         \ })
 endfunction
 
@@ -117,8 +118,8 @@ endfunction
 function! s:on_fetch_complete(ctx, result) abort
   let l:task_id = a:ctx.task_id
   
-  " Update progress
-  call plugin_manager#ui#update_task(l:task_id, 0, 'Processing plugin status information')
+  " Update progress to indicate we're starting module processing
+  call plugin_manager#ui#update_task(l:task_id, 0, 'Processing plugins')
   
   " Process modules one by one asynchronously
   call s:process_next_module_async(a:ctx)
@@ -146,8 +147,22 @@ function! s:process_next_module_async(ctx) abort
   let l:module_path = l:module.path
   let l:short_name = l:module.short_name
   
-  " Update progress
-  call plugin_manager#ui#update_task(a:ctx.task_id, a:ctx.processed, 'Checking status: ' . l:short_name)
+  " Update progress bar
+  call plugin_manager#ui#update_task(a:ctx.task_id, a:ctx.processed, 'Processed ' . a:ctx.processed . '/' . a:ctx.total . ' plugins')
+  
+  " Update current module display with spinner
+  let l:win_id = bufwinid('PluginManager')
+  if l:win_id != -1
+    call win_gotoid(l:win_id)
+    setlocal modifiable
+    " Directly update the module line
+    let l:status_line = 'Current module: ' . l:short_name . ' '
+    call setline(a:ctx.module_line, l:status_line)
+    setlocal nomodifiable
+  endif
+  
+  " Start spinner for this module
+  let l:spinner_id = plugin_manager#ui#start_spinner(l:short_name)
   
   " Collect basic module info (these commands are fast)
   let l:info = {
@@ -168,69 +183,74 @@ function! s:process_next_module_async(ctx) abort
     let a:ctx.current_index += 1
     
     " Continue with next module
-    call s:process_next_module_async(a:ctx)
+    call timer_start(10, {timer -> s:process_next_module_async(a:ctx)})
     return
   endif
   
-  " Get current commit (fast operation)
-  let l:result = plugin_manager#git#execute('git rev-parse --short HEAD', l:module_path, 0, 0)
-  if l:result.success
-    let l:info.commit = substitute(l:result.output, '\n', '', 'g')
-  endif
-  
-  " Get last commit date (fast operation)
-  let l:result = plugin_manager#git#execute('git log -1 --format=%cd --date=relative', l:module_path, 0, 0)
-  if l:result.success
-    let l:info.last_updated = substitute(l:result.output, '\n', '', 'g')
-  endif
-  
-  " Get update status (more complex but still relatively fast)
-  let l:update_status = plugin_manager#git#check_updates(l:module_path)
-  let l:info.update_status = l:update_status
-  
-  " Extract branch information
-  let l:info.branch = l:update_status.branch
-  
-  " Display target branch instead of HEAD for detached state
-  if l:info.branch ==# 'detached'
-    let l:remote_branch = l:update_status.remote_branch
-    let l:remote_branch_name = substitute(l:remote_branch, '^origin/', '', '')
-    let l:info.branch = 'detached@' . l:remote_branch_name
-  endif
-  
-  " Determine status combining local changes and remote status
-  if l:update_status.different_branch
-    let l:info.status = 'CUSTOM BRANCH (local: ' . l:update_status.branch . ', target: ' . l:update_status.remote_branch . ')'
-    if l:update_status.has_changes
-      let l:info.status .= ' + LOCAL CHANGES'
-    endif
-  elseif l:update_status.behind > 0 && l:update_status.ahead > 0
-    " DIVERGED state has highest priority after different branch
-    let l:info.status = 'DIVERGED (BEHIND ' . l:update_status.behind . ', AHEAD ' . l:update_status.ahead . ')'
-    if l:update_status.has_changes
-      let l:info.status .= ' + LOCAL CHANGES'
-    endif
-  elseif l:update_status.behind > 0
-    let l:info.status = 'BEHIND (' . l:update_status.behind . ')'
-    if l:update_status.has_changes
-      let l:info.status .= ' + LOCAL CHANGES'
-    endif
-  elseif l:update_status.ahead > 0
-    let l:info.status = 'AHEAD (' . l:update_status.ahead . ')'
-    if l:update_status.has_changes
-      let l:info.status .= ' + LOCAL CHANGES'
-    endif
-  elseif l:update_status.has_changes
-    let l:info.status = 'LOCAL CHANGES'
-  endif
+  " Process module status (these are usually fast enough to do synchronously)
+  call s:process_module_info(l:info, l:module_path)
   
   " Add to results
   call add(a:ctx.results, l:info)
   let a:ctx.processed += 1
   
-  " Continue with next module after a short delay to prevent UI freezes
+  " Continue with next module after a short delay
   let a:ctx.current_index += 1
   call timer_start(10, {timer -> s:process_next_module_async(a:ctx)})
+endfunction
+
+" Process module information synchronously
+function! s:process_module_info(info, module_path) abort
+  " Get current commit (fast operation)
+  let l:result = plugin_manager#git#execute('git rev-parse --short HEAD', a:module_path, 0, 0)
+  if l:result.success
+    let a:info.commit = substitute(l:result.output, '\n', '', 'g')
+  endif
+  
+  " Get last commit date (fast operation)
+  let l:result = plugin_manager#git#execute('git log -1 --format=%cd --date=relative', a:module_path, 0, 0)
+  if l:result.success
+    let a:info.last_updated = substitute(l:result.output, '\n', '', 'g')
+  endif
+  
+  " Get update status (more complex but still relatively fast)
+  let l:update_status = plugin_manager#git#check_updates(a:module_path)
+  
+  " Extract branch information
+  let a:info.branch = l:update_status.branch
+  
+  " Display target branch instead of HEAD for detached state
+  if a:info.branch ==# 'detached'
+    let l:remote_branch = l:update_status.remote_branch
+    let l:remote_branch_name = substitute(l:remote_branch, '^origin/', '', '')
+    let a:info.branch = 'detached@' . l:remote_branch_name
+  endif
+  
+  " Determine status combining local changes and remote status
+  if l:update_status.different_branch
+    let a:info.status = 'CUSTOM BRANCH (local: ' . l:update_status.branch . ', target: ' . l:update_status.remote_branch . ')'
+    if l:update_status.has_changes
+      let a:info.status .= ' + LOCAL CHANGES'
+    endif
+  elseif l:update_status.behind > 0 && l:update_status.ahead > 0
+    " DIVERGED state has highest priority after different branch
+    let a:info.status = 'DIVERGED (BEHIND ' . l:update_status.behind . ', AHEAD ' . l:update_status.ahead . ')'
+    if l:update_status.has_changes
+      let a:info.status .= ' + LOCAL CHANGES'
+    endif
+  elseif l:update_status.behind > 0
+    let a:info.status = 'BEHIND (' . l:update_status.behind . ')'
+    if l:update_status.has_changes
+      let a:info.status .= ' + LOCAL CHANGES'
+    endif
+  elseif l:update_status.ahead > 0
+    let a:info.status = 'AHEAD (' . l:update_status.ahead . ')'
+    if l:update_status.has_changes
+      let a:info.status .= ' + LOCAL CHANGES'
+    endif
+  elseif l:update_status.has_changes
+    let a:info.status = 'LOCAL CHANGES'
+  endif
 endfunction
 
 " Finalize and display all results
@@ -245,7 +265,17 @@ function! s:finalize_status_async(ctx) abort
     endif
   endfor
   
-  " Display table header first
+  " Replace the current module line with completion message
+  let l:win_id = bufwinid('PluginManager')
+  if l:win_id != -1
+    call win_gotoid(l:win_id)
+    setlocal modifiable
+    " Directly update the module line
+    call setline(a:ctx.module_line, 'Completed processing all modules')
+    setlocal nomodifiable
+  endif
+  
+  " Display table header 
   call plugin_manager#ui#update_sidebar([
         \ 'Plugin'.repeat(' ', 16).'Commit'.repeat(' ', 14).'Branch'.repeat(' ', 20).'Last Updated'.repeat(' ', 18).'Status',
         \ repeat('-', 120)
