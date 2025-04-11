@@ -67,7 +67,7 @@ function! s:fetch_status_sync(modules) abort
   call plugin_manager#ui#update_sidebar(['', 'Status check completed.'], 1)
 endfunction
 
-" Asynchronous status fetching with improved initialization
+" Asynchronous status fetching with improved UI flow and module spinner
 function! s:fetch_status_async(modules) abort
   " Sort modules by name for consistent display
   let l:module_names = sort(keys(a:modules))
@@ -82,9 +82,8 @@ function! s:fetch_status_async(modules) abort
   " Update sidebar with fetching message
   call plugin_manager#ui#update_sidebar(['Starting: Fetching updates from remote repositories...'], 1)
   
-  " Add a line for the current module with info symbol
-  let l:info_symbol = plugin_manager#ui#get_symbol('info')
-  call plugin_manager#ui#update_sidebar(['Current module: Preparing... ' . l:info_symbol], 1)
+  " Add a line for the current module with spinner (will be updated during processing)
+  call plugin_manager#ui#update_sidebar(['Current module: Initializing...'], 1)
   
   " Store context for callbacks
   let l:ctx = {
@@ -95,59 +94,107 @@ function! s:fetch_status_async(modules) abort
         \ 'total': l:total_modules,
         \ 'processed': 0,
         \ 'results': [],
-        \ 'module_line': line('$'),
+        \ 'module_line': line('$'), 
         \ }
   
-  " Start fetching immediately instead of with a delay
-  call s:start_fetch_async(l:ctx, 0)
+  " Add a small delay to let the UI render first, then start fetching
+  call timer_start(50, function('s:start_fetch_async', [l:ctx]))
   
   return l:task_id
 endfunction
 
-" Start the actual fetching process
+" Start the actual fetching process after UI has been updated
 function! s:start_fetch_async(ctx, timer) abort
   let l:task_id = a:ctx.task_id
   
-  " Split the git fetch operation to be more responsive
-  " First, do a quick check if any modules need updates
-  call plugin_manager#ui#update_task(l:task_id, 0, 'Checking repository status')
-  
-  " Begin processing modules immediately without waiting for all fetches
-  call s:on_fetch_complete(a:ctx, {'success': 1, 'output': ''})
-  
-  " Start the full fetch in background (will continue updating as modules are processed)
+  " Start fetching updates in background
   call plugin_manager#async#git('git submodule foreach --recursive "git fetch -q origin 2>/dev/null || true"', {
-        \ 'ui_message': ''
+        \ 'callback': function('s:on_fetch_complete', [a:ctx]),
+        \ 'ui_message': ''  
         \ })
 endfunction
 
-" Callback after fetch begins - start processing modules immediately
+" Callback after fetch completes
 function! s:on_fetch_complete(ctx, result) abort
   let l:task_id = a:ctx.task_id
   
   " Update progress to indicate we're starting module processing
   call plugin_manager#ui#update_task(l:task_id, 0, 'Processing plugins')
   
-  " Update the module line to show we're starting with the first module
-  if a:ctx.current_index < len(a:ctx.module_names)
-    let l:first_module = a:ctx.module_names[a:ctx.current_index]
-    let l:first_module_short_name = a:ctx.modules[l:first_module].short_name
-    
-    let l:win_id = bufwinid('PluginManager')
-    if l:win_id != -1
-      call win_gotoid(l:win_id)
-      setlocal modifiable
-      
-      let l:info_symbol = plugin_manager#ui#get_symbol('info')
-      let l:status_line = 'Current module: ' . l:first_module_short_name . ' ' . l:info_symbol
-      call setline(a:ctx.module_line, l:status_line)
-      
-      setlocal nomodifiable
-    endif
-  endif
-  
   " Process modules one by one asynchronously
   call s:process_next_module_async(a:ctx)
+endfunction
+
+" Process next module in the queue - without spinner
+function! s:process_next_module_async(ctx) abort
+  " Check if we're done
+  if a:ctx.current_index >= len(a:ctx.module_names)
+    call s:finalize_status_async(a:ctx)
+    return
+  endif
+  
+  " Get current module
+  let l:name = a:ctx.module_names[a:ctx.current_index]
+  let l:module = a:ctx.modules[l:name]
+  
+  " Skip invalid modules
+  if !has_key(l:module, 'is_valid') || !l:module.is_valid
+    let a:ctx.current_index += 1
+    call s:process_next_module_async(a:ctx)
+    return
+  endif
+  
+  let l:module_path = l:module.path
+  let l:short_name = l:module.short_name
+  
+  " Update progress bar
+  call plugin_manager#ui#update_task(a:ctx.task_id, a:ctx.processed, 'Processed ' . a:ctx.processed . '/' . a:ctx.total . ' plugins')
+  
+  " Update current module display (without spinner)
+  let l:win_id = bufwinid('PluginManager')
+  if l:win_id != -1
+    call win_gotoid(l:win_id)
+    setlocal modifiable
+    " Directly update the module line with info symbol
+    let l:info_symbol = plugin_manager#ui#get_symbol('info')
+    let l:status_line = 'Current module: ' . l:short_name . ' ' . l:info_symbol
+    call setline(a:ctx.module_line, l:status_line)
+    setlocal nomodifiable
+  endif
+  
+  " Collect basic module info (these commands are fast)
+  let l:info = {
+        \ 'module': l:module,
+        \ 'commit': 'N/A',
+        \ 'branch': 'N/A',
+        \ 'last_updated': 'N/A',
+        \ 'status': 'OK'
+        \ }
+  
+  " Check if module exists
+  if !isdirectory(l:module_path)
+    let l:info.status = 'MISSING'
+    
+    " Add to results
+    call add(a:ctx.results, l:info)
+    let a:ctx.processed += 1
+    let a:ctx.current_index += 1
+    
+    " Continue with next module
+    call timer_start(10, {timer -> s:process_next_module_async(a:ctx)})
+    return
+  endif
+  
+  " Process module status (these are usually fast enough to do synchronously)
+  call s:process_module_info(l:info, l:module_path)
+  
+  " Add to results
+  call add(a:ctx.results, l:info)
+  let a:ctx.processed += 1
+  
+  " Continue with next module after a short delay
+  let a:ctx.current_index += 1
+  call timer_start(10, {timer -> s:process_next_module_async(a:ctx)})
 endfunction
 
 " Process module information synchronously
