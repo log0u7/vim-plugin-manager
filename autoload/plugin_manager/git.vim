@@ -195,7 +195,132 @@ function! plugin_manager#git#repository_exists(url) abort
   return l:result.success
 endfunction
 
-" Rest of the file... (no changes needed in these functions)
+" Check module update status
+function! plugin_manager#git#check_updates(module_path) abort
+  let l:result = {
+    \ 'behind': 0, 
+    \ 'ahead': 0, 
+    \ 'has_updates': 0, 
+    \ 'has_changes': 0,
+    \ 'branch': 'N/A',
+    \ 'remote_branch': 'N/A',
+    \ 'different_branch': 0,
+    \ 'current_commit': 'N/A',
+    \ 'remote_commit': 'N/A'
+  \ }
+  
+  " Check if the directory exists
+  if !isdirectory(a:module_path)
+    return l:result
+  endif
+  
+  " Get current commit hash (more reliable for submodules than branch)
+  let l:res = plugin_manager#git#execute('git rev-parse HEAD', a:module_path, 0, 0)
+  if l:res.success
+    let l:result.current_commit = substitute(l:res.output, '\n', '', 'g')
+  endif
+  
+  " Get current symbolic ref - might be a branch or HEAD
+  let l:res = plugin_manager#git#execute('git symbolic-ref --short HEAD', a:module_path, 0, 0)
+  if l:res.success
+    let l:result.branch = substitute(l:res.output, '\n', '', 'g')
+  else
+    let l:result.branch = 'detached'
+  endif
+  
+  " Fetch updates from remote repository more aggressively
+  call plugin_manager#git#execute('git fetch origin --all', a:module_path, 0, 0)
+  
+  " First try to find remote branch from .gitmodules
+  let l:res = plugin_manager#git#execute('git config -f ../.gitmodules submodule.' . 
+        \ fnamemodify(a:module_path, ':t') . '.branch', a:module_path, 0, 0)
+  let l:remote_branch = l:res.success ? substitute(l:res.output, '\n', '', 'g') : ''
+  
+  " If not found in .gitmodules, try to determine from the current branch's upstream
+  if empty(l:remote_branch) && l:result.branch != 'detached'
+    let l:res = plugin_manager#git#execute('git rev-parse --abbrev-ref ' . 
+          \ l:result.branch . '@{upstream}', a:module_path, 0, 0)
+    if l:res.success
+      let l:remote_branch = substitute(l:res.output, '\n', '', 'g')
+      " If upstream exists but doesn't include 'origin/', prepend it
+      if !empty(l:remote_branch) && l:remote_branch !~ '^origin/'
+        let l:remote_branch = 'origin/' . l:remote_branch
+      endif
+    endif
+  endif
+  
+  " If still not found, try to determine from standard branches
+  if empty(l:remote_branch)
+    " Check if origin/main exists
+    let l:res = plugin_manager#git#execute('git show-ref --verify --quiet refs/remotes/origin/main', 
+          \ a:module_path, 0, 0)
+    if l:res.success
+      let l:remote_branch = 'origin/main'
+    else
+      " Check if origin/master exists
+      let l:res = plugin_manager#git#execute('git show-ref --verify --quiet refs/remotes/origin/master', 
+          \ a:module_path, 0, 0)
+      if l:res.success
+        let l:remote_branch = 'origin/master'
+      endif
+    endif
+  endif
+  
+  " Default to origin/master if all attempts failed
+  if empty(l:remote_branch)
+    let l:remote_branch = 'origin/master'
+  endif
+  
+  let l:result.remote_branch = l:remote_branch
+  
+  " Get the latest commit on the remote branch
+  let l:res = plugin_manager#git#execute('git rev-parse ' . l:result.remote_branch, 
+        \ a:module_path, 0, 0)
+  if l:res.success
+    let l:result.remote_commit = substitute(l:res.output, '\n', '', 'g')
+  endif
+  
+  " Direct check if remote commit is different from current commit
+  if l:result.current_commit != 'N/A' && l:result.remote_commit != 'N/A' && 
+        \ l:result.current_commit != l:result.remote_commit
+    
+    " Count commits ahead/behind
+    let l:res = plugin_manager#git#execute('git rev-list --count HEAD..' . l:result.remote_branch, 
+          \ a:module_path, 0, 0)
+    if l:res.success
+      let l:behind = substitute(l:res.output, '\n', '', 'g')
+      if l:behind =~ '^\d\+$'
+        let l:result.behind = str2nr(l:behind)
+      endif
+    endif
+    
+    let l:res = plugin_manager#git#execute('git rev-list --count ' . l:result.remote_branch . '..HEAD', 
+          \ a:module_path, 0, 0)
+    if l:res.success
+      let l:ahead = substitute(l:res.output, '\n', '', 'g')
+      if l:ahead =~ '^\d\+$'
+        let l:result.ahead = str2nr(l:ahead)
+      endif
+    endif
+    
+    " Force has_updates flag if the current and remote commits are different
+    let l:result.has_updates = (l:result.behind > 0 || l:result.current_commit != l:result.remote_commit)
+  endif
+  
+  " For submodules, we primarily care about commit differences, not branch names
+  " If current branch is not detached and doesn't match remote branch name, note this
+  let l:remote_branch_name = substitute(l:result.remote_branch, '^origin/', '', '')
+  if l:result.branch != 'detached' && l:result.branch != l:remote_branch_name
+    let l:result.different_branch = 1
+  endif
+  
+  " Check for local changes while ignoring helptags files
+  let l:res = plugin_manager#git#execute('git status -s -- . ":(exclude)doc/tags" ":(exclude)**/tags"', 
+        \ a:module_path, 0, 0)
+  let l:result.has_changes = !empty(l:res.output)
+  
+  return l:result
+endfunction
 
 " ------------------------------------------------------------------------------
 " SUBMODULE OPERATIONS
