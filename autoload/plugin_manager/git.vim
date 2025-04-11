@@ -348,7 +348,45 @@ function! plugin_manager#git#add_submodule(url, install_dir, options) abort
     call plugin_manager#core#throw('git', 'SUBMODULE_EXISTS', 'Submodule already exists at this location: ' . l:relative_path)
   endif
   
-  " Rest of the function remains the same...
+  " Add the submodule
+  let l:cmd = 'git submodule add'
+  
+  " Add branch option if specified
+  if !empty(a:options.branch)
+    let l:cmd .= ' -b ' . shellescape(a:options.branch)
+  endif
+  
+  " Add URL and path
+  let l:cmd .= ' ' . shellescape(a:url) . ' ' . shellescape(l:relative_path)
+  
+  " Execute the command
+  let l:result = plugin_manager#git#execute(l:cmd, '', 1, 1)
+  
+  " Process version options (branch or tag) if needed
+  if !empty(a:options.tag) && empty(a:options.branch)
+    call s:checkout_version(l:relative_path, a:options.tag)
+  endif
+  
+  " Execute post-install command if provided
+  if !empty(a:options.exec)
+    let l:exec_result = plugin_manager#git#execute(a:options.exec, l:relative_path, 1, 0)
+    if !l:exec_result.success
+      " Standardized error handling 
+      call plugin_manager#core#throw('git', 'COMMAND_FAILED', 'Post-install command failed: ' . a:options.exec)
+    endif
+  endif
+  
+  " Commit changes
+  let l:commit_msg = 'Add ' . a:url . ' plugin'
+  if !empty(a:options.branch)
+    let l:commit_msg .= ' (branch: ' . a:options.branch . ')'
+  elseif !empty(a:options.tag)
+    let l:commit_msg .= ' (tag: ' . a:options.tag . ')'
+  endif
+  
+  call plugin_manager#git#execute('git commit -m ' . shellescape(l:commit_msg), '', 1, 0)
+  
+  return l:result.success
 endfunction
 
 " Remove a git submodule
@@ -359,7 +397,42 @@ function! plugin_manager#git#remove_submodule(module_path) abort
     call plugin_manager#core#throw('git', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
   endif
   
-  " Rest of the function remains the same...
+  " Get module information
+  let l:module_info = {}
+  let l:modules = plugin_manager#git#parse_modules()
+  
+  for [l:name, l:module] in items(l:modules)
+    if has_key(l:module, 'path') && l:module.path ==# a:module_path
+      let l:module_info = l:module
+      break
+    endif
+  endfor
+  
+  " Step 1: Deinitialize the submodule
+  let l:res = plugin_manager#git#execute('git submodule deinit -f ' . shellescape(a:module_path), 
+        \ '', 1, 0)
+  
+  " Step 2: Remove the submodule from git
+  let l:res = plugin_manager#git#execute('git rm -f ' . shellescape(a:module_path), '', 1, 0)
+  
+  " Step 3: Clean .git modules directory if it exists
+  if isdirectory('.git/modules/' . a:module_path)
+    call plugin_manager#core#remove_path('.git/modules/' . a:module_path)
+  endif
+  
+  " Step 4: Commit the changes
+  let l:commit_msg = 'Remove ' . fnamemodify(a:module_path, ':t') . ' plugin'
+  if !empty(l:module_info) && has_key(l:module_info, 'url')
+    let l:commit_msg .= ' (' . l:module_info.url . ')'
+  endif
+  
+  call plugin_manager#git#execute('git add -A && git commit -m ' . shellescape(l:commit_msg) . 
+        \ ' || git commit --allow-empty -m ' . shellescape(l:commit_msg), '', 1, 0)
+  
+  " Force refresh the module cache
+  call plugin_manager#git#refresh_modules_cache()
+  
+  return 1
 endfunction
 
 " Update all git submodules
@@ -370,7 +443,19 @@ function! plugin_manager#git#update_all_submodules() abort
     call plugin_manager#core#throw('git', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
   endif
   
-  " Rest of the function remains the same...
+  " Sync submodules
+  call plugin_manager#git#execute('git submodule sync', '', 1, 0)
+  
+  " Update submodules
+  let l:result = plugin_manager#git#execute('git submodule update --remote --merge --force', '', 1, 1)
+  
+  " Handle error
+  if !l:result.success
+    " Standardized error handling
+    call plugin_manager#core#throw('update', 'UPDATE_FAILED', 'Failed to update submodules: ' . l:result.output)
+  endif
+  
+  return l:result.success
 endfunction
 
 " Update a specific git submodule
@@ -387,7 +472,28 @@ function! plugin_manager#git#update_submodule(module_path) abort
     call plugin_manager#core#throw('git', 'PATH_NOT_FOUND', 'Module directory not found: ' . a:module_path)
   endif
   
-  " Rest of the function remains the same...
+  " Enter the module directory and fetch updates
+  call plugin_manager#git#execute('git fetch origin', a:module_path, 1, 0)
+  
+  " Get update status
+  let l:update_status = plugin_manager#git#check_updates(a:module_path)
+  
+  " Skip if already up to date
+  if !l:update_status.has_updates
+    return 1
+  endif
+  
+  " Update the module
+  let l:result = plugin_manager#git#execute('git pull origin ' . l:update_status.remote_branch . ' --ff-only', 
+        \ a:module_path, 1, 1)
+  
+  " Handle error
+  if !l:result.success
+    " Standardized error handling
+    call plugin_manager#core#throw('update', 'UPDATE_FAILED', 'Failed to update module ' . a:module_path . ': ' . l:result.output)
+  endif
+  
+  return l:result.success
 endfunction
 
 " Restore all submodules from .gitmodules
@@ -404,7 +510,23 @@ function! plugin_manager#git#restore_all_submodules() abort
     call plugin_manager#core#throw('restore', 'GITMODULES_NOT_FOUND', '.gitmodules file not found')
   endif
   
-  " Rest of the function remains the same...
+  " Initialize submodules
+  call plugin_manager#git#execute('git submodule init', '', 1, 0)
+  
+  " Update submodules
+  let l:result = plugin_manager#git#execute('git submodule update --init --recursive', '', 1, 1)
+  
+  " Handle error
+  if !l:result.success
+    " Standardized error handling
+    call plugin_manager#core#throw('restore', 'UPDATE_FAILED', 'Failed to restore submodules: ' . l:result.output)
+  endif
+  
+  " Final sync and update to ensure everything is at the correct state
+  call plugin_manager#git#execute('git submodule sync', '', 1, 0)
+  call plugin_manager#git#execute('git submodule update --init --recursive --force', '', 1, 0)
+  
+  return l:result.success
 endfunction
 
 " Backup configuration to remote repositories
@@ -419,7 +541,11 @@ function! plugin_manager#git#backup_config() abort
   let l:status = plugin_manager#git#execute('git status -s', '', 0, 0)
   
   if !empty(l:status.output)
-    call plugin_manager#git#execute('git commit -am "Automatic backup"', '', 1, 0)
+    let l:result = plugin_manager#git#execute('git commit -am "Automatic backup"', '', 1, 0)
+    if !l:result.success
+      " Standardized error handling
+      call plugin_manager#core#throw('backup', 'COMMIT_FAILED', 'Failed to commit changes: ' . l:result.output)
+    endif
   endif
   
   " Check if any remotes exist
@@ -429,7 +555,16 @@ function! plugin_manager#git#backup_config() abort
     call plugin_manager#core#throw('backup', 'NO_REMOTES', 'No remote repositories configured.')
   endif
   
-  " Rest of the function remains the same...
+  " Push to all remotes
+  let l:result = plugin_manager#git#execute('git push --all', '', 1, 1)
+  
+  " Handle error
+  if !l:result.success
+    " Standardized error handling
+    call plugin_manager#core#throw('backup', 'GIT_ERROR', 'Failed to push to remotes: ' . l:result.output)
+  endif
+  
+  return l:result.success
 endfunction
 
 " Add a remote repository
@@ -446,7 +581,38 @@ function! plugin_manager#git#add_remote(url, name) abort
     call plugin_manager#core#throw('remote', 'REPO_NOT_FOUND', 'Repository not found: ' . a:url)
   endif
   
-  " Rest of the function remains the same...
+  " Generate remote name if not provided
+  let l:remote_name = empty(a:name) ? 'origin' : a:name
+  
+  " Check if remote already exists
+  let l:remotes = plugin_manager#git#execute('git remote', '', 0, 0)
+  let l:remote_exists = 0
+  
+  for l:remote in split(l:remotes.output, "\n")
+    if l:remote ==# l:remote_name
+      let l:remote_exists = 1
+      break
+    endif
+  endfor
+  
+  if l:remote_exists
+    " Set URL for existing remote
+    let l:result = plugin_manager#git#execute('git remote set-url ' . l:remote_name . ' ' . shellescape(a:url), '', 1, 1)
+    
+    " Add push URL
+    call plugin_manager#git#execute('git remote set-url --add --push ' . l:remote_name . ' ' . shellescape(a:url), '', 0, 0)
+  else
+    " Add new remote
+    let l:result = plugin_manager#git#execute('git remote add ' . l:remote_name . ' ' . shellescape(a:url), '', 1, 1)
+  endif
+  
+  " Handle error
+  if !l:result.success
+    " Standardized error handling
+    call plugin_manager#core#throw('remote', 'ADD_FAILED', 'Failed to add remote repository: ' . l:result.output)
+  endif
+  
+  return l:result.success
 endfunction
 
 " ------------------------------------------------------------------------------
