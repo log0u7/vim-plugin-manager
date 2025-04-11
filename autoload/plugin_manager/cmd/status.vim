@@ -67,17 +67,20 @@ function! s:fetch_status_sync(modules) abort
   call plugin_manager#ui#update_sidebar(['', 'Status check completed.'], 1)
 endfunction
 
-" Asynchronous status fetching 
+" Asynchronous status fetching with improved UI flow
 function! s:fetch_status_async(modules) abort
   " Sort modules by name for consistent display
   let l:module_names = sort(keys(a:modules))
   let l:total_modules = len(l:module_names)
   
-  " Create task for tracking progress
+  " Create task for tracking progress first - this creates the progress bar immediately
   let l:task_id = plugin_manager#ui#start_task('Fetching status for ' . l:total_modules . ' plugins', l:total_modules, {
         \ 'type': 'status',
         \ 'progress': 1
         \ })
+  
+  " Update progress to show we're starting
+  call plugin_manager#ui#update_task(l:task_id, 0, 'Preparing to fetch updates...')
   
   " Store context for callbacks
   let l:ctx = {
@@ -90,9 +93,22 @@ function! s:fetch_status_async(modules) abort
         \ 'results': []
         \ }
   
+  " Add a small delay to let the UI render the progress bar first, then start fetching
+  call timer_start(50, function('s:start_fetch_async', [l:ctx]))
+  
+  return l:task_id
+endfunction
+
+" Start the actual fetching process after UI has been updated
+function! s:start_fetch_async(ctx, timer) abort
+  let l:task_id = a:ctx.task_id
+  
+  " Update the progress bar message to indicate we're now fetching
+  call plugin_manager#ui#update_task(l:task_id, 0, 'Fetching updates from remote repositories...')
+  
   " Start fetching updates in background
   call plugin_manager#async#git('git submodule foreach --recursive "git fetch -q origin 2>/dev/null || true"', {
-        \ 'callback': function('s:on_fetch_complete', [l:ctx]),
+        \ 'callback': function('s:on_fetch_complete', [a:ctx]),
         \ 'ui_message': 'Fetching updates from remote repositories'
         \ })
 endfunction
