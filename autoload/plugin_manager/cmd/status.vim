@@ -72,10 +72,9 @@ function! s:fetch_status_async(modules) abort
   " Sort modules by name for consistent display
   let l:module_names = sort(keys(a:modules))
   let l:total_modules = len(l:module_names)
-  " Add a line for the current module with info symbol
-  let l:info_symbol = plugin_manager#ui#get_symbol('info')
+  
   " Create task for tracking overall progress first - this creates the progress bar immediately
-  let l:task_id = plugin_manager#ui#start_task(l:info_symbol . ' Fetching status for ' . l:total_modules . ' plugins', l:total_modules, {
+  let l:task_id = plugin_manager#ui#start_task('Fetching status for ' . l:total_modules . ' plugins', l:total_modules, {
         \ 'type': 'status',
         \ 'progress': 1
         \ })
