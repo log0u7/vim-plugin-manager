@@ -287,7 +287,7 @@ function! s:finalize_status_async(ctx) abort
   endfor
   
   " Show temporary message that will disappear after 3 seconds
-  call plugin_manager#ui#show_temporary_message(a:ctx.module_line, 'Completed processing all modules', 3)
+  call plugin_manager#ui#show_temporary_message(a:ctx.module_line, 'Completed processing all modules', 1)
   
   " Display table header 
   call plugin_manager#ui#update_sidebar([
