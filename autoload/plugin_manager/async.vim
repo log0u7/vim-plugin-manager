@@ -121,7 +121,8 @@ endfunction
 " Stop a running job
 function! plugin_manager#async#stop_job(job_id) abort
     if !has_key(s:jobs, a:job_id)
-        return 0
+        " Standardized error handling
+        call plugin_manager#core#throw('async', 'INVALID_JOB_ID', 'Invalid job ID: ' . a:job_id)
     endif
     
     let l:job = s:jobs[a:job_id].job
@@ -187,7 +188,8 @@ endfunction
 " Add a callback for when a job finishes
 function! plugin_manager#async#on_complete(job_id, callback) abort
     if !has_key(s:jobs, a:job_id)
-        return 0
+        " Standardized error handling
+        call plugin_manager#core#throw('async', 'INVALID_JOB_ID', 'Invalid job ID: ' . a:job_id)
     endif
     
     let s:jobs[a:job_id].callback = a:callback
@@ -203,7 +205,8 @@ endfunction
 " Wait for a job to complete with timeout
 function! plugin_manager#async#wait_job(job_id, timeout_ms) abort
     if !has_key(s:jobs, a:job_id)
-        return -1
+        " Standardized error handling
+        call plugin_manager#core#throw('async', 'INVALID_JOB_ID', 'Invalid job ID: ' . a:job_id)
     endif
     
     let l:job = s:jobs[a:job_id]
@@ -231,7 +234,8 @@ function! plugin_manager#async#wait_job(job_id, timeout_ms) abort
         sleep 10m
     endwhile
     
-    return -1
+    " Standardized error handling for timeout (but return code instead of throwing)
+    return -1  " Timeout
 endfunction
 
 " Clean up finished jobs older than a certain age
