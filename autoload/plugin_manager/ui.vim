@@ -407,6 +407,120 @@ function! s:update_spinner(task_id) abort
   setlocal nomodifiable
 endfunction
 
+" Start a spinner for a given message (public interface)
+  function! plugin_manager#ui#start_spinner(message) abort
+    " Skip if UI isn't available or timers aren't supported
+    if !s:has_timers
+      return 0
+    endif
+    
+    " Generate a unique ID for this spinner
+    let l:spinner_id = 'standalone_' . localtime() . '_' . rand()
+    
+    " Find existing line containing this message
+    let l:win_id = bufwinid(s:buffer_name)
+    if l:win_id == -1
+      " No UI window open yet, can't show spinner
+      return 0
+    endif
+    
+    " Focus the window to examine content
+    call win_gotoid(l:win_id)
+    
+    let l:line_num = 0
+    let l:total_lines = line('$')
+    
+    " Try to find the line with our message
+    for l:i in range(1, l:total_lines)
+      if getline(l:i) =~# a:message
+        let l:line_num = l:i
+        break
+      endif
+    endfor
+    
+    " If line not found, can't display spinner
+    if l:line_num == 0
+      return 0
+    endif
+    
+    " Create a fake task entry for compatibility with existing spinner system
+    let s:active_tasks[l:spinner_id] = {
+          \ 'id': l:spinner_id,
+          \ 'message': a:message,
+          \ 'total': 0,
+          \ 'current': 0,
+          \ 'type': 'standalone',
+          \ 'started': localtime(),
+          \ 'updated': localtime(),
+          \ 'completed': 0,
+          \ 'spinner': {'active': 1, 'frame': 0, 'pos': [l:line_num, len(a:message) + 1]},
+          \ 'show_progress': 0,
+          \ 'status': 'running',
+          \ 'line': l:line_num,
+          \ }
+    
+    " Start the spinner using existing function
+    call s:start_spinner_for_task(l:spinner_id)
+    
+    " If spinner timer isn't running yet, start it
+    if s:spinner_timer == 0
+      let s:spinner_timer = timer_start(80, function('s:update_all_spinners'), {'repeat': -1})
+    endif
+    
+    return l:spinner_id
+  endfunction
+  
+  " Stop a standalone spinner by ID
+  function! plugin_manager#ui#stop_spinner(spinner_id, success) abort
+    " Check if this is a task-managed spinner
+    if !has_key(s:active_tasks, a:spinner_id)
+      return
+    endif
+    
+    " Deactivate the spinner
+    let s:active_tasks[a:spinner_id].spinner.active = 0
+    
+    " Get window
+    let l:win_id = bufwinid(s:buffer_name)
+    if l:win_id == -1
+      return
+    endif
+    
+    " Focus window
+    call win_gotoid(l:win_id)
+    setlocal modifiable
+    
+    " Get line info
+    let l:line_num = s:active_tasks[a:spinner_id].spinner.pos[0]
+    let l:pos = s:active_tasks[a:spinner_id].spinner.pos[1]
+    let l:line = getline(l:line_num)
+    
+    " Replace spinner with success/failure symbol
+    let l:symbol = a:success ? s:symbols.tick : s:symbols.cross
+    if l:pos <= len(l:line)
+      " Update the spinner character with the status symbol
+      let l:new_line = strpart(l:line, 0, l:pos) . ' ' . l:symbol
+      
+      " Keep the rest of the line if it exists
+      if l:pos + 2 < len(l:line)
+        let l:new_line .= strpart(l:line, l:pos + 2)
+      endif
+      
+      call setline(l:line_num, l:new_line)
+    endif
+    
+    setlocal nomodifiable
+    
+    " Clean up the task
+    unlet s:active_tasks[a:spinner_id]
+    
+    " If no more active tasks/spinners, stop the timer
+    if empty(s:active_tasks) && s:spinner_timer != 0
+      call timer_stop(s:spinner_timer)
+      let s:spinner_timer = 0
+    endif
+  endfunction
+
 " Render a progress bar for a task
 function! s:render_progress_bar(task_id, current) abort
   if !has_key(s:active_tasks, a:task_id)
