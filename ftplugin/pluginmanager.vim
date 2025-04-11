@@ -19,7 +19,7 @@ if exists("b:did_ftplugin")
   setlocal updatetime=3000
   
   " Buffer mapping for PluginManager
-  nnoremap <buffer> q :bd<CR>
+  nnoremap <buffer> q :hide<CR>
   nnoremap <buffer> l :call <SID>List()<CR>
   nnoremap <buffer> u :call <SID>Update()<CR>
   nnoremap <buffer> h :call <SID>GenerateHelptags()<CR>

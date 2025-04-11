@@ -782,23 +782,25 @@ function! plugin_manager#ui#usage()
     echohl None
   endtry
 endfunction
-  
+
+" Togle sidebar
 function! plugin_manager#ui#toggle_sidebar()
   try
     let l:win_id = bufwinid(s:buffer_name)
     if l:win_id != -1
-      " Sidebar is visible, hide it without deleting the buffer
+      " Sidebar is visible, hide it
       execute 'hide'
     else
-      " Check if the buffer already exists
+      " Check if the buffer exists and is loaded
       let l:buf_id = bufnr(s:buffer_name)
-      if l:buf_id != -1
+      
+      if l:buf_id != -1 && bufloaded(l:buf_id)
         " Reopen the existing buffer
         execute 'vertical rightbelow sbuffer ' . l:buf_id
         " Ensure proper width
         execute 'vertical resize ' . g:plugin_manager_sidebar_width
       else
-        " Create new sidebar with usage info
+        " Create new sidebar with usage info - buffer doesn't exist or isn't loaded
         call plugin_manager#ui#usage()
       endif
     endif
