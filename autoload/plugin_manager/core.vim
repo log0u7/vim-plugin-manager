@@ -659,39 +659,65 @@ return l:options
 endfunction
 
 " Process plugin options with defaults
+" @param args: Either a dictionary of options or a list of positional arguments (legacy format)
+" @return: Dictionary of options with defaults applied
 function! plugin_manager#core#process_plugin_options(args) abort
-" Default options
-let l:options = {
-    \ 'dir': '',
-    \ 'load': 'start',
-    \ 'branch': '',
-    \ 'tag': '',
-    \ 'exec': ''
-    \ }
-
-" No options provided
-if empty(a:args)
-  return l:options
-endif
-
-" Check if options were provided as a dictionary
-if type(a:args[0]) == v:t_dict
-  " Update options with provided values
-  for [l:key, l:val] in items(a:args[0])
-    if has_key(l:options, l:key)
-      let l:options[l:key] = l:val
-    endif
-  endfor
-elseif len(a:args) >= 1 && type(a:args[0]) == v:t_string
-  " Old format with separate arguments
-  " Custom name provided as first argument
-  let l:options.dir = a:args[0]
+  " Define default options
+  let l:options = {
+        \ 'dir': '',
+        \ 'load': 'start',
+        \ 'branch': '',
+        \ 'tag': '',
+        \ 'exec': ''
+        \ }
   
-  " Optional loading provided as second argument
-  if len(a:args) >= 2 && a:args[1] ==# 'opt'
-    let l:options.load = 'opt'
+  " Return defaults if no args provided
+  if empty(a:args)
+    return l:options
   endif
-endif
-
-return l:options
+  
+  " CASE 1: New format - options provided as a dictionary
+  if type(a:args[0]) == v:t_dict
+    " Validate and merge options
+    for [l:key, l:val] in items(a:args[0])
+      " Only accept known options
+      if has_key(l:options, l:key)
+        " Validate specific option values
+        if l:key ==# 'load' && l:val !=# 'start' && l:val !=# 'opt'
+          " Invalid load value, warn but use default
+          echohl WarningMsg
+          echomsg "Invalid 'load' value: " . l:val . ". Using default: 'start'"
+          echohl None
+        else
+          " Valid option, apply it
+          let l:options[l:key] = l:val
+        endif
+      else
+        " Unknown option, warn user
+        echohl WarningMsg
+        echomsg "Unknown option '" . l:key . "' ignored"
+        echohl None
+      endif
+    endfor
+  
+  " CASE 2: Legacy format - positional arguments
+  elseif len(a:args) >= 1 && type(a:args[0]) == v:t_string
+    " First argument is the custom directory name
+    let l:options.dir = a:args[0]
+    
+    " If second argument exists and equals 'opt', set load to 'opt'
+    if len(a:args) >= 2 && a:args[1] ==# 'opt'
+      let l:options.load = 'opt'
+    endif
+    
+    " Show deprecation warning for legacy format
+    if get(g:, 'plugin_manager_show_deprecation_warnings', 1)
+      echohl WarningMsg
+      echomsg "Warning: Using deprecated format for plugin options."
+      echomsg "Please use dictionary format: {'dir':'name', 'load':'start|opt', ...}"
+      echohl None
+    endif
+  endif
+  
+  return l:options
 endfunction
