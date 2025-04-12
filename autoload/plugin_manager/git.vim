@@ -100,40 +100,42 @@ function! plugin_manager#git#refresh_modules_cache() abort
   return plugin_manager#git#parse_modules()
 endfunction
 
-" Find a module by name, path, or short name
+" Find a module by name, path, or short name - optimized version
 function! plugin_manager#git#find_module(query) abort
   let l:modules = plugin_manager#git#parse_modules()
   
-  " First try exact match on module name
+  " Direct module name lookup - O(1) operation, keep this first
   if has_key(l:modules, a:query)
     return {'name': a:query, 'module': l:modules[a:query]}
   endif
   
-  " Then try path and short name matches
+  " Single-pass search with match priority tracking
+  let l:exact_match = {}
+  let l:partial_match = {}
+  
   for [l:name, l:module] in items(l:modules)
-    " Exact path match
+    " Check for exact matches first (higher priority)
     if has_key(l:module, 'path') && l:module.path ==# a:query
+      " Exact path match - return immediately as this is high confidence
       return {'name': l:name, 'module': l:module}
     endif
     
-    " Exact short name match
     if has_key(l:module, 'short_name') && l:module.short_name ==# a:query
+      " Exact short name match - return immediately as this is high confidence
       return {'name': l:name, 'module': l:module}
     endif
-  endfor
-  
-  " Then try partial matches with case insensitivity
-  for [l:name, l:module] in items(l:modules)
-    " Module name, path or short_name contains query
-    if l:name =~? a:query || 
+    
+    " Track partial matches but continue looking for exact matches
+    if empty(l:partial_match) && (
+          \ l:name =~? a:query || 
           \ (has_key(l:module, 'path') && l:module.path =~? a:query) ||
-          \ (has_key(l:module, 'short_name') && l:module.short_name =~? a:query)
-      return {'name': l:name, 'module': l:module}
+          \ (has_key(l:module, 'short_name') && l:module.short_name =~? a:query))
+      let l:partial_match = {'name': l:name, 'module': l:module}
     endif
   endfor
   
-  " No match found
-  return {}
+  " Return partial match if found, otherwise empty dict
+  return l:partial_match
 endfunction
 
 " ------------------------------------------------------------------------------
