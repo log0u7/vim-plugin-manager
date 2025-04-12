@@ -85,6 +85,45 @@ if !exists('g:plugin_manager_log_history_count')
     let g:plugin_manager_log_history_count = 3
 endif
 
+" UI customization
+if !exists('g:plugin_manager_spinner_style')
+    let g:plugin_manager_spinner_style = 'dots'  " Options: dots, line, circle, triangle, box
+endif
+
+if !exists('g:plugin_manager_progress_style')
+    let g:plugin_manager_progress_style = 'block'  " Options: block, simple, arrow, dot
+endif
+
+if !exists('g:plugin_manager_show_deprecation_warnings')
+    let g:plugin_manager_show_deprecation_warnings = 1  " Enable deprecation warnings
+endif
+
+" Git behavior configuration
+if !exists('g:plugin_manager_pull_strategy')
+    let g:plugin_manager_pull_strategy = 'ff-only'  " Options: ff-only, merge, rebase
+endif
+
+if !exists('g:plugin_manager_auto_commit_on_update')
+    let g:plugin_manager_auto_commit_on_update = 1  " Auto commit after updates
+endif
+
+" Job management
+if !exists('g:plugin_manager_max_concurrent_jobs')
+    let g:plugin_manager_max_concurrent_jobs = 4  " Maximum concurrent async jobs
+endif
+
+if !exists('g:plugin_manager_job_timeout')
+    let g:plugin_manager_job_timeout = 60  " Default timeout in seconds for async jobs 
+endif
+
+" Debug options
+if !exists('g:plugin_manager_debug_mode')
+    let g:plugin_manager_debug_mode = 0  " Enable additional debug information
+endif
+
+if !exists('g:plugin_manager_trace_commands')
+    let g:plugin_manager_trace_commands = 0  " Log all git commands to debug log
+endif
 
 " ------------------------------------------------------------------------------
 " COMMAND DEFINITIONS
