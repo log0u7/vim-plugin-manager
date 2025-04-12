@@ -54,77 +54,59 @@ endfunction
 " Internal function to log errors before throwing them
 " This avoids circular reference issues when called from plugin_manager#core#throw
 function! s:log_error_internally(error_string, component) abort
-let l:parsed = plugin_manager#core#parse_error(a:error_string)
-let l:log_dir = plugin_manager#core#get_config('vim_dir', '') . '/logs'
-
-" Ensure log directory exists
-if !isdirectory(l:log_dir)
-  " Try to create the directory, but don't throw another error if it fails
+  " Parse error first
+  let l:parsed = plugin_manager#core#parse_error(a:error_string)
+  
+  " Get vim directory and verify it's not empty
+  let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+  if empty(l:vim_dir)
+    " Can't log without a valid vim directory
+    return  
+  endif
+  
+  let l:log_dir = l:vim_dir . '/logs'
+  let l:log_file = l:log_dir . '/plugin_manager.log'
+  let l:timestamp = strftime('%Y-%m-%d %H:%M:%S')
+  
+  " Format the log entry
+  let l:entry = l:timestamp . ' | ' . 
+        \ l:parsed.component . ' | ' . 
+        \ (l:parsed.type ==# 'internal' ? l:parsed.code : 'EXTERNAL') . ' | ' . 
+        \ l:parsed.message
+  
+  " Ensure log directory exists with proper error handling
+  if !isdirectory(l:log_dir)
+    try
+      " Create directory with parent directories if needed
+      call mkdir(l:log_dir, 'p')
+    catch
+      " Just silently continue if we can't create the log directory
+      return
+    endtry
+  endif
+  
+  " Skip log rotation check if file doesn't exist yet
+  if filereadable(l:log_file)
+    " Check if log rotation is needed
+    try
+      call s:check_log_rotation(l:log_file)
+    catch
+      " Silently continue even if rotation fails
+    endtry
+  endif
+  
+  " Append to log file - use silent to prevent additional errors
   try
-    call mkdir(l:log_dir, 'p')
+    " Try to append mode first
+    call writefile([l:entry], l:log_file, 'a')
   catch
-    " Just silently continue if we can't create the log directory
-    return
+    " If append fails, try to create a new file as fallback
+    try
+      call writefile([l:entry], l:log_file)
+    catch
+      " Silent failure - we don't want to throw errors while handling errors
+    endtry
   endtry
-endif
-
-let l:log_file = l:log_dir . '/plugin_manager.log'
-let l:timestamp = strftime('%Y-%m-%d %H:%M:%S')
-
-" Format the log entry
-let l:entry = l:timestamp . ' | ' . 
-      \ l:parsed.component . ' | ' . 
-      \ (l:parsed.type ==# 'internal' ? l:parsed.code : 'EXTERNAL') . ' | ' . 
-      \ l:parsed.message
-
-" Check if log rotation is needed
-call s:check_log_rotation(l:log_file)
-
-" Append to log file - use silent to prevent additional errors
-try
-  call writefile([l:entry], l:log_file, 'a')
-catch
-  " Silent failure - we don't want to throw errors while handling errors
-endtry
-endfunction
-
-" Check if log rotation is needed and rotate if necessary
-function! s:check_log_rotation(log_file) abort
-" Skip if file doesn't exist
-if !filereadable(a:log_file)
-  return
-endif
-
-" Get log file size
-let l:size_kb = getfsize(a:log_file) / 1024
-
-" Check if size exceeds maximum
-if l:size_kb > get(g:, 'plugin_manager_max_log_size', 1024)
-  " Rotate logs
-  let l:max_history = get(g:, 'plugin_manager_log_history_count', 3)
-  
-  " Delete oldest log if exists
-  if filereadable(a:log_file . '.' . l:max_history)
-    call delete(a:log_file . '.' . l:max_history)
-  endif
-  
-  " Rotate existing logs
-  for i in range(l:max_history - 1, 1, -1)
-    if filereadable(a:log_file . '.' . i)
-      call rename(a:log_file . '.' . i, a:log_file . '.' . (i + 1))
-    endif
-  endfor
-  
-  " Rename current log to .1
-  if filereadable(a:log_file)
-    call rename(a:log_file, a:log_file . '.1')
-  endif
-endif
-endfunction
-
-" Check if an error is a plugin manager error with enhanced parsing
-function! plugin_manager#core#is_pm_error(error) abort
-return a:error =~# '^PM_ERROR:'
 endfunction
 
 " Parse plugin manager error into structured format
