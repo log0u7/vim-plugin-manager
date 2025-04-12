@@ -14,7 +14,15 @@ else
 	VERSION_STRING := $(VERSION)
 endif
 
-.PHONY: help update-version
+# Define archive name using VERSION or TAG
+ifeq ($(origin VERSION), undefined)
+	ARCHIVE_VERSION := $(TAG)
+else
+	ARCHIVE_VERSION := $(VERSION)
+endif
+ARCHIVE_NAME := vim-plugin-manager-$(ARCHIVE_VERSION)
+
+.PHONY: help update-version archive
 
 help:
 	@echo ""
@@ -23,6 +31,8 @@ help:
 	@echo "  make update-version VERSION=1.6              # Update all with custom version"
 	@echo "  make update-version FILE=chemin/fichier      # Update only that file with Git version"
 	@echo "  make update-version FILE=chemin VERSION=1.6  # Update only that file with custom version"
+	@echo "  make archive                                 # Create archive from latest tag"
+	@echo "  make archive VERSION=1.3.5                   # Create archive from specified version tag"
 	@echo ""
 
 update-version:
@@ -36,3 +46,12 @@ update-version:
 			sed -i -E 's/(^.*Version[ ]*:).*/\1 $(VERSION_STRING)/' "$$file"; \
 		done; \
 	fi
+
+archive:
+	@echo "Creating archive $(ARCHIVE_NAME).tar.gz from tag $(ARCHIVE_VERSION)"
+	@if [ "$(ARCHIVE_VERSION)" = "no-tag" ]; then \
+		echo "Error: No tag found. Please specify VERSION or create a tag first."; \
+		exit 1; \
+	fi
+	@git archive --format=tar.gz --prefix=$(ARCHIVE_NAME)/ -o $(ARCHIVE_NAME).tar.gz $(ARCHIVE_VERSION)
+	@echo "Archive created successfully: $(ARCHIVE_NAME).tar.gz"
