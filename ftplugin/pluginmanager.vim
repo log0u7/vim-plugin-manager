@@ -1,6 +1,6 @@
 " ftplugin/pluginmanager.vim - Buffers config for PluginManager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.3.4
+" Version: 1.3.5
 
 " Ensure it's loaded once
 if exists("b:did_ftplugin")

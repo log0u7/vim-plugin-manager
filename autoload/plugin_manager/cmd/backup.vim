@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/backup.vim - Backup command for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.3.4
+" Version: 1.3.5
 
 " Backup configuration to remote repositories
 function! plugin_manager#cmd#backup#execute() abort
