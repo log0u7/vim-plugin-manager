@@ -36,7 +36,7 @@ Features:
 
 Prerequisites:
 - Vim 8+ or Neovim
-- Git
+- Git 2.40+
 
 The plugin manager uses Git submodules and Vim 8's native package system. Installation is straightforward:
 
@@ -94,6 +94,33 @@ behavior with the following global variables:
 
 *g:plugin_manager_default_git_host* Default git host for short plugin names.
                                   Default: 'github.com'
+
+*g:plugin_manager_fancy_ui*      Whether to use Unicode symbols in UI.
+                               Default: has('multi_byte') && &encoding ==# 'utf-8'
+
+*g:plugin_manager_enable_logging* Enable/disable error logging.
+                                Default: 1
+
+*g:plugin_manager_max_log_size*  Maximum log file size in KB before rotation.
+                               Default: 1024 (1MB)
+
+*g:plugin_manager_log_history_count* Number of log files to keep.
+                                   Default: 3
+
+*g:plugin_manager_spinner_style* Style for spinners in async operations.
+                               Options: 'dots', 'line', 'circle', 'triangle', 'box'
+                               Default: 'dots'
+
+*g:plugin_manager_progress_style* Style for progress bars.
+                                Options: 'block', 'simple', 'arrow', 'dot'
+                                Default: 'block'
+
+*g:plugin_manager_pull_strategy* Git pull strategy for updates.
+                               Options: 'ff-only', 'merge', 'rebase'
+                               Default: 'ff-only'
+
+*g:plugin_manager_max_concurrent_jobs* Maximum concurrent async jobs.
+                                     Default: 4
 
 ===============================================================================
 4. CONFIGURATION MANAGEMENT                    *plugin-manager-config-management*
@@ -267,6 +294,9 @@ The plugin provides the following commands:
                                   'load': 'start' or 'opt' for plugin loading
 :PluginEnd                      Process and install all declared plugins
 
+:PluginManagerViewLog           View the error log file
+:PluginManagerClearLog          Clear the error log file
+
 ===============================================================================
 6. USAGE EXAMPLES                                     *plugin-manager-examples*
 
@@ -338,6 +368,14 @@ Declare multiple plugins at once:
     Plugin '~/projects/my-vim-plugin'  " Local plugin from filesystem
     PluginEnd
 <
+View the error log:
+>
+    :PluginManagerViewLog
+<
+Clear the error log:
+>
+    :PluginManagerClearLog
+<
 ===============================================================================
 7. KEYBOARD SHORTCUTS                                *plugin-manager-shortcuts*
 
@@ -348,6 +386,7 @@ l       List installed plugins
 u       Update all plugins
 h       Generate helptags for all plugins
 s       Show status of submodules
+S       Show summary of changes
 b       Backup configuration
 r       Restore all plugins
 R       Reload configuration
@@ -410,6 +449,26 @@ When updating plugins, PluginManager will stash any local changes in the plugin
 repositories. If you've made custom modifications to plugins, consider using
 a different approach like git patches.
 
+Organizing Your Plugin Configuration:
+For larger Vim setups, consider organizing your plugin definitions using the declarative
+syntax in separate files that you source from your vimrc:
+>
+    " In your vimrc
+    source ~/.vim/plugin/core-plugins.vim
+    source ~/.vim/plugin/editing-plugins.vim
+    source ~/.vim/plugin/language-plugins.vim
+<
+Then in each file, use the PluginBegin/End blocks to organize by category:
+>
+    " ~/.vim/plugin/editing-plugins.vim
+    PluginBegin
+      Plugin 'tpope/vim-surround'
+      Plugin 'tpope/vim-commentary'
+      Plugin 'tpope/vim-repeat'
+    PluginEnd
+<
+This keeps your vimrc cleaner and makes it easier to manage plugins by category.
+
 ===============================================================================
 9. TROUBLESHOOTING                             *plugin-manager-troubleshooting*
 
@@ -417,6 +476,7 @@ Issues with Plugin Installation:
 - Make sure your Vim configuration directory is a Git repository
 - Check that you have write permissions to the plugin directories
 - Verify the plugin URL is correct and accessible
+- Run ':PluginManagerViewLog' to see detailed error logs
 
 Plugin Not Loading:
 - For 'start' plugins, ensure they're in the correct directory
@@ -428,11 +488,27 @@ Git-related Errors:
 - Run `:PluginManager status` to check the status of all modules
 - Try running `:PluginManager restore` to reinitialize all modules
 
+Windows-specific Issues:
+- Ensure Git is correctly installed and in your PATH
+- Consider using forward slashes in paths, even on Windows
+- For local plugin installation issues, try using a plugin option with explicit path:
+  :PluginManager add C:/path/to/plugin {'dir': 'plugin_name'}
+
+Problems with Error Messages:
+- Check the error log with ':PluginManagerViewLog'
+- Increase verbosity with ':set verbose=1' before running commands
+- For async operations, set 'g:plugin_manager_debug_mode = 1' to see more details
+
+Permission Issues:
+- On Unix systems, check directory permissions with 'ls -la'
+- On Windows, ensure you have write access to the plugin directories
+- Try restarting Vim with administrator privileges if needed
+
 ===============================================================================
 10. LICENSE                                             *plugin-manager-license*
 
 PluginManager is released under the MIT License.
-Copyright (c) 2025 G.K.E. <gke@6admin.io>
+Copyright (c) 2018 - 2025 G.K.E. <gke@6admin.io>
 
 See LICENSE file or plugin header for full license text.
 
@@ -441,6 +517,6 @@ See LICENSE file or plugin header for full license text.
 
 Maintained by: G.K.E. <gke@6admin.io>
 Source: https://github.com/username/vim-plugin-manager
-Version: 1.3.4
+Version: 1.3.5
 
 vim:tw=78:ts=8:ft=help:norl:
