@@ -1,6 +1,6 @@
 " Enhanced autoload/plugin_manager/ui.vim - Modern UI components
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.3.4
+" Version: 1.3.5
 
 " Terminal capability detection with more accurate feature checks
 let s:unicode_support = has('multi_byte') && &encoding ==# 'utf-8'

@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/status.vim - Status command with async support
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.3.4
+" Version: 1.3.5
 
 " ------------------------------------------------------------------------------
 " MAIN STATUS COMMAND ENTRY POINT

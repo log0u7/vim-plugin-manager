@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/list.vim - List plugins command for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.3.4
+" Version: 1.3.5
 
 " List all installed plugins with formatted output
 function! plugin_manager#cmd#list#all() abort

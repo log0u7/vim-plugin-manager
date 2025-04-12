@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/restore.vim - Restore command for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.3.4
+" Version: 1.3.5
 
 " Restore all plugins from .gitmodules
 function! plugin_manager#cmd#restore#execute() abort

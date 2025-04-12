@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/declare.vim - Declarative plugin configuration for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.3.4
+" Version: 1.3.5
 
 " Variables to track plugin block
 let s:plugin_block_start = 0
