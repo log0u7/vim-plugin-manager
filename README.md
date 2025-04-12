@@ -456,5 +456,5 @@ Copyright (c) 2018 - 2025 G.K.E. <gke@6admin.io>
 ## About
 
 - Maintained by: G.K.E. <gke@6admin.io>
-- Source: https://github.com/username/vim-plugin-manager
+- Source: https://github.com/log0u7/vim-plugin-manager
 - Version: 1.3.5
