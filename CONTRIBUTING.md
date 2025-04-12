@@ -173,6 +173,13 @@ The plugin uses global configuration variables defined in `plugin/plugin_manager
 - `g:plugin_manager_sidebar_width`: Width of the sidebar UI.
 - `g:plugin_manager_default_git_host`: Default Git host for short plugin names.
 - `g:plugin_manager_fancy_ui`: Controls whether to use Unicode symbols in the UI.
+- `g:plugin_manager_enable_logging`: Enable/disable error logging.
+- `g:plugin_manager_max_log_size`: Maximum log file size before rotation.
+- `g:plugin_manager_log_history_count`: Number of log files to keep in rotation.
+- `g:plugin_manager_spinner_style`: Style for spinners in async operations.
+- `g:plugin_manager_progress_style`: Style for progress bars.
+- `g:plugin_manager_pull_strategy`: Git pull strategy for updates.
+- `g:plugin_manager_max_concurrent_jobs`: Maximum concurrent async jobs.
 
 When adding new configuration options, follow this pattern and provide sensible defaults.
 

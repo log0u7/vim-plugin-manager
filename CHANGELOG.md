@@ -7,11 +7,23 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 - Asynchronous jobs for background plugin installations and updates
 - UI improvements with better progress indicators
 - Enhanced error reporting with detailed diagnostics
+- Notification System 
+- Automatic updates
+
+## [1.3.5] - 2025-04-12
+### Improvements
+- Enhanced documentation with more examples and clarification
+- Improved user experience with clearer error messages
+- Small UI refinements for better information display
+- Minor performance optimizations in Git operation modules
+- Better handling of path management on different platforms
 
 ### Bug Fixes
-- Fixed inconsistent sidebar rendering on some terminal configurations
-- Resolved issues with plugin installation path handling on Windows systems
-- Fixed plugin reloading mechanism for certain plugin types
+- Fixed minor log rotation issues on Windows systems
+- Corrected behavior when handling plugins with special characters in names
+- Improved error handling when Vim directory is not properly configured
+- Fixed edge case in stashing local changes during plugin updates
+- Resolved issues with command escaping in some shell environments
 
 ## [1.3.4] - 2025-04-11
 ### Improvements
