@@ -1,0 +1,19 @@
+VIM ?= vim
+VADER ?= vader.vim
+VADER_TESTS ?= tests/*.vader
+VIMRC_TEST = .vaderrc.vim
+
+.PHONY: test clean
+
+test: $(VIMRC_TEST)
+	@echo "==> Running Vader tests..."
+	$(VIM) -Nu $(VIMRC_TEST) -c 'Vader! $(VADER_TESTS)' #-c 'qa!'
+
+$(VIMRC_TEST):
+	@echo "set rtp^=$(CURDIR)" > $(VIMRC_TEST)
+	@echo "set rtp+=$(CURDIR)/$(VADER)" >> $(VIMRC_TEST)
+	@echo "filetype off" >> $(VIMRC_TEST)
+	@echo "syntax off" >> $(VIMRC_TEST)
+
+clean:
+	@rm -f $(VIMRC_TEST)

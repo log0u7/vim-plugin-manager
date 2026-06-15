@@ -1,0 +1,48 @@
+Before:
+  let g:_pm_saved_vim_dir = get(g:, 'plugin_manager_vim_dir', '')
+  let g:_pm_saved_cwd = getcwd()
+  let g:_pm_tmp = tempname()
+  call mkdir(g:_pm_tmp, 'p')
+  call mkdir(g:_pm_tmp . '/.git', 'p')
+  let g:plugin_manager_vim_dir = g:_pm_tmp
+  call writefile([
+        \ '[submodule "vim-fugitive"]',
+        \ '  path = pack/plugins/start/vim-fugitive',
+        \ '  url = https://github.com/tpope/vim-fugitive.git',
+        \ '[submodule "nerdtree"]',
+        \ '  path = pack/plugins/opt/nerdtree',
+        \ '  url = https://github.com/preservim/nerdtree.git',
+        \ '  branch = master',
+        \ ], g:_pm_tmp . '/.gitmodules')
+  execute 'cd ' . fnameescape(g:_pm_tmp)
+
+After:
+  execute 'cd ' . fnameescape(g:_pm_saved_cwd)
+  if isdirectory(g:_pm_tmp)
+    call delete(g:_pm_tmp, 'rf')
+  endif
+  let g:plugin_manager_vim_dir = g:_pm_saved_vim_dir
+
+Execute (parse_modules finds all declared submodules):
+  call plugin_manager#git#refresh_modules_cache()
+  let mods = plugin_manager#git#parse_modules()
+  AssertEqual 2, len(mods)
+  Assert has_key(mods, 'vim-fugitive'), 'vim-fugitive should be parsed'
+  Assert has_key(mods, 'nerdtree'), 'nerdtree should be parsed'
+
+Execute (parse_modules extracts path, url and short_name):
+  call plugin_manager#git#refresh_modules_cache()
+  let mods = plugin_manager#git#parse_modules()
+  AssertEqual 'pack/plugins/start/vim-fugitive', mods['vim-fugitive'].path
+  AssertEqual 'https://github.com/tpope/vim-fugitive.git', mods['vim-fugitive'].url
+  AssertEqual 'vim-fugitive', mods['vim-fugitive'].short_name
+
+Execute (parse_modules captures an explicit branch):
+  call plugin_manager#git#refresh_modules_cache()
+  let mods = plugin_manager#git#parse_modules()
+  AssertEqual 'master', mods['nerdtree'].branch
+
+Execute (find_module resolves by short name):
+  let info = plugin_manager#git#find_module('nerdtree')
+  Assert !empty(info), 'find_module should resolve nerdtree'
+  AssertEqual 'pack/plugins/opt/nerdtree', info.module.path
