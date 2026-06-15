@@ -1,162 +1,130 @@
-" autoload/plugin_manager/cmd/reload.vim - Reload command for vim-plugin-manager
+" autoload/plugin_manager/cmd/reload.vim - Simplified reload command
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.3.5
+" Version: 1.4.0
 
 " Reload a specific plugin or all Vim configuration
 function! plugin_manager#cmd#reload#execute(...) abort
-    try
-      if !plugin_manager#core#ensure_vim_directory()
-        throw 'PM_ERROR:reload:Not in Vim configuration directory'
-      endif
-      
-      let l:header = ['Reload:', '-------', '']
-      
-      " Check if a specific module was specified
-      let l:specific_module = a:0 > 0 ? a:1 : ''
-      
-      if !empty(l:specific_module)
-        call s:reload_specific_plugin(l:header, l:specific_module)
-      else
-        call s:reload_all_configuration(l:header)
-      endif
-    catch
-      call plugin_manager#core#handle_error(v:exception, "reload")
-    endtry
-  endfunction
-  
-  " Helper function to reload a specific plugin
-  function! s:reload_specific_plugin(header, module_name) abort
-    call plugin_manager#ui#open_sidebar(a:header + ['Reloading plugin: ' . a:module_name . '...'])
-    
-    " Find the module
-    let l:module_info = plugin_manager#git#find_module(a:module_name)
-    if empty(l:module_info)
-      throw 'PM_ERROR:reload:Module "' . a:module_name . '" not found'
+  try
+    if !plugin_manager#core#ensure_vim_directory()
+      call plugin_manager#core#throw('reload', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
     endif
     
-    let l:module = l:module_info.module
-    let l:module_path = l:module.path
+    let l:header = [
+          \ 'Reloading:',
+          \ plugin_manager#ui#get_symbol('separator'),
+          \ ''
+          \ ]
+    call plugin_manager#ui#open_sidebar(l:header)
     
-    " Check if directory exists
-    if !isdirectory(l:module_path)
-      throw 'PM_ERROR:reload:Module directory "' . l:module_path . '" not found. Try running "PluginManager restore"'
-    endif
+    let l:specific_module = a:0 > 0 ? a:1 : ''
     
-    " Remove plugin from runtimepath
-    call s:remove_from_runtimepath(l:module_path)
-    
-    " Unload plugin scripts
-    call s:unload_plugin_scripts(l:module_path)
-    
-    " Add back to runtimepath
-    call s:add_to_runtimepath(l:module_path)
-    
-    " Reload plugin runtime files
-    call s:reload_plugin_runtime_files(l:module_path)
-    
-    call plugin_manager#ui#update_sidebar(['Plugin "' . a:module_name . '" reloaded successfully.', 
-          \ 'Note: Some plugins may require restarting Vim for a complete reload.'], 1)
-  endfunction
-  
-  " Helper function to reload all Vim configuration
-  function! s:reload_all_configuration(header) abort
-    call plugin_manager#ui#open_sidebar(a:header + ['Reloading entire Vim configuration...'])
-    
-    " Reload runtime files
-    call s:reload_all_runtime_files()
-    
-    " Source vimrc file
-    call s:source_vimrc()
-    
-    call plugin_manager#ui#update_sidebar(['Vim configuration reloaded successfully.', 
-          \ 'Note: Some plugins may require restarting Vim for a complete reload.'], 1)
-  endfunction
-  
-  " Helper function to remove plugin from runtimepath
-  function! s:remove_from_runtimepath(module_path) abort
-    execute 'set rtp-=' . a:module_path
-    
-    " Also remove after directory if it exists
-    let l:after_path = a:module_path . '/after'
-    if isdirectory(l:after_path)
-      execute 'set rtp-=' . l:after_path
-    endif
-  endfunction
-  
-  " Helper function to add plugin to runtimepath
-  function! s:add_to_runtimepath(module_path) abort
-    execute 'set rtp+=' . a:module_path
-    
-    " Also add after directory if it exists
-    let l:after_path = a:module_path . '/after'
-    if isdirectory(l:after_path)
-      execute 'set rtp+=' . l:after_path
-    endif
-  endfunction
-  
-  " Helper function to unload plugin scripts
-  function! s:unload_plugin_scripts(module_path) abort
-    let l:runtime_paths = split(globpath(a:module_path, '**/*.vim'), '\n')
-    for l:rtp in l:runtime_paths
-      " Only try to clear files that are in autoload, plugin, or ftplugin directories
-      if l:rtp =~ '/autoload/' || l:rtp =~ '/plugin/' || l:rtp =~ '/ftplugin/'
-        " Get the script ID if loaded
-        let l:sid = 0
-        redir => l:scriptnames
-        silent scriptnames
-        redir END
-        
-        for l:line in split(l:scriptnames, '\n')
-          if l:line =~ l:rtp
-            let l:sid = str2nr(matchstr(l:line, '^\s*\zs\d\+\ze:'))
-            break
-          endif
-        endfor
-        
-        " If script is loaded, try to unload it
-        if l:sid > 0
-          " There's no direct way to unload a script in Vim, but we can
-          " try to reset script-local variables by sourcing it again
-          call plugin_manager#ui#update_sidebar(['Unloading script: ' . l:rtp], 1)
-        endif
-      endif
-    endfor
-  endfunction
-  
-  " Helper function to reload plugin runtime files
-  function! s:reload_plugin_runtime_files(module_path) abort
-    let l:runtime_paths = split(globpath(a:module_path, '**/*.vim'), '\n')
-    for l:rtp in l:runtime_paths
-      if l:rtp =~ '/plugin/' || l:rtp =~ '/ftplugin/'
-        call plugin_manager#ui#update_sidebar(['Reloading: ' . l:rtp], 1)
-        execute 'runtime! ' . l:rtp
-      endif
-    endfor
-  endfunction
-  
-  " Helper function to reload all runtime files
-  function! s:reload_all_runtime_files() abort
-    call plugin_manager#ui#update_sidebar(['Reloading plugin runtime files...'], 1)
-    execute 'runtime! plugin/**/*.vim'
-    
-    call plugin_manager#ui#update_sidebar(['Reloading filetype plugin files...'], 1)
-    execute 'runtime! ftplugin/**/*.vim'
-    
-    call plugin_manager#ui#update_sidebar(['Reloading syntax files...'], 1)
-    execute 'runtime! syntax/**/*.vim'
-    
-    call plugin_manager#ui#update_sidebar(['Reloading indent files...'], 1)
-    execute 'runtime! indent/**/*.vim'
-  endfunction
-  
-  " Helper function to source vimrc file
-  function! s:source_vimrc() abort
-    let l:vimrc_path = expand(plugin_manager#core#get_config('vimrc_path', ''))
-    
-    if !empty(l:vimrc_path) && filereadable(l:vimrc_path)
-      call plugin_manager#ui#update_sidebar(['Sourcing ' . l:vimrc_path . '...'], 1)
-      execute 'source ' . fnameescape(l:vimrc_path)
+    if !empty(l:specific_module)
+      call s:reload_specific_plugin(l:specific_module)
     else
-      call plugin_manager#ui#update_sidebar(['Warning: Vimrc file not found at ' . l:vimrc_path], 1)
+      call s:reload_all_configuration()
     endif
-  endfunction
+  catch
+    call plugin_manager#core#handle_error(v:exception, "reload")
+  endtry
+endfunction
+
+" ------------------------------------------------------------------------------
+" SPECIFIC PLUGIN RELOAD
+" ------------------------------------------------------------------------------
+
+function! s:reload_specific_plugin(module_name) abort
+  " Find module
+  let l:module_info = plugin_manager#git#find_module(a:module_name)
+  if empty(l:module_info)
+    call plugin_manager#core#throw('reload', 'MODULE_NOT_FOUND', 'Module not found: ' . a:module_name)
+  endif
+  
+  let l:module_path = l:module_info.module.path
+  
+  if !isdirectory(l:module_path)
+    call plugin_manager#core#throw('reload', 'MODULE_NOT_FOUND', 'Module directory not found: ' . l:module_path)
+  endif
+  
+  let l:op_id = plugin_manager#ui#start_operation(a:module_name, 'Reloading')
+  
+  " Remove from runtimepath
+  call plugin_manager#ui#update_operation(l:op_id, 'Removing from runtimepath')
+  call s:remove_from_runtimepath(l:module_path)
+  
+  " Add back to runtimepath
+  call plugin_manager#ui#update_operation(l:op_id, 'Adding to runtimepath')
+  call s:add_to_runtimepath(l:module_path)
+  
+  " Reload runtime files
+  call plugin_manager#ui#update_operation(l:op_id, 'Reloading runtime files')
+  call s:reload_plugin_runtime_files(l:module_path)
+  
+  call plugin_manager#ui#complete_operation(l:op_id, 1, 'Reloaded')
+  call plugin_manager#ui#update_sidebar(['', plugin_manager#ui#info('Some plugins may require restarting Vim')], 1)
+endfunction
+
+" ------------------------------------------------------------------------------
+" ALL CONFIGURATION RELOAD
+" ------------------------------------------------------------------------------
+
+function! s:reload_all_configuration() abort
+  let l:op_id = plugin_manager#ui#start_operation('configuration', 'Reloading')
+  
+  " Reload runtime files
+  call plugin_manager#ui#update_operation(l:op_id, 'Reloading runtime files')
+  call s:reload_all_runtime_files()
+  
+  " Source vimrc
+  call plugin_manager#ui#update_operation(l:op_id, 'Sourcing vimrc')
+  call s:source_vimrc()
+  
+  call plugin_manager#ui#complete_operation(l:op_id, 1, 'Reloaded')
+  call plugin_manager#ui#update_sidebar(['', plugin_manager#ui#info('Some plugins may require restarting Vim')], 1)
+endfunction
+
+" ------------------------------------------------------------------------------
+" HELPER FUNCTIONS
+" ------------------------------------------------------------------------------
+
+function! s:remove_from_runtimepath(module_path) abort
+  execute 'set rtp-=' . fnameescape(a:module_path)
+  
+  let l:after_path = a:module_path . '/after'
+  if isdirectory(l:after_path)
+    execute 'set rtp-=' . fnameescape(l:after_path)
+  endif
+endfunction
+
+function! s:add_to_runtimepath(module_path) abort
+  execute 'set rtp+=' . fnameescape(a:module_path)
+  
+  let l:after_path = a:module_path . '/after'
+  if isdirectory(l:after_path)
+    execute 'set rtp+=' . fnameescape(l:after_path)
+  endif
+endfunction
+
+function! s:reload_plugin_runtime_files(module_path) abort
+  let l:runtime_paths = split(globpath(a:module_path, '**/*.vim'), '\n')
+  
+  for l:rtp in l:runtime_paths
+    if l:rtp =~ '/plugin/' || l:rtp =~ '/ftplugin/'
+      execute 'runtime! ' . l:rtp
+    endif
+  endfor
+endfunction
+
+function! s:reload_all_runtime_files() abort
+  execute 'runtime! plugin/**/*.vim'
+  execute 'runtime! ftplugin/**/*.vim'
+  execute 'runtime! syntax/**/*.vim'
+  execute 'runtime! indent/**/*.vim'
+endfunction
+
+function! s:source_vimrc() abort
+  let l:vimrc_path = expand(plugin_manager#core#get_config('vimrc_path', ''))
+  
+  if !empty(l:vimrc_path) && filereadable(l:vimrc_path)
+    execute 'source ' . fnameescape(l:vimrc_path)
+  endif
+endfunction

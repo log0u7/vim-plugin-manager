@@ -9,8 +9,8 @@
 " Improved error types - comprehensive standard error codes for all components
   let s:error_types = {
     \ 'add': ['INVALID_URL', 'REPO_NOT_FOUND', 'TARGET_EXISTS', 'COPY_FAILED', 'MISSING_ARGS', 'INVALID_ARGS', 'INSTALLATION_FAILED', 'LOCAL_PATH_NOT_FOUND'],
-    \ 'remove': ['MODULE_NOT_FOUND', 'DELETE_FAILED', 'CONFIRMATION_REQUIRED', 'MISSING_ARGS'],
-    \ 'update': ['MODULE_NOT_FOUND', 'FETCH_FAILED', 'UPDATE_FAILED', 'NO_PLUGINS', 'NOT_VIM_DIR', 'NOT_GIT_REPO'],
+    \ 'remove': ['MODULE_NOT_FOUND', 'DELETE_FAILED', 'CONFIRMATION_REQUIRED', 'MISSING_ARGS', 'NOT_VIM_DIR'],
+    \ 'update': ['MODULE_NOT_FOUND', 'FETCH_FAILED', 'UPDATE_FAILED', 'NO_PLUGINS', 'NOT_VIM_DIR', 'NOT_GIT_REPO', 'PATH_NOT_FOUND'],
     \ 'backup': ['GIT_ERROR', 'NO_REMOTES', 'NOT_VIM_DIR', 'VIMRC_NOT_FOUND', 'COMMIT_FAILED'],
     \ 'restore': ['GITMODULES_NOT_FOUND', 'INIT_FAILED', 'NOT_VIM_DIR', 'UPDATE_FAILED'],
     \ 'git': ['COMMAND_FAILED', 'REPO_NOT_FOUND', 'MERGE_CONFLICT', 'NOT_VIM_DIR', 'SUBMODULE_EXISTS', 'PATH_NOT_FOUND', 'MODULE_NOT_FOUND'],
@@ -23,7 +23,8 @@
     \ 'reload': ['MODULE_NOT_FOUND', 'NOT_VIM_DIR', 'SCRIPT_ERROR'],
     \ 'status': ['NOT_VIM_DIR', 'NO_PLUGINS', 'MODULE_ERROR'],
     \ 'remote': ['INVALID_URL', 'REPO_NOT_FOUND', 'NOT_VIM_DIR', 'ADD_FAILED'],
-    \ 'declare': ['NOT_VIM_DIR', 'INVALID_DECLARATION', 'BLOCK_ERROR']
+    \ 'declare': ['NOT_VIM_DIR', 'INVALID_DECLARATION', 'BLOCK_ERROR'],
+    \ 'check': ['NOT_VIM_DIR', 'NO_PLUGINS', 'FETCH_FAILED']
     \ }
 
 " Create a standardized error with component and specific error code

@@ -1,39 +1,30 @@
-" autoload/plugin_manager/cmd/declare.vim - Declarative plugin configuration for vim-plugin-manager
+" autoload/plugin_manager/cmd/declare.vim - Simplified declarative configuration
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.3.5
+" Version: 1.4.0
 
-" Variables to track plugin block
-let s:plugin_block_start = 0
+" State tracking
 let s:plugin_block_active = 0
 let s:plugin_declarations = []
-let s:plugin_context = {}
 
 " Begin a plugin declaration block
 function! plugin_manager#cmd#declare#begin() abort
-  let s:plugin_block_start = line('.')
   let s:plugin_block_active = 1
   let s:plugin_declarations = []
-  
-  " If called from a sourced file, capture context for later processing
-  if expand('<sfile>') !=# expand('<stack>')
-    let s:plugin_context = {'file': expand('%:p'), 'line': line('.')}
-  endif
 endfunction
 
-" Add a plugin declaration to the current block
+" Add a plugin declaration
 function! plugin_manager#cmd#declare#plugin(url, options) abort
   if !s:plugin_block_active
     echohl WarningMsg
-    echomsg "Plugin called outside of PluginBegin/PluginEnd block"
+    echomsg "Plugin called outside PluginBegin/PluginEnd block"
     echohl None
     return
   endif
   
-  " Add to declarations list
   call add(s:plugin_declarations, {'url': a:url, 'options': a:options})
 endfunction
 
-" End a plugin declaration block and process all declarations
+" End declaration block and process
 function! plugin_manager#cmd#declare#end() abort
   if !s:plugin_block_active
     echohl WarningMsg
@@ -42,67 +33,90 @@ function! plugin_manager#cmd#declare#end() abort
     return
   endif
   
-  " Process all plugin declarations
-  call s:process_plugin_declarations()
+  call s:process_declarations()
   
-  " Reset state
   let s:plugin_block_active = 0
   let s:plugin_declarations = []
 endfunction
 
-" Process all plugin declarations collected during a block
-function! s:process_plugin_declarations() abort
+" ------------------------------------------------------------------------------
+" PROCESSING
+" ------------------------------------------------------------------------------
+
+function! s:process_declarations() abort
   try
-    " Make sure we're in the vim directory
     if !plugin_manager#core#ensure_vim_directory()
-      throw 'PM_ERROR:declare:Not in Vim configuration directory'
+      call plugin_manager#core#throw('declare', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
     endif
     
-    " Prepare header for UI
-    let l:header = ['Processing Plugin Declarations:', '---------------------------', '']
-    call plugin_manager#ui#open_sidebar(l:header)
-    
-    " Skip if no plugins to process
     if empty(s:plugin_declarations)
-      call plugin_manager#ui#update_sidebar(['No plugin declarations found.'], 1)
       return
     endif
     
-    call plugin_manager#ui#update_sidebar(['Found ' . len(s:plugin_declarations) . ' plugins to process...'], 1)
+    let l:header = [
+          \ 'Processing declarations:',
+          \ plugin_manager#ui#get_symbol('separator'),
+          \ ''
+          \ ]
+    call plugin_manager#ui#open_sidebar(l:header)
     
-    " Process each plugin
+    let l:installed = 0
+    let l:skipped = 0
+    
     for l:plugin in s:plugin_declarations
-      let l:url = l:plugin.url
-      let l:options = l:plugin.options
+      let l:result = s:process_plugin(l:plugin.url, l:plugin.options)
       
-      call plugin_manager#ui#update_sidebar(['Processing: ' . l:url], 1)
-      
-      " Convert URL to full format
-      let l:full_url = plugin_manager#core#convert_to_full_url(l:url)
-      if empty(l:full_url)
-        call plugin_manager#ui#update_sidebar(['Error: Invalid plugin URL format: ' . l:url], 1)
-        continue
+      if l:result ==# 'installed'
+        let l:installed += 1
+      elseif l:result ==# 'skipped'
+        let l:skipped += 1
       endif
-      
-      " Check if plugin already exists
-      let l:plugin_name = plugin_manager#core#extract_plugin_name(l:full_url)
-      
-      if plugin_manager#cmd#add#exists(l:plugin_name, l:options)
-        call plugin_manager#ui#update_sidebar(['Plugin already installed: ' . l:plugin_name], 1)
-        continue
-      endif
-      
-      " Install the plugin
-      try
-        call plugin_manager#api#add(l:url, l:options)
-      catch
-        call plugin_manager#ui#update_sidebar(['Error installing ' . l:url . ': ' . 
-              \ plugin_manager#core#format_error(v:exception)], 1)
-      endtry
     endfor
     
-    call plugin_manager#ui#update_sidebar(['Plugin declarations processing completed.'], 1)
+    " Summary
+    let l:summary = []
+    if l:installed > 0
+      call add(l:summary, plugin_manager#ui#success(l:installed . ' plugins installed'))
+    endif
+    if l:skipped > 0
+      call add(l:summary, plugin_manager#ui#info(l:skipped . ' plugins skipped (already installed)'))
+    endif
+    
+    if !empty(l:summary)
+      call plugin_manager#ui#update_sidebar([''] + l:summary, 1)
+    endif
   catch
-    call plugin_manager#core#handle_error(v:exception, "plugin_declarations")
+    call plugin_manager#core#handle_error(v:exception, "declare")
+  endtry
+endfunction
+
+function! s:process_plugin(url, options) abort
+  " Convert to full URL
+  let l:full_url = plugin_manager#core#convert_to_full_url(a:url)
+  if empty(l:full_url)
+    let l:plugin_name = fnamemodify(a:url, ':t')
+    let l:op_id = plugin_manager#ui#start_operation(l:plugin_name, 'Processing')
+    call plugin_manager#ui#complete_operation(l:op_id, 0, 'Invalid URL format')
+    return 'error'
+  endif
+  
+  " Extract plugin name
+  let l:plugin_name = plugin_manager#core#extract_plugin_name(l:full_url)
+  
+  " Check if already exists
+  if plugin_manager#cmd#add#exists(l:plugin_name, a:options)
+    let l:op_id = plugin_manager#ui#start_operation(l:plugin_name, 'Checking')
+    call plugin_manager#ui#complete_operation(l:op_id, 1, 'Already installed')
+    return 'skipped'
+  endif
+  
+  " Install
+  try
+    call plugin_manager#api#add(a:url, a:options)
+    return 'installed'
+  catch
+    let l:op_id = plugin_manager#ui#start_operation(l:plugin_name, 'Installing')
+    call plugin_manager#ui#complete_operation(l:op_id, 0, 'Installation failed')
+    return 'error'
   endtry
 endfunction
