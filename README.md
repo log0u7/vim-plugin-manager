@@ -262,6 +262,9 @@ When Vim loads your vimrc, all these plugins will be installed automatically if 
 " Update a specific plugin
 :PluginManager update vim-fugitive
 
+" Check for available updates without installing them
+:PluginManager check
+
 " Show a summary of all plugin changes
 :PluginManager summary
 
@@ -328,6 +331,41 @@ if filereadable(expand("~/api-secrets.vim"))
 endif
 ```
 
+### Update Notifications and Automatic Updates
+
+PluginManager can check whether your plugins have updates available. The check
+runs a background `git fetch` for each plugin and reports the ones that are
+behind their remote branch in the sidebar.
+
+All of this is **opt-in** and **disabled by default**: PluginManager never
+performs network access on startup unless you explicitly enable it.
+
+```vim
+" Check on demand (manual)
+:PluginManager check
+```
+
+To check automatically when Vim starts, enable it in your vimrc:
+
+```vim
+" Check for available updates on startup (default: 0/off)
+let g:plugin_manager_check_on_startup = 1
+
+" Hours between background checks; results are cached to avoid
+" re-fetching on every launch (default: 24)
+let g:plugin_manager_check_interval = 24
+
+" Automatically install available updates on startup (default: 0/off)
+" Implies check_on_startup behavior; honors pull_strategy and
+" auto_commit_on_update.
+let g:plugin_manager_auto_update = 1
+```
+
+When `check_on_startup` is enabled, PluginManager caches the last result and
+only performs a new network fetch once `check_interval` hours have elapsed. With
+`auto_update` enabled, available updates are installed in the background after
+the check completes.
+
 ### Interactive Interface
 
 ```vim
@@ -384,6 +422,23 @@ let g:plugin_manager_sidebar_width = 60
 
 " Default git host for short plugin names
 let g:plugin_manager_default_git_host = 'github.com'
+
+" Git pull strategy for updates: 'ff-only' (default), 'merge', or 'rebase'
+let g:plugin_manager_pull_strategy = 'ff-only'
+
+" Automatically commit submodule pointer changes after updates (default: 1)
+let g:plugin_manager_auto_commit_on_update = 1
+
+" Maximum number of concurrent async git jobs (default: 4)
+let g:plugin_manager_max_concurrent_jobs = 4
+
+" Timeout in seconds for a single async job (default: 60)
+let g:plugin_manager_job_timeout = 60
+
+" Update notifications (all opt-in, default off)
+let g:plugin_manager_check_on_startup = 0
+let g:plugin_manager_check_interval = 24
+let g:plugin_manager_auto_update = 0
 ```
 
 ## Tips & Tricks
@@ -457,4 +512,4 @@ Copyright (c) 2018 - 2025 G.K.E. <gke@6admin.io>
 
 - Maintained by: G.K.E. <gke@6admin.io>
 - Source: https://github.com/log0u7/vim-plugin-manager
-- Version: 1.3.5
+- Version: 1.4.0
