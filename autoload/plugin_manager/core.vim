@@ -109,6 +109,15 @@ function! s:log_error_internally(error_string, component) abort
   endtry
 endfunction
 
+" Check whether a string is a structured plugin manager message
+" Recognizes error (PM_ERROR:) as well as DEBUG:/TRACE: log entries
+function! plugin_manager#core#is_pm_error(error) abort
+  if type(a:error) != v:t_string
+    return 0
+  endif
+  return a:error =~# '^PM_ERROR:' || a:error =~# '^DEBUG:' || a:error =~# '^TRACE:'
+endfunction
+
 " Parse plugin manager error into structured format
 function! plugin_manager#core#parse_error(error) abort
 if !plugin_manager#core#is_pm_error(a:error)
