@@ -1,0 +1,14 @@
+# Release archives
+*.tar.gz
+
+# Test artifacts
+.vaderrc.vim
+vader.vim/
+
+# Generated helptags
+doc/tags
+**/doc/tags
+
+# Runtime logs
+logs/
+logs.txt
