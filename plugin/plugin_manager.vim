@@ -160,4 +160,27 @@ command! -nargs=0 PluginEnd call plugin_manager#api#end()
 command! PluginManagerViewLog call plugin_manager#core#view_log()
 command! PluginManagerClearLog call plugin_manager#core#clear_log()
 
+" ------------------------------------------------------------------------------
+" UPDATE NOTIFICATIONS (opt-in)
+" ------------------------------------------------------------------------------
+
+" Only register the startup/periodic check when explicitly enabled. This keeps
+" the plugin free of any network access by default.
+if g:plugin_manager_check_on_startup
+    augroup plugin_manager_startup_check
+        autocmd!
+        " Defer slightly so it never blocks Vim's startup
+        autocmd VimEnter * call timer_start(500, {-> plugin_manager#cmd#check#startup()})
+    augroup END
+
+    " Periodic re-check using the configured interval (hours -> milliseconds).
+    " The check itself still honors the cache, so this only fetches when due.
+    if exists('*timer_start') && get(g:, 'plugin_manager_check_interval', 24) > 0
+        let s:pm_check_period_ms = g:plugin_manager_check_interval * 3600 * 1000
+        let g:plugin_manager_periodic_timer =
+                    \ timer_start(s:pm_check_period_ms,
+                    \ {-> plugin_manager#cmd#check#startup()}, {'repeat': -1})
+    endif
+endif
+
 " vim:set ft=vim ts=2 sw=2 et:
