@@ -1,60 +1,51 @@
-" autoload/plugin_manager/cmd/restore.vim - Restore command for vim-plugin-manager
+" autoload/plugin_manager/cmd/restore.vim - Simplified restore command
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.3.5
+" Version: 1.4.0
 
 " Restore all plugins from .gitmodules
 function! plugin_manager#cmd#restore#execute() abort
-    try
-      if !plugin_manager#core#ensure_vim_directory()
-        throw 'PM_ERROR:restore:Not in Vim configuration directory'
-      endif
-      
-      let l:header = ['Restore Plugins:', '---------------', '', 'Starting plugin restoration...']
-      call plugin_manager#ui#open_sidebar(l:header)
-      
-      call s:check_gitmodules_exists()
-      call s:restore_all_plugins()
-      call s:generate_helptags()
-      
-    catch
-      call plugin_manager#core#handle_error(v:exception, "restore")
-    endtry
-  endfunction
-  
-  " Helper function to check if .gitmodules exists
-  function! s:check_gitmodules_exists() abort
-    if !plugin_manager#core#file_exists('.gitmodules')
-      throw 'PM_ERROR:restore:.gitmodules file not found'
+  try
+    if !plugin_manager#core#ensure_vim_directory()
+      call plugin_manager#core#throw('restore', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
     endif
     
-    call plugin_manager#ui#update_sidebar(['Found .gitmodules file.'], 1)
-  endfunction
-  
-  " Helper function to restore all plugins
-  function! s:restore_all_plugins() abort
-    " Use git module to handle restoration
-    call plugin_manager#ui#update_sidebar(['Restoring all plugins...'], 1)
+    let l:header = [
+          \ 'Restoring plugins:',
+          \ plugin_manager#ui#get_symbol('separator'),
+          \ ''
+          \ ]
+    call plugin_manager#ui#open_sidebar(l:header)
     
-    " Initialize submodules
-    call plugin_manager#ui#update_sidebar(['Initializing submodules...'], 1)
-    call plugin_manager#git#execute('git submodule init', '', 1, 1)
+    " Check .gitmodules exists
+    if !plugin_manager#core#file_exists('.gitmodules')
+      call plugin_manager#core#throw('restore', 'GITMODULES_NOT_FOUND', '.gitmodules file not found')
+    endif
     
-    " Update submodules
-    call plugin_manager#ui#update_sidebar(['Fetching and updating all submodules...'], 1)
-    let l:result = plugin_manager#git#execute('git submodule update --init --recursive', '', 1, 1)
+    " Step 1: Initialize
+    let l:op_id = plugin_manager#ui#start_operation('submodules', 'Initializing')
+    call plugin_manager#ui#update_operation(l:op_id, 'Initializing submodules')
+    call plugin_manager#git#execute('git submodule init', '', 0, 1)
+    call plugin_manager#ui#complete_operation(l:op_id, 1, 'Initialized')
     
-    " Final sync and update to ensure everything is at the correct state
-    call plugin_manager#ui#update_sidebar(['Ensuring all submodules are at the correct commit...'], 1)
-    call plugin_manager#git#execute('git submodule sync', '', 1, 0)
-    call plugin_manager#git#execute('git submodule update --init --recursive --force', '', 1, 1)
+    " Step 2: Update
+    let l:op_id = plugin_manager#ui#start_operation('plugins', 'Restoring')
+    call plugin_manager#ui#update_operation(l:op_id, 'Fetching and updating')
+    call plugin_manager#git#execute('git submodule update --init --recursive', '', 0, 1)
+    call plugin_manager#ui#complete_operation(l:op_id, 1, 'Restored')
     
-    call plugin_manager#ui#update_sidebar(['All plugins have been restored successfully.'], 1)
-  endfunction
-  
-  " Helper function to generate helptags for all plugins
-  function! s:generate_helptags() abort
-    call plugin_manager#ui#update_sidebar(['Generating helptags for all plugins:'], 1)
+    " Step 3: Sync
+    let l:op_id = plugin_manager#ui#start_operation('sync', 'Syncing')
+    call plugin_manager#ui#update_operation(l:op_id, 'Ensuring correct state')
+    call plugin_manager#git#execute('git submodule sync', '', 0, 0)
+    call plugin_manager#git#execute('git submodule update --init --recursive --force', '', 0, 1)
+    call plugin_manager#ui#complete_operation(l:op_id, 1, 'Synced')
     
-    " Use the helptags module
+    " Step 4: Helptags
+    call plugin_manager#ui#update_sidebar(['', plugin_manager#ui#info('Generating helptags')], 1)
     call plugin_manager#cmd#helptags#execute(0)
-  endfunction
+    
+    call plugin_manager#ui#update_sidebar(['', plugin_manager#ui#success('All plugins restored')], 1)
+  catch
+    call plugin_manager#core#handle_error(v:exception, "restore")
+  endtry
+endfunction

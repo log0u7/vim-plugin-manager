@@ -1,12 +1,12 @@
 " autoload/plugin_manager/cmd/remote.vim - Remote repository management for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.3.5
+" Version: 1.4.0
 
 " Add a remote repository for backup
     function! plugin_manager#cmd#remote#add(url) abort
         try
           if !plugin_manager#core#ensure_vim_directory()
-            throw 'PM_ERROR:remote:Not in Vim configuration directory'
+            call plugin_manager#core#throw('remote', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
           endif
           
           let l:header = ['Add Remote Repository:', '---------------------', '', 'Adding remote repository: ' . a:url . '...']
@@ -14,7 +14,7 @@
           
           " Check if the repository exists
           if !plugin_manager#git#repository_exists(a:url)
-            throw 'PM_ERROR:remote:Repository not found: ' . a:url
+            call plugin_manager#core#throw('remote', 'REPO_NOT_FOUND', 'Repository not found: ' . a:url)
           endif
           
           " Add the remote using git module
