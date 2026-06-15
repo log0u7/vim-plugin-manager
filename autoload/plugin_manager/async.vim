@@ -1,6 +1,6 @@
 " autoload/plugin_manager/async.vim - Asynchronous operations for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.3.5
+" Version: 1.4.0
 
 " ------------------------------------------------------------------------------
 " PLATFORM DETECTION AND INITIALIZATION
@@ -14,6 +14,10 @@ let s:has_async = s:is_nvim || (has('job') && has('channel'))
 let s:jobs = {}
 let s:job_id_counter = 0
 let s:exited_with_callback = {}
+
+" Concurrency control
+let s:active_count = 0
+let s:job_queue = []
 
 " Check if async is supported
 function! plugin_manager#async#supported() abort
@@ -54,21 +58,46 @@ function! plugin_manager#async#start_job(cmd, opts) abort
         \ 'output': '',
         \ 'errors': '',
         \ 'status': -1,
-        \ 'started': localtime(),
+        \ 'started': 0,
         \ 'finished': 0,
-        \ 'job': v:null
+        \ 'queued': localtime(),
+        \ 'job': v:null,
+        \ 'timeout_timer': 0
         \ }
     
+    " Respect the maximum concurrent jobs limit: queue if at capacity
+    let l:max = get(g:, 'plugin_manager_max_concurrent_jobs', 4)
+    if l:max > 0 && s:active_count >= l:max
+        call add(s:job_queue, l:job_id)
+        return l:job_id
+    endif
+    
+    call s:spawn_job(l:job_id)
+    return l:job_id
+endfunction
+
+" Actually spawn a previously-registered job
+function! s:spawn_job(job_id) abort
+    if !has_key(s:jobs, a:job_id)
+        return
+    endif
+    
+    let l:job = s:jobs[a:job_id]
+    let l:opts = l:job.opts
+    let l:job.started = localtime()
+    
     " Change directory if specified
-    let l:cmd = a:cmd
-    if has_key(a:opts, 'dir') && !empty(a:opts.dir)
-        let l:cmd = 'cd ' . shellescape(a:opts.dir) . ' && ' . l:cmd
+    let l:cmd = l:job.cmd
+    if has_key(l:opts, 'dir') && !empty(l:opts.dir)
+        let l:cmd = 'cd ' . shellescape(l:opts.dir) . ' && ' . l:cmd
     endif
     
     " Report job start to UI if needed
-    if has_key(a:opts, 'ui_message') && !empty(a:opts.ui_message) && exists('*plugin_manager#ui#update_sidebar')
-        call plugin_manager#ui#update_sidebar(['Starting: ' . a:opts.ui_message], 1)
+    if has_key(l:opts, 'ui_message') && !empty(l:opts.ui_message) && exists('*plugin_manager#ui#update_sidebar')
+        call plugin_manager#ui#update_sidebar(['Starting: ' . l:opts.ui_message], 1)
     endif
+    
+    let s:active_count += 1
     
     " Start the job with appropriate platform-specific method
     if s:is_nvim
@@ -81,41 +110,71 @@ function! plugin_manager#async#start_job(cmd, opts) abort
                 \ 'stderr_buffered': 1,
                 \ }
         
-        let l:job = jobstart(['sh', '-c', l:cmd], l:job_opts)
+        let l:nvim_job = jobstart(['sh', '-c', l:cmd], l:job_opts)
         
-        if l:job > 0
-            let s:jobs[l:job_id].job = l:job
-            let s:jobs[l:job_id].nvim_job_id = l:job
+        if l:nvim_job > 0
+            let s:jobs[a:job_id].job = l:nvim_job
+            let s:jobs[a:job_id].nvim_job_id = l:nvim_job
         else
             " Job failed to start
-            let s:jobs[l:job_id].status = 127
-            let s:jobs[l:job_id].finished = localtime()
-            call s:process_job_completion(l:job_id)
-            return -1
+            let s:jobs[a:job_id].status = 127
+            let s:jobs[a:job_id].finished = localtime()
+            call s:process_job_completion(a:job_id)
+            return
         endif
     else
         " Vim implementation
         let l:job_opts = {
-                \ 'out_cb': function('s:vim_out_cb', [l:job_id]),
-                \ 'err_cb': function('s:vim_err_cb', [l:job_id]),
-                \ 'exit_cb': function('s:vim_exit_cb', [l:job_id]),
+                \ 'out_cb': function('s:vim_out_cb', [a:job_id]),
+                \ 'err_cb': function('s:vim_err_cb', [a:job_id]),
+                \ 'exit_cb': function('s:vim_exit_cb', [a:job_id]),
                 \ 'mode': 'raw',
                 \ }
         
-        let l:job = job_start(['sh', '-c', l:cmd], l:job_opts)
+        let l:vim_job = job_start(['sh', '-c', l:cmd], l:job_opts)
         
-        if job_status(l:job) !=# 'fail'
-            let s:jobs[l:job_id].job = l:job
+        if job_status(l:vim_job) !=# 'fail'
+            let s:jobs[a:job_id].job = l:vim_job
         else
             " Job failed to start
-            let s:jobs[l:job_id].status = 127
-            let s:jobs[l:job_id].finished = localtime()
-            call s:process_job_completion(l:job_id)
-            return -1
+            let s:jobs[a:job_id].status = 127
+            let s:jobs[a:job_id].finished = localtime()
+            call s:process_job_completion(a:job_id)
+            return
         endif
     endif
     
-    return l:job_id
+    " Arm a timeout watcher if configured and timers are available
+    let l:timeout = get(g:, 'plugin_manager_job_timeout', 60)
+    if l:timeout > 0 && exists('*timer_start')
+        let s:jobs[a:job_id].timeout_timer = timer_start(l:timeout * 1000,
+                    \ function('s:on_job_timeout', [a:job_id]))
+    endif
+endfunction
+
+" Start the next queued job if capacity allows
+function! s:try_start_next() abort
+    let l:max = get(g:, 'plugin_manager_max_concurrent_jobs', 4)
+    while !empty(s:job_queue) && (l:max <= 0 || s:active_count < l:max)
+        let l:next_id = remove(s:job_queue, 0)
+        " Skip jobs that were stopped/cleaned while queued
+        if has_key(s:jobs, l:next_id) && !s:jobs[l:next_id].finished
+            call s:spawn_job(l:next_id)
+        endif
+    endwhile
+endfunction
+
+" Handle a job exceeding its timeout
+function! s:on_job_timeout(job_id, timer) abort
+    if !has_key(s:jobs, a:job_id) || s:jobs[a:job_id].finished
+        return
+    endif
+    " Best-effort stop; completion bookkeeping happens in stop_job/exit cb
+    try
+        call plugin_manager#async#stop_job(a:job_id)
+    catch
+        " Ignore stop failures
+    endtry
 endfunction
 
 " Stop a running job
@@ -360,6 +419,21 @@ function! s:process_job_completion(job_id) abort
     
     let l:job = s:jobs[a:job_id]
     
+    " Guard against double-processing (failed start + exit callback)
+    if get(l:job, 'completed', 0)
+        return
+    endif
+    let l:job.completed = 1
+    
+    " Release concurrency slot and cancel any pending timeout watcher
+    if get(l:job, 'timeout_timer', 0) && exists('*timer_stop')
+        call timer_stop(l:job.timeout_timer)
+        let l:job.timeout_timer = 0
+    endif
+    if s:active_count > 0
+        let s:active_count -= 1
+    endif
+    
     " Report job completion to UI if needed
     if has_key(l:job.opts, 'ui_message') && !empty(l:job.opts.ui_message) && exists('*plugin_manager#ui#update_sidebar')
         let l:success = l:job.status == 0
@@ -398,4 +472,7 @@ function! s:process_job_completion(job_id) abort
             echohl None
         endtry
     endif
+    
+    " A slot freed up: start the next queued job if any
+    call s:try_start_next()
 endfunction
