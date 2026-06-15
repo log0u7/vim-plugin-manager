@@ -1,6 +1,6 @@
 " autoload/plugin_manager/git.vim - Git operations abstraction for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.3.5
+" Version: 1.4.0
 
 " ------------------------------------------------------------------------------
 " GITMODULES CACHE AND PARSING
@@ -149,6 +149,11 @@ function! plugin_manager#git#execute(cmd, dir, ...) abort
   
   " Handle directory change if needed
   let l:full_cmd = empty(a:dir) ? a:cmd : 'cd "' . a:dir . '" && ' . a:cmd
+  
+  " Trace the command to the debug log if enabled
+  if get(g:, 'plugin_manager_trace_commands', 0)
+    call plugin_manager#core#log_trace('git', 'exec: ' . l:full_cmd)
+  endif
   
   if l:output_to_ui && exists('*plugin_manager#ui#update_sidebar')
     call plugin_manager#ui#update_sidebar(['Executing: ' . a:cmd], 1)
@@ -485,8 +490,9 @@ function! plugin_manager#git#update_submodule(module_path) abort
     return 1
   endif
   
-  " Update the module
-  let l:result = plugin_manager#git#execute('git pull origin ' . l:update_status.remote_branch . ' --ff-only', 
+  " Update the module using the configured pull strategy
+  let l:pull_flag = plugin_manager#core#get_pull_flag()
+  let l:result = plugin_manager#git#execute('git pull origin ' . l:update_status.remote_branch . ' ' . l:pull_flag, 
         \ a:module_path, 1, 1)
   
   " Handle error

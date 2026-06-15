@@ -1,6 +1,6 @@
 " plugin/plugin_manager.vim - Main entry point for Vim Plugin Manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.3.5
+" Version: 1.4.0
 
 " Prevent loading the plugin multiple times
 if exists('g:loaded_plugin_manager') || &cp
@@ -114,6 +114,19 @@ endif
 
 if !exists('g:plugin_manager_job_timeout')
     let g:plugin_manager_job_timeout = 60  " Default timeout in seconds for async jobs 
+endif
+
+" Update notifications and automatic updates (all opt-in, default off)
+if !exists('g:plugin_manager_check_on_startup')
+    let g:plugin_manager_check_on_startup = 0  " Check for updates on VimEnter
+endif
+
+if !exists('g:plugin_manager_check_interval')
+    let g:plugin_manager_check_interval = 24  " Hours between background update checks
+endif
+
+if !exists('g:plugin_manager_auto_update')
+    let g:plugin_manager_auto_update = 0  " Auto-install updates on startup
 endif
 
 " Debug options
