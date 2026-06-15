@@ -2,13 +2,54 @@
 
 All notable changes to the Vim Plugin Manager will be documented in this file.
 
-## [Unreleased] - v1.4
+## [Unreleased]
+
+## [1.4.0] - 2026-06-15
 ### Features
-- Asynchronous jobs for background plugin installations and updates
-- UI improvements with better progress indicators
-- Enhanced error reporting with detailed diagnostics
-- Notification System 
-- Automatic updates
+- Update notifications: detect plugins with available updates and report them in
+  the sidebar (`:PluginManager check`).
+- Optional update checks on startup (`g:plugin_manager_check_on_startup`) and on a
+  configurable interval (`g:plugin_manager_check_interval`), with a cache to avoid
+  redundant network access. Disabled by default (opt-in).
+- Optional automatic updates on startup (`g:plugin_manager_auto_update`), disabled
+  by default (opt-in).
+- UI improvements with clearer progress indicators (`[i/N]`) for batch operations.
+- Enhanced error reporting with detailed diagnostics from async jobs.
+
+### Improvements
+- Simplified, lighter UI module with a unified operation API
+  (`start_operation`/`update_operation`/`complete_operation`).
+- Wired previously inert configuration options: `pull_strategy`,
+  `auto_commit_on_update`, `max_concurrent_jobs`, `job_timeout`, `debug_mode`,
+  `trace_commands`.
+- Concurrency control for async jobs honoring `g:plugin_manager_max_concurrent_jobs`
+  and `g:plugin_manager_job_timeout`.
+
+### Bug Fixes
+- Fixed `:PluginManager update` crashing on an undefined script-local symbol
+  reference (`s:symbols`).
+- Implemented the missing `plugin_manager#core#is_pm_error()` function that was
+  called on every error path (would raise E117).
+- Fixed the sync "update all" path to mark per-plugin operations complete and to
+  commit the updated submodule pointers.
+
+### Refactoring
+- Migrated all command modules to the structured `plugin_manager#core#throw()`
+  error API with component-specific codes (no more bare `throw 'PM_ERROR:...'`).
+- Aligned all module version headers to 1.4.0.
+
+### Testing
+- Reworked the Vader test suite to match the actual command API and added
+  coverage for core utilities, the update-check cache, and `.gitmodules` parsing
+  (24 cases, passing on both Vim and Neovim).
+- Made the test runner use an absolute runtimepath so tests that change the
+  working directory still resolve autoload functions under Neovim.
+
+### Documentation
+- Added `AGENTS.md` and refreshed `CONTRIBUTING.md` (testing, error format,
+  configuration, project structure).
+- Documented the new commands and configuration in `README.md` and
+  `doc/plugin_manager.txt`.
 
 ## [1.3.5] - 2025-04-12
 ### Improvements

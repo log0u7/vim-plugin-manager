@@ -142,8 +142,12 @@ The project is organized into several key components:
 
 ### Error Handling
 
-Errors follow a structured format:
-- `PM_ERROR:component:message` for internal errors
+Errors follow a structured, 4-field format:
+- `PM_ERROR:component:CODE:message` for internal errors, where `CODE` is one of
+  the component-specific codes defined in `s:error_types` in `core.vim`.
+- Raise errors with `plugin_manager#core#throw(component, code, message)` rather
+  than a bare `throw 'PM_ERROR:...'`.
+- Catch and present them with `plugin_manager#core#handle_error(v:exception, component)`.
 - The Core module provides utilities for creating, handling, and formatting errors.
 - UI error display is handled through the UI module.
 
@@ -178,20 +182,42 @@ The plugin uses global configuration variables defined in `plugin/plugin_manager
 - `g:plugin_manager_log_history_count`: Number of log files to keep in rotation.
 - `g:plugin_manager_spinner_style`: Style for spinners in async operations.
 - `g:plugin_manager_progress_style`: Style for progress bars.
-- `g:plugin_manager_pull_strategy`: Git pull strategy for updates.
+- `g:plugin_manager_pull_strategy`: Git pull strategy for updates (`ff-only`, `merge`, `rebase`).
+- `g:plugin_manager_auto_commit_on_update`: Auto commit after successful updates.
 - `g:plugin_manager_max_concurrent_jobs`: Maximum concurrent async jobs.
+- `g:plugin_manager_job_timeout`: Default timeout (seconds) for async jobs.
+- `g:plugin_manager_debug_mode`: Enable additional debug information.
+- `g:plugin_manager_trace_commands`: Log all git commands to the debug log.
+- `g:plugin_manager_check_on_startup`: Check for plugin updates on `VimEnter` (opt-in, default off).
+- `g:plugin_manager_check_interval`: Hours between background update checks (cache TTL).
+- `g:plugin_manager_auto_update`: Auto-install available updates on startup (opt-in, default off).
 
 When adding new configuration options, follow this pattern and provide sensible defaults.
 
 ## Testing
 
-Currently, the project uses manual testing. When adding new features or fixing bugs:
+The project uses [Vader](https://github.com/junegunn/vader.vim) for automated
+tests, run in CI on both GitHub Actions (`.github/workflows/test.yml`) and
+GitLab CI (`.gitlab-ci.yml`).
 
-1. Verify your changes work correctly in both Vim and Neovim.
-2. Test all related functionality to ensure no regressions.
-3. Include steps to manually test your changes in the PR description.
+Run the suite locally:
 
-Future improvements may include automated tests.
+```bash
+git clone https://github.com/junegunn/vader.vim.git
+make -f Makefile.test VADER=./vader.vim test
+```
+
+The target generates a throwaway `.vaderrc.vim` and runs
+`vim -Nu .vaderrc.vim -c 'Vader! tests/*.vader'`. Clean artifacts with
+`make -f Makefile.test clean`.
+
+When adding new features or fixing bugs:
+
+1. Add or update Vader tests under `tests/`. Prefer tests that do not require
+   network access (mock with local fixtures).
+2. Verify your changes work correctly in both Vim and Neovim.
+3. Test all related functionality to ensure no regressions.
+4. Ensure the suite passes (`make -f Makefile.test test`) before opening a PR.
 
 ## Documentation
 
@@ -240,6 +266,7 @@ Understanding the project's complete structure will help you contribute effectiv
 │   │       ├── list.vim             # Plugin listing and status
 │   │       ├── reload.vim           # Plugin reloading
 │   │       ├── remote.vim           # Remote repository management
+│   │       ├── check.vim            # Update detection and notifications
 │   │       ├── remove.vim           # Plugin removal
 │   │       ├── restore.vim          # Plugin restoration
 │   │       ├── status.vim           # Plugin status reporting
@@ -254,10 +281,15 @@ Understanding the project's complete structure will help you contribute effectiv
 │   └── plugin_manager.vim           # Entry point and command definitions
 ├── syntax/                          # Syntax highlighting
 │   └── pluginmanager.vim            # Syntax definitions for the UI
+├── tests/                           # Vader test suite
+├── .github/workflows/test.yml       # GitHub Actions CI
+├── .gitlab-ci.yml                   # GitLab CI
+├── AGENTS.md                        # Guidance for AI agents and tooling
 ├── CHANGELOG.md                     # History of changes and versions
 ├── CONTRIBUTING.md                  # Contribution guidelines (this file)
 ├── LICENSE                          # License information
 ├── Makefile                         # Build and version management
+├── Makefile.test                    # Vader test runner
 └── README.md                        # Project overview and usage information
 ```
 
