@@ -1,6 +1,6 @@
 " autoload/plugin_manager/core.vim - Core utilities and error handling for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.3.5
+" Version: 1.4.0
 
 " ------------------------------------------------------------------------------
 " ERROR HANDLING SYSTEM
@@ -333,11 +333,88 @@ endtry
 endfunction
 
 " Log an arbitrary message for debugging
+" Only logs when both logging and debug_mode are enabled
 function! plugin_manager#core#log_debug(component, message) abort
-if get(g:, 'plugin_manager_enable_logging', 1)
+if get(g:, 'plugin_manager_enable_logging', 1) && get(g:, 'plugin_manager_debug_mode', 0)
   let l:error_string = 'DEBUG:' . a:component . ':DEBUG:' . a:message
   call s:log_error_internally(l:error_string, a:component)
 endif
+endfunction
+
+" Trace a low-level command to the log
+" Independent of debug_mode: gated by enable_logging only, callers gate on
+" g:plugin_manager_trace_commands
+function! plugin_manager#core#log_trace(component, message) abort
+if get(g:, 'plugin_manager_enable_logging', 1)
+  let l:error_string = 'TRACE:' . a:component . ':TRACE:' . a:message
+  call s:log_error_internally(l:error_string, a:component)
+endif
+endfunction
+
+" ------------------------------------------------------------------------------
+" UPDATE CHECK CACHE
+" ------------------------------------------------------------------------------
+
+" Get the path to the update-check cache file
+function! plugin_manager#core#get_check_cache_path() abort
+  let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+  return l:vim_dir . '/logs/update_check.json'
+endfunction
+
+" Read the cached update-check result
+" Returns a dict: {'timestamp': <int>, 'plugins': [ {name, behind}, ... ]}
+" Returns an empty dict if no valid cache exists
+function! plugin_manager#core#read_check_cache() abort
+  let l:path = plugin_manager#core#get_check_cache_path()
+  if !filereadable(l:path)
+    return {}
+  endif
+  try
+    let l:content = join(readfile(l:path), "\n")
+    if empty(l:content)
+      return {}
+    endif
+    let l:data = json_decode(l:content)
+    if type(l:data) != v:t_dict
+      return {}
+    endif
+    return l:data
+  catch
+    return {}
+  endtry
+endfunction
+
+" Write the update-check result to the cache
+" @param plugins: list of dicts {name, behind}
+function! plugin_manager#core#write_check_cache(plugins) abort
+  let l:path = plugin_manager#core#get_check_cache_path()
+  let l:dir = fnamemodify(l:path, ':h')
+  if !isdirectory(l:dir)
+    try
+      call mkdir(l:dir, 'p')
+    catch
+      return 0
+    endtry
+  endif
+  let l:data = {'timestamp': localtime(), 'plugins': a:plugins}
+  try
+    call writefile([json_encode(l:data)], l:path)
+    return 1
+  catch
+    return 0
+  endtry
+endfunction
+
+" Decide whether a fresh check is due based on the configured interval
+" @param interval_hours: hours that must elapse before a new check
+" Returns 1 if a check should run, 0 if the cache is still fresh
+function! plugin_manager#core#check_due(interval_hours) abort
+  let l:cache = plugin_manager#core#read_check_cache()
+  if empty(l:cache) || !has_key(l:cache, 'timestamp')
+    return 1
+  endif
+  let l:age = localtime() - l:cache.timestamp
+  return l:age >= (a:interval_hours * 3600)
 endfunction
 
 " ------------------------------------------------------------------------------
@@ -519,7 +596,30 @@ let l:config.enable_logging = plugin_manager#core#get_config('enable_logging', 1
 let l:config.max_log_size = plugin_manager#core#get_config('max_log_size', 1024)
 let l:config.log_history_count = plugin_manager#core#get_config('log_history_count', 3)
 
+" Update check / auto-update settings
+let l:config.check_on_startup = plugin_manager#core#get_config('check_on_startup', 0)
+let l:config.check_interval = plugin_manager#core#get_config('check_interval', 24)
+let l:config.auto_update = plugin_manager#core#get_config('auto_update', 0)
+
 return l:config
+endfunction
+
+" Translate the configured pull strategy into a git pull flag
+" Options: ff-only (default), merge, rebase
+function! plugin_manager#core#get_pull_flag() abort
+  let l:strategy = plugin_manager#core#get_config('pull_strategy', 'ff-only')
+  if l:strategy ==# 'merge'
+    return '--no-rebase'
+  elseif l:strategy ==# 'rebase'
+    return '--rebase'
+  endif
+  " Default and any unknown value: fast-forward only
+  return '--ff-only'
+endfunction
+
+" Whether updates should be auto-committed
+function! plugin_manager#core#should_auto_commit() abort
+  return plugin_manager#core#get_config('auto_commit_on_update', 1)
 endfunction
 
 " Get plugin directory for specific type (start or opt)
