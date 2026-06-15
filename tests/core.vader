@@ -1,0 +1,53 @@
+Execute (convert_to_full_url handles user/repo shorthand):
+  let url = plugin_manager#core#convert_to_full_url('tpope/vim-fugitive')
+  AssertEqual 'https://github.com/tpope/vim-fugitive.git', url
+
+Execute (convert_to_full_url passes through full URLs):
+  let url = plugin_manager#core#convert_to_full_url('https://gitlab.com/user/repo.git')
+  AssertEqual 'https://gitlab.com/user/repo.git', url
+
+Execute (convert_to_full_url rejects garbage):
+  let url = plugin_manager#core#convert_to_full_url('not a url at all !!')
+  AssertEqual '', url
+
+Execute (extract_plugin_name from shorthand and URL):
+  AssertEqual 'vim-fugitive', plugin_manager#core#extract_plugin_name('tpope/vim-fugitive')
+  AssertEqual 'vim-fugitive', plugin_manager#core#extract_plugin_name('https://github.com/tpope/vim-fugitive.git')
+
+Execute (process_plugin_options applies defaults):
+  let opts = plugin_manager#core#process_plugin_options([])
+  AssertEqual 'start', opts.load
+  AssertEqual '', opts.dir
+  AssertEqual '', opts.branch
+
+Execute (process_plugin_options accepts a dictionary):
+  let opts = plugin_manager#core#process_plugin_options([{'load': 'opt', 'branch': 'main'}])
+  AssertEqual 'opt', opts.load
+  AssertEqual 'main', opts.branch
+
+Execute (normalize_path collapses duplicate and trailing slashes):
+  AssertEqual '/a/b/c', plugin_manager#core#normalize_path('/a//b/c/')
+
+Execute (get_pull_flag reflects configured strategy):
+  let g:plugin_manager_pull_strategy = 'ff-only'
+  AssertEqual '--ff-only', plugin_manager#core#get_pull_flag()
+  let g:plugin_manager_pull_strategy = 'rebase'
+  AssertEqual '--rebase', plugin_manager#core#get_pull_flag()
+  let g:plugin_manager_pull_strategy = 'merge'
+  AssertEqual '--no-rebase', plugin_manager#core#get_pull_flag()
+  unlet g:plugin_manager_pull_strategy
+
+Execute (is_pm_error recognizes structured messages):
+  AssertEqual 1, plugin_manager#core#is_pm_error('PM_ERROR:add:REPO_NOT_FOUND:nope')
+  AssertEqual 0, plugin_manager#core#is_pm_error('just a plain string')
+
+Execute (parse_error splits the 4-field format):
+  let p = plugin_manager#core#parse_error('PM_ERROR:add:REPO_NOT_FOUND:not found')
+  AssertEqual 'internal', p.type
+  AssertEqual 'add', p.component
+  AssertEqual 'REPO_NOT_FOUND', p.code
+  AssertEqual 'not found', p.message
+
+Execute (core#throw produces a valid structured error):
+  AssertThrows call plugin_manager#core#throw('add', 'REPO_NOT_FOUND', 'boom')
+  AssertEqual 'PM_ERROR:add:REPO_NOT_FOUND:boom', g:vader_exception

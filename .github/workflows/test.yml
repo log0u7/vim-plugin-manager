@@ -1,0 +1,19 @@
+name: vader tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Vim + Make
+        run: sudo apt-get update && sudo apt-get install -y git vim make
+
+      - name: Clone Vader.vim
+        run: git clone https://github.com/junegunn/vader.vim.git
+
+      - name: Run Tests
+        run: make -f Makefile.test VADER=./vader.vim test

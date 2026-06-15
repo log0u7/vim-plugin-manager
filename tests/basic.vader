@@ -1,0 +1,28 @@
+Execute (Plugin loads and defines its commands):
+  runtime! plugin/plugin_manager.vim
+  AssertEqual 1, g:loaded_plugin_manager
+  Assert exists(':PluginManager'), ':PluginManager command should exist'
+  Assert exists(':PluginManagerRemote'), ':PluginManagerRemote command should exist'
+  Assert exists(':PluginManagerToggle'), ':PluginManagerToggle command should exist'
+  Assert exists(':PluginBegin'), ':PluginBegin command should exist'
+  Assert exists(':Plugin'), ':Plugin command should exist'
+  Assert exists(':PluginEnd'), ':PluginEnd command should exist'
+  Assert exists(':PluginManagerViewLog'), ':PluginManagerViewLog command should exist'
+  Assert exists(':PluginManagerClearLog'), ':PluginManagerClearLog command should exist'
+
+Execute (Default configuration variables are set):
+  runtime! plugin/plugin_manager.vim
+  Assert !empty(g:plugin_manager_vim_dir), 'vim_dir should be set'
+  AssertEqual 'start', g:plugin_manager_start_dir
+  AssertEqual 'opt', g:plugin_manager_opt_dir
+  AssertEqual 'github.com', g:plugin_manager_default_git_host
+
+Execute (Update notifications are opt-in and off by default):
+  runtime! plugin/plugin_manager.vim
+  AssertEqual 0, g:plugin_manager_check_on_startup
+  AssertEqual 0, g:plugin_manager_auto_update
+  AssertEqual 24, g:plugin_manager_check_interval
+
+Execute (No startup autocmd is registered by default):
+  runtime! plugin/plugin_manager.vim
+  AssertEqual 0, exists('#plugin_manager_startup_check')

@@ -1,0 +1,35 @@
+Before:
+  let g:_pm_saved_vim_dir = get(g:, 'plugin_manager_vim_dir', '')
+  let g:plugin_manager_vim_dir = tempname()
+  call mkdir(g:plugin_manager_vim_dir, 'p')
+
+After:
+  if isdirectory(g:plugin_manager_vim_dir)
+    call delete(g:plugin_manager_vim_dir, 'rf')
+  endif
+  let g:plugin_manager_vim_dir = g:_pm_saved_vim_dir
+
+Execute (read_check_cache returns empty when no cache exists):
+  let c = plugin_manager#core#read_check_cache()
+  AssertEqual type({}), type(c)
+  AssertEqual 0, len(c)
+
+Execute (write then read round-trips the plugin list):
+  call plugin_manager#core#write_check_cache([{'name': 'foo', 'behind': 3}, {'name': 'bar', 'behind': 1}])
+  let c = plugin_manager#core#read_check_cache()
+  Assert has_key(c, 'timestamp'), 'cache should have a timestamp'
+  AssertEqual 2, len(c.plugins)
+  AssertEqual 'foo', c.plugins[0].name
+  AssertEqual 3, c.plugins[0].behind
+
+Execute (check_due is false right after a fresh write):
+  call plugin_manager#core#write_check_cache([])
+  AssertEqual 0, plugin_manager#core#check_due(24)
+
+Execute (check_due is true for a zero interval):
+  call plugin_manager#core#write_check_cache([])
+  AssertEqual 1, plugin_manager#core#check_due(0)
+
+Execute (check_due is true when no cache exists):
+  call delete(plugin_manager#core#get_check_cache_path())
+  AssertEqual 1, plugin_manager#core#check_due(24)

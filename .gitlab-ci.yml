@@ -1,0 +1,11 @@
+stages:
+  - test
+
+test_vim_plugin_manager:
+  image: debian:bullseye
+  stage: test
+  before_script:
+    - apt update && apt install -y git make vim
+    - git clone https://github.com/junegunn/vader.vim.git
+  script:
+    - make -f Makefile.test VADER=./vader.vim test
