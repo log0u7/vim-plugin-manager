@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd.vim - Command dispatcher for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.3.5
+" Version: 1.4.0
 
 " ------------------------------------------------------------------------------
 " COMMAND ADAPTERS FOR PLUGIN API
@@ -101,6 +101,8 @@ function! plugin_manager#cmd#dispatch(...) abort
       call plugin_manager#api#status()
     elseif l:command ==# 'update'
       call call('s:cmd_update', l:args)
+    elseif l:command ==# 'check' || l:command ==# 'check-updates'
+      call plugin_manager#api#check()
     elseif l:command ==# 'summary'
       call plugin_manager#api#summary()
     elseif l:command ==# 'backup'

@@ -1,6 +1,6 @@
 " autoload/plugin_manager/api.vim - Unified API for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.3.5
+" Version: 1.4.0
 
 " ------------------------------------------------------------------------------
 " PUBLIC API FUNCTIONS
@@ -34,6 +34,12 @@ endfunction
 " Update plugins
 function! plugin_manager#api#update(module_name) abort
   return plugin_manager#cmd#update#execute(a:module_name)
+endfunction
+
+" Check for available updates
+function! plugin_manager#api#check(...) abort
+  let l:opts = a:0 > 0 ? a:1 : {}
+  return plugin_manager#cmd#check#execute(l:opts)
 endfunction
 
 " Backup configuration
