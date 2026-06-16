@@ -26,3 +26,13 @@ Execute (Update notifications are opt-in and off by default):
 Execute (No startup autocmd is registered by default):
   runtime! plugin/plugin_manager.vim
   AssertEqual 0, exists('#plugin_manager_startup_check')
+
+Execute (Async support is detected via Vim job/channel):
+  runtime! autoload/plugin_manager/async.vim
+  " On a Vim built with +job +channel this is 1; the call must not error
+  let s = plugin_manager#async#supported()
+  Assert s == 0 || s == 1, 'supported() should return a boolean'
+
+Execute (Spinner interval default is set):
+  runtime! plugin/plugin_manager.vim
+  AssertEqual 80, g:plugin_manager_spinner_interval
