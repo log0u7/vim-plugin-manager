@@ -73,7 +73,8 @@ function! s:fetch_status_sync(ctx) abort
   for l:name in a:ctx.module_names
     let l:module = a:ctx.modules[l:name]
     if has_key(l:module, 'is_valid') && l:module.is_valid
-      let l:info = s:get_module_status_info(l:module)
+      " Fetch already done above for all submodules; analyze locally
+      let l:info = s:get_module_status_info(l:module, 1)
       let l:line = s:format_status_line(l:info)
       call plugin_manager#ui#update_sidebar([l:line], 1)
     endif
@@ -85,11 +86,9 @@ endfunction
 " ------------------------------------------------------------------------------
 
 function! s:fetch_status_async(ctx) abort
-  " Start fetch in background
-  call plugin_manager#async#git('git submodule foreach --recursive "git fetch -q origin 2>/dev/null || true"', {})
-  
-  " Begin processing modules
-  call timer_start(50, {timer -> s:process_next_module_status(a:ctx)})
+  " Process modules one by one: fetch each as an async job, then analyze
+  " locally. This keeps the UI responsive (no blocking system() calls).
+  call timer_start(20, {timer -> s:process_next_module_status(a:ctx)})
 endfunction
 
 function! s:process_next_module_status(ctx) abort
@@ -106,19 +105,36 @@ function! s:process_next_module_status(ctx) abort
     return
   endif
   
-  let l:info = s:get_module_status_info(l:module)
-  let l:line = s:format_status_line(l:info)
-  call plugin_manager#ui#update_sidebar([l:line], 1)
+  if !isdirectory(l:module.path)
+    let l:info = s:get_module_status_info(l:module, 1)
+    call plugin_manager#ui#update_sidebar([s:format_status_line(l:info)], 1)
+    let a:ctx.current_index += 1
+    call s:process_next_module_status(a:ctx)
+    return
+  endif
+  
+  " Fetch this module in the background, then analyze locally
+  call plugin_manager#async#git('git -C ' . shellescape(l:module.path) . ' fetch -q origin 2>/dev/null || true', {
+        \ 'callback': function('s:on_status_fetched', [a:ctx, l:module])
+        \ })
+endfunction
+
+function! s:on_status_fetched(ctx, module, result) abort
+  let l:info = s:get_module_status_info(a:module, 1)
+  call plugin_manager#ui#update_sidebar([s:format_status_line(l:info)], 1)
   
   let a:ctx.current_index += 1
-  call timer_start(10, {timer -> s:process_next_module_status(a:ctx)})
+  call s:process_next_module_status(a:ctx)
 endfunction
 
 " ------------------------------------------------------------------------------
 " STATUS INFO EXTRACTION
 " ------------------------------------------------------------------------------
 
-function! s:get_module_status_info(module) abort
+" @param local_only: when 1, assume a fetch already happened and only run
+"   fast local analysis (non-blocking flow). When 0, do a blocking fetch.
+function! s:get_module_status_info(module, ...) abort
+  let l:local_only = a:0 > 0 ? a:1 : 0
   let l:short_name = a:module.short_name
   let l:path = a:module.path
   
@@ -135,7 +151,9 @@ function! s:get_module_status_info(module) abort
     return l:info
   endif
   
-  let l:update_status = plugin_manager#git#check_updates(l:path)
+  let l:update_status = l:local_only
+        \ ? plugin_manager#git#collect_status_local(l:path)
+        \ : plugin_manager#git#check_updates(l:path)
   
   if l:update_status.different_branch && l:update_status.branch != 'detached'
     let l:info.status = 'Custom branch'

@@ -147,7 +147,7 @@ function! s:check_sync(ctx) abort
     endif
 
     call plugin_manager#git#execute('git fetch -q origin 2>/dev/null || true', l:module.path, 0, 0)
-    let l:status = plugin_manager#git#check_updates(l:module.path)
+    let l:status = plugin_manager#git#collect_status_local(l:module.path)
 
     if !l:status.different_branch && l:status.behind > 0
       call add(a:ctx.behind, {'name': l:module.short_name, 'behind': l:status.behind})
@@ -199,7 +199,8 @@ function! s:process_next(ctx) abort
 endfunction
 
 function! s:on_fetched(ctx, module, op_id, result) abort
-  let l:status = plugin_manager#git#check_updates(a:module.path)
+  " Fetch already done as an async job; only fast local analysis here
+  let l:status = plugin_manager#git#collect_status_local(a:module.path)
 
   if !l:status.different_branch && l:status.behind > 0
     call add(a:ctx.behind, {'name': a:module.short_name, 'behind': l:status.behind})
