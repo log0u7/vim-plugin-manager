@@ -9,25 +9,35 @@ endif
 let g:loaded_plugin_manager = 1
 
 " ------------------------------------------------------------------------------
+" ENVIRONMENT GUARD
+" ------------------------------------------------------------------------------
+
+" PluginManager targets Vim only. Neovim already has mature Lua-based managers
+" (lazy.nvim, packer.nvim, vim-plug). Warn but keep loading in case the user
+" really wants it.
+if has('nvim')
+    echohl WarningMsg
+    echomsg 'PluginManager: Neovim is not supported. Use lazy.nvim, packer.nvim or vim-plug instead.'
+    echohl None
+endif
+
+" Require Vim 8.2+ for the modern async UI (job/channel, popup, setbufline).
+if v:version < 802
+    echohl WarningMsg
+    echomsg 'PluginManager: Vim 8.2 or newer is recommended. Some features may not work.'
+    echohl None
+endif
+
+" ------------------------------------------------------------------------------
 " CONFIGURATION VARIABLES
 " ------------------------------------------------------------------------------
 
-" Detect Vim directory based on platform
+" Detect Vim configuration directory (Vim only)
 if !exists('g:plugin_manager_vim_dir')
-    if has('nvim')
-        " Neovim default config directory
-        if empty($XDG_CONFIG_HOME)
-        let g:plugin_manager_vim_dir = expand('~/.config/nvim')
-        else
-        let g:plugin_manager_vim_dir = expand($XDG_CONFIG_HOME . '/nvim')
-        endif
-    else
-        " Standard Vim directory
-        if has('win32') || has('win64')
+    if has('win32') || has('win64')
         let g:plugin_manager_vim_dir = expand('~/vimfiles')
-        else
+    else
         let g:plugin_manager_vim_dir = expand('~/.vim')
-        endif
     endif
 endif
 
@@ -46,13 +56,9 @@ if !exists('g:plugin_manager_opt_dir')
     let g:plugin_manager_opt_dir = "opt"
 endif
 
-" Path to vimrc/init.vim
+" Path to vimrc
 if !exists('g:plugin_manager_vimrc_path')
-    if has('nvim')
-        let g:plugin_manager_vimrc_path = g:plugin_manager_vim_dir . '/init.vim'
-    else
-        let g:plugin_manager_vimrc_path = g:plugin_manager_vim_dir . '/vimrc'
-    endif
+    let g:plugin_manager_vimrc_path = g:plugin_manager_vim_dir . '/vimrc'
 endif
 
 " Sidebar width
