@@ -7,13 +7,13 @@ consistent changes.
 
 ## Project summary
 
-Vim Plugin Manager is a lightweight Vim/Neovim plugin manager built on Git
+Vim Plugin Manager is a lightweight Vim plugin manager built on Git
 submodules and Vim 8's native package system (`pack/plugins/{start,opt}`). The
 codebase is pure VimScript, organized into small single-responsibility modules.
 
 ## Build, run, and test
 
-There is no compilation step. The project is loaded directly by Vim/Neovim.
+There is no compilation step. The project is loaded directly by Vim.
 
 - Run the test suite (Vader):
   ```bash
@@ -29,7 +29,8 @@ There is no compilation step. The project is loaded directly by Vim/Neovim.
 - CI runs the same target: `.github/workflows/test.yml` (GitHub Actions) and
   `.gitlab-ci.yml` (GitLab). Keep both green.
 
-Requirements: Vim 8.0+ or Neovim, Git 2.40+.
+Requirements: Vim 8.2+ (with +job and +channel), Git 2.40+. Neovim is not
+supported (it has lazy.nvim, packer.nvim and vim-plug).
 
 ## Coding conventions
 
@@ -56,7 +57,7 @@ plugin/plugin_manager.vim     Entry point: config defaults + command definitions
 autoload/plugin_manager/
   core.vim    Error handling, logging, path/config utils, URL/option parsing
   git.vim     Git operations, .gitmodules cache, submodule status
-  async.vim   Unified async jobs (Vim job/channel + Neovim jobstart)
+  async.vim   Non-blocking async jobs (Vim job/channel) with a concurrency queue
   ui.vim      Sidebar rendering, spinners, operation tracking
   api.vim     Public API facade
   cmd.vim     Command dispatcher + legacy-format adapters

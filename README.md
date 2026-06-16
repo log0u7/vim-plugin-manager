@@ -1,6 +1,10 @@
 # Vim Plugin Manager
 
-A lightweight Vim/Neovim plugin manager that uses Git submodules and Vim 8's native package system.
+A lightweight Vim plugin manager that uses Git submodules and Vim 8's native package system.
+
+> Note: PluginManager targets Vim only. Neovim already has mature, Lua-based
+> managers (lazy.nvim, packer.nvim) as well as vim-plug, so it is not supported
+> here. Neovim users should use one of those instead.
 
 ## Features
 
@@ -12,19 +16,20 @@ A lightweight Vim/Neovim plugin manager that uses Git submodules and Vim 8's nat
 - Full Git integration for plugin versioning
 - Support for optional (lazy-loaded) plugins
 - Interactive sidebar interface
-- Compatible with both Vim and Neovim
+- Modern, non-blocking UI with spinners (operations never freeze the editor)
 - Asynchronous operations for better performance
 
 ## Requirements
 
-- Vim 8.0+ or Neovim
+- Vim 8.2+ (built with `+job` and `+channel` for async; falls back to
+  synchronous execution otherwise)
 - Git 2.40 or higher
 
 ## Installation
 
 ### Prerequisites
 
-- Vim 8.0+ or Neovim
+- Vim 8.2+
 - Git 2.40 or higher
 
 ### Simple Installation
@@ -33,7 +38,7 @@ A lightweight Vim/Neovim plugin manager that uses Git submodules and Vim 8's nat
 
 ```bash
 # If you don't already have a Git repository for your Vim configuration
-cd ~/.vim     # For Vim (or ~/.config/nvim for Neovim)
+cd ~/.vim
 git init
 ```
 
@@ -295,7 +300,7 @@ When Vim loads your vimrc, all these plugins will be installed automatically if 
 ```
 
 The backup command will:
-1. Copy your main configuration file (`.vimrc` or `init.vim`) into your `.vim` directory to ensure it's versioned along with everything else
+1. Copy your main configuration file (`.vimrc`) into your `.vim` directory to ensure it's versioned along with everything else
 2. Commit all changes in your Vim configuration directory, including:
    - Your custom plugin configurations in the `plugin/` directory
    - Any modifications to settings in `ftplugin/`, `syntax/`, `colors/`, etc.
@@ -402,8 +407,8 @@ git remote set-url origin --add --push third_repository_url
 You can customize the plugin manager by setting the following variables in your vimrc:
 
 ```vim
-" Custom Vim/Neovim configuration directory
-let g:plugin_manager_vim_dir = '~/.vim'  " or '~/.config/nvim' for Neovim
+" Custom Vim configuration directory
+let g:plugin_manager_vim_dir = '~/.vim'
 
 " Custom plugin directory
 let g:plugin_manager_plugins_dir = '~/.vim/pack/plugins'
@@ -415,10 +420,14 @@ let g:plugin_manager_start_dir = 'start'
 let g:plugin_manager_opt_dir = 'opt'
 
 " Custom vimrc location
-let g:plugin_manager_vimrc_path = '~/.vim/vimrc'  " or '~/.config/nvim/init.vim'
+let g:plugin_manager_vimrc_path = '~/.vim/vimrc'
 
 " Custom sidebar width
 let g:plugin_manager_sidebar_width = 60
+
+" Spinner style and refresh interval (ms) for the non-blocking UI
+let g:plugin_manager_spinner_style = 'dots'  " dots, line, circle, triangle, box
+let g:plugin_manager_spinner_interval = 80
 
 " Default git host for short plugin names
 let g:plugin_manager_default_git_host = 'github.com'

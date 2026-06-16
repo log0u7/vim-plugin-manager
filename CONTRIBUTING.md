@@ -109,7 +109,7 @@ The project is organized into several key components:
 4. **Core Functionality**
    - `autoload/plugin_manager/core.vim`: Contains fundamental utilities, error handling, path management and configuration functions.
    - `autoload/plugin_manager/git.vim`: Abstracts all Git operations and submodule management.
-   - `autoload/plugin_manager/async.vim`: Provides unified async operations with Vim/Neovim compatibility.
+   - `autoload/plugin_manager/async.vim`: Provides non-blocking async operations using Vim's job/channel API.
    - `autoload/plugin_manager/ui.vim`: Handles user interface, sidebar rendering, and progress indication.
 
 5. **Command Modules**
@@ -215,7 +215,7 @@ When adding new features or fixing bugs:
 
 1. Add or update Vader tests under `tests/`. Prefer tests that do not require
    network access (mock with local fixtures).
-2. Verify your changes work correctly in both Vim and Neovim.
+2. Verify your changes work correctly in Vim 8.2+ (Neovim is not supported).
 3. Test all related functionality to ensure no regressions.
 4. Ensure the suite passes (`make -f Makefile.test test`) before opening a PR.
 
@@ -236,7 +236,7 @@ When reporting issues, please include:
 1. A clear and descriptive title.
 2. Steps to reproduce the issue.
 3. Expected and actual behavior.
-4. Vim/Neovim version and OS information.
+4. Vim version and OS information.
 5. Relevant error messages or screenshots.
 6. Any relevant configuration or setup.
 
