@@ -1,0 +1,51 @@
+Before:
+  " Work from a scratch user buffer with a known cursor position
+  enew!
+  call setline(1, ['user 1', 'user 2', 'user 3', 'user 4'])
+  call cursor(3, 1)
+
+After:
+  " Close the sidebar window if present
+  let s:w = bufwinid('PluginManager')
+  if s:w != -1
+    call win_execute(s:w, 'hide')
+  endif
+
+Execute (format_plugin_line aligns name and info):
+  let line = plugin_manager#ui#format_plugin_line('+', 'foo', 'Installed')
+  Assert line =~# '^+ foo\.\+ Installed$', 'unexpected line: ' . line
+
+Execute (operations do not steal focus from the user window):
+  call plugin_manager#ui#open_sidebar(['Header'])
+  wincmd p
+  call cursor(3, 1)
+  let before = getpos('.')
+  let opid = plugin_manager#ui#start_operation('myplugin', 'Installing')
+  call plugin_manager#ui#update_operation(opid, 'Cloning')
+  call plugin_manager#ui#complete_operation(opid, 1, 'Done')
+  let after = getpos('.')
+  AssertEqual before[1], after[1], 'cursor line should not move'
+  AssertEqual before[2], after[2], 'cursor column should not move'
+  AssertNotEqual 'PluginManager', bufname('%'), 'focus should stay in the user window'
+
+Execute (completed operation is rendered in the sidebar buffer):
+  call plugin_manager#ui#open_sidebar(['Header'])
+  wincmd p
+  let opid = plugin_manager#ui#start_operation('alpha', 'Installing')
+  call plugin_manager#ui#complete_operation(opid, 1, 'Installed')
+  let sbuf = bufnr('PluginManager')
+  let content = join(getbufline(sbuf, 1, '$'), "\n")
+  Assert content =~# 'alpha', 'sidebar should contain the plugin name'
+
+Execute (show_update_notification lists plugins behind):
+  call plugin_manager#ui#show_update_notification([{'name': 'foo', 'behind': 2}])
+  let sbuf = bufnr('PluginManager')
+  let content = join(getbufline(sbuf, 1, '$'), "\n")
+  Assert content =~# 'foo', 'should list foo'
+  Assert content =~# '2 commits behind', 'should show the behind count'
+
+Execute (show_update_notification reports up-to-date when empty):
+  call plugin_manager#ui#show_update_notification([])
+  let sbuf = bufnr('PluginManager')
+  let content = join(getbufline(sbuf, 1, '$'), "\n")
+  Assert content =~# 'up-to-date', 'should say up-to-date'
