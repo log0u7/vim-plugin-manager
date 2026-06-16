@@ -96,6 +96,10 @@ if !exists('g:plugin_manager_spinner_style')
     let g:plugin_manager_spinner_style = 'dots'  " Options: dots, line, circle, triangle, box
 endif
 
+if !exists('g:plugin_manager_spinner_interval')
+    let g:plugin_manager_spinner_interval = 80  " Spinner refresh interval in ms
+endif
+
 if !exists('g:plugin_manager_progress_style')
     let g:plugin_manager_progress_style = 'block'  " Options: block, simple, arrow, dot
 endif

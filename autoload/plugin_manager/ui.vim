@@ -1,9 +1,9 @@
-" autoload/plugin_manager/ui.vim - Simplified modern UI inspired by vim-plug
+" autoload/plugin_manager/ui.vim - Modern, non-blocking sidebar UI for Vim
 " Maintainer: G.K.E. <gke@6admin.io>
 " Version: 1.4.0
 
-" Terminal capability detection
-let s:unicode_support = has('multi_byte') && &encoding ==# 'utf-8'
+" Terminal capability detection (Vim 8.2+, UTF-8 aware)
+let s:unicode_support = &encoding ==# 'utf-8'
 let s:fancy_ui = get(g:, 'plugin_manager_fancy_ui', 1) && s:unicode_support
 let s:has_timers = exists('*timer_start') && exists('*timer_stop')
 
@@ -25,7 +25,7 @@ let s:symbols = {
       \ 'horizontal': s:fancy_ui ? '─' : '-',
       \ }
 
-" Enhanced spinner frames
+" Spinner frames
 let s:spinner_styles = {
       \ 'dots': s:fancy_ui ? ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'] : ['|', '/', '-', '\'],
       \ 'line': s:fancy_ui ? ['⣾', '⣽', '⣻', '⢿', '⡿', '⣟', '⣯', '⣷'] : ['|', '/', '-', '\'],
@@ -35,7 +35,9 @@ let s:spinner_styles = {
       \ }
 
 let s:active_spinner_style = get(g:, 'plugin_manager_spinner_style', 'dots')
-let s:spinner_frames = s:spinner_styles[s:active_spinner_style]
+let s:spinner_frames = has_key(s:spinner_styles, s:active_spinner_style)
+      \ ? s:spinner_styles[s:active_spinner_style]
+      \ : s:spinner_styles['dots']
 
 " Buffer state
 let s:buffer_name = 'PluginManager'
@@ -44,89 +46,146 @@ let s:spinner_timer = 0
 let s:op_id_counter = 0
 
 " ------------------------------------------------------------------------------
-" PUBLIC API
+" BUFFER HELPERS (non-blocking: never steal focus, never force global redraw)
 " ------------------------------------------------------------------------------
 
-" Initialize UI
-function! plugin_manager#ui#init() abort
-  if s:has_timers && !s:spinner_timer
-    let s:spinner_timer = timer_start(80, function('s:update_all_spinners'), {'repeat': -1})
+" Return the sidebar buffer number, or -1 if it does not exist yet
+function! s:bufnr() abort
+  return bufnr(s:buffer_name)
+endfunction
+
+" Whether the sidebar buffer is shown in a window
+function! s:bufwin() abort
+  return bufwinid(s:buffer_name)
+endfunction
+
+" Set buffer lines safely without changing the current window/cursor
+function! s:set_lines(buf, lnum, lines) abort
+  if a:buf == -1
+    return
+  endif
+  call setbufvar(a:buf, '&modifiable', 1)
+  call setbufline(a:buf, a:lnum, a:lines)
+  call setbufvar(a:buf, '&modifiable', 0)
+endfunction
+
+" Append lines at the end of the buffer
+function! s:append_lines(buf, lines) abort
+  if a:buf == -1
+    return
+  endif
+  let l:last = s:line_count(a:buf)
+  call setbufvar(a:buf, '&modifiable', 1)
+  call appendbufline(a:buf, l:last, a:lines)
+  call setbufvar(a:buf, '&modifiable', 0)
+endfunction
+
+" Replace the whole buffer content
+function! s:replace_all(buf, lines) abort
+  if a:buf == -1
+    return
+  endif
+  call setbufvar(a:buf, '&modifiable', 1)
+  call deletebufline(a:buf, 1, '$')
+  call setbufline(a:buf, 1, a:lines)
+  call setbufvar(a:buf, '&modifiable', 0)
+endfunction
+
+" Count lines in a buffer
+function! s:line_count(buf) abort
+  if a:buf == -1
+    return 0
+  endif
+  return len(getbufline(a:buf, 1, '$'))
+endfunction
+
+" Redraw only when the sidebar is visible (avoids needless global redraws)
+function! s:redraw_if_visible() abort
+  if s:bufwin() != -1
+    redraw
   endif
 endfunction
+
+" ------------------------------------------------------------------------------
+" PUBLIC API
+" ------------------------------------------------------------------------------
 
 " Get symbol
 function! plugin_manager#ui#get_symbol(symbol_key) abort
   return get(s:symbols, a:symbol_key, '')
 endfunction
 
-" Open sidebar
+" Open (or focus) the sidebar and render the given lines
 function! plugin_manager#ui#open_sidebar(lines) abort
-  " Ensure the spinner timer is running (lazy init, no startup cost)
-  call plugin_manager#ui#init()
-  
-  let l:win_id = bufwinid(s:buffer_name)
-  
+  let l:win_id = s:bufwin()
+
   if l:win_id != -1
-    call win_gotoid(l:win_id)
-  else
-    execute 'silent! rightbelow ' . g:plugin_manager_sidebar_width . 'vnew ' . s:buffer_name
-    set filetype=pluginmanager
+    " Already visible: just refresh content without moving the user's cursor
+    let l:buf = s:bufnr()
+    call s:replace_all(l:buf, a:lines)
+    call s:redraw_if_visible()
+    return
   endif
-  
-  setlocal modifiable
-  silent! %delete _
-  call setline(1, a:lines)
+
+  " Create the sidebar window. This is an explicit user-facing open, so it is
+  " acceptable to create/focus the window here.
+  let l:width = get(g:, 'plugin_manager_sidebar_width', 60)
+  execute 'silent! rightbelow ' . l:width . 'vnew ' . s:buffer_name
+  setlocal filetype=pluginmanager
+  setlocal buftype=nofile bufhidden=hide noswapfile nobuflisted
   setlocal nomodifiable
+
+  let l:buf = s:bufnr()
+  call s:replace_all(l:buf, a:lines)
   redraw
 endfunction
 
-" Update sidebar
+" Update the sidebar content (append or replace) without stealing focus
 function! plugin_manager#ui#update_sidebar(lines, append) abort
-  let l:win_id = bufwinid(s:buffer_name)
-  if l:win_id == -1
+  let l:buf = s:bufnr()
+  if l:buf == -1
     call plugin_manager#ui#open_sidebar(a:lines)
     return
   endif
-  
-  call win_gotoid(l:win_id)
-  setlocal modifiable
-  
+
   if a:append && !empty(a:lines)
-    call append(line('$'), a:lines)
-  else
-    silent! %delete _
-    if !empty(a:lines)
-      call setline(1, a:lines)
-    endif
+    call s:append_lines(l:buf, a:lines)
+  elseif !a:append
+    call s:replace_all(l:buf, empty(a:lines) ? [''] : a:lines)
   endif
-  
-  setlocal nomodifiable
-  normal! G
-  redraw
+
+  call s:redraw_if_visible()
 endfunction
 
 " Start an operation (returns operation ID)
 function! plugin_manager#ui#start_operation(plugin_name, operation_type) abort
   let s:op_id_counter += 1
   let l:op_id = 'op_' . s:op_id_counter
-  
+
+  let l:buf = s:bufnr()
+  if l:buf == -1
+    call plugin_manager#ui#open_sidebar([''])
+    let l:buf = s:bufnr()
+  endif
+
+  " Append the operation line at the end of the buffer
+  let l:spinner = s:spinner_frames[0]
+  let l:line = plugin_manager#ui#format_plugin_line(l:spinner, a:plugin_name, a:operation_type)
+  call s:append_lines(l:buf, [l:line])
+
   let s:active_operations[l:op_id] = {
         \ 'id': l:op_id,
         \ 'name': a:plugin_name,
         \ 'type': a:operation_type,
-        \ 'line': 0,
+        \ 'line': s:line_count(l:buf),
         \ 'spinner_frame': 0,
         \ 'started': localtime()
         \ }
-  
-  " Display line with spinner
-  let l:spinner = s:spinner_frames[0]
-  let l:line = plugin_manager#ui#format_plugin_line(l:spinner, a:plugin_name, a:operation_type)
-  call plugin_manager#ui#update_sidebar([l:line], 1)
-  
-  " Store line number
-  let s:active_operations[l:op_id].line = line('$')
-  
+
+  " Start the spinner timer lazily, only while operations are active
+  call s:ensure_spinner()
+  call s:redraw_if_visible()
+
   return l:op_id
 endfunction
 
@@ -135,28 +194,17 @@ function! plugin_manager#ui#update_operation(op_id, status_text) abort
   if !has_key(s:active_operations, a:op_id)
     return
   endif
-  
+
   let l:op = s:active_operations[a:op_id]
-  let l:line_num = l:op.line
-  
-  if l:line_num <= 0 || l:line_num > line('$')
+  let l:buf = s:bufnr()
+  if l:buf == -1 || l:op.line <= 0 || l:op.line > s:line_count(l:buf)
     return
   endif
-  
-  let l:win_id = bufwinid(s:buffer_name)
-  if l:win_id == -1
-    return
-  endif
-  
-  call win_gotoid(l:win_id)
-  setlocal modifiable
-  
+
   let l:spinner = s:spinner_frames[l:op.spinner_frame]
   let l:new_line = plugin_manager#ui#format_plugin_line(l:spinner, l:op.name, a:status_text)
-  call setline(l:line_num, l:new_line)
-  
-  setlocal nomodifiable
-  redraw
+  call s:set_lines(l:buf, l:op.line, [l:new_line])
+  call s:redraw_if_visible()
 endfunction
 
 " Complete an operation
@@ -164,24 +212,20 @@ function! plugin_manager#ui#complete_operation(op_id, success, final_message) ab
   if !has_key(s:active_operations, a:op_id)
     return
   endif
-  
+
   let l:op = s:active_operations[a:op_id]
-  let l:line_num = l:op.line
-  
-  let l:win_id = bufwinid(s:buffer_name)
-  if l:win_id != -1 && l:line_num > 0 && l:line_num <= line('$')
-    call win_gotoid(l:win_id)
-    setlocal modifiable
-    
+  let l:buf = s:bufnr()
+  if l:buf != -1 && l:op.line > 0 && l:op.line <= s:line_count(l:buf)
     let l:symbol = a:success ? s:symbols.tick : s:symbols.cross
     let l:final_line = plugin_manager#ui#format_plugin_line(l:symbol, l:op.name, a:final_message)
-    call setline(l:line_num, l:final_line)
-    
-    setlocal nomodifiable
-    redraw
+    call s:set_lines(l:buf, l:op.line, [l:final_line])
+    call s:redraw_if_visible()
   endif
-  
+
   unlet s:active_operations[a:op_id]
+
+  " Stop the spinner timer when there is nothing left to animate
+  call s:maybe_stop_spinner()
 endfunction
 
 " Format helper functions
@@ -260,14 +304,15 @@ endfunction
 
 " Toggle sidebar
 function! plugin_manager#ui#toggle_sidebar() abort
-  let l:win_id = bufwinid(s:buffer_name)
+  let l:win_id = s:bufwin()
   if l:win_id != -1
-    execute 'hide'
+    " Hide the window without destroying the buffer
+    call win_execute(l:win_id, 'hide')
   else
-    let l:buf_id = bufnr(s:buffer_name)
+    let l:buf_id = s:bufnr()
     if l:buf_id != -1 && bufloaded(l:buf_id)
       execute 'vertical rightbelow sbuffer ' . l:buf_id
-      execute 'vertical resize ' . g:plugin_manager_sidebar_width
+      execute 'vertical resize ' . get(g:, 'plugin_manager_sidebar_width', 60)
     else
       call plugin_manager#ui#usage()
     endif
@@ -278,49 +323,78 @@ endfunction
 " INTERNAL FUNCTIONS
 " ------------------------------------------------------------------------------
 
-" Format a plugin line (vim-plug style) - PUBLIC for reuse
+" Format a plugin line (vim-plug style)
 " Format: [spinner/status] plugin_name........ status_text
 function! plugin_manager#ui#format_plugin_line(status, name, info) abort
   let l:max_name_len = 30
   let l:name = a:name
-  
-  if len(l:name) > l:max_name_len
+
+  if strchars(l:name) > l:max_name_len
     let l:name = l:name[:(l:max_name_len-4)] . s:symbols.ellipsis
   endif
-  
-  let l:dots = repeat('.', max([1, l:max_name_len - len(l:name) + 2]))
+
+  let l:dots = repeat('.', max([1, l:max_name_len - strchars(l:name) + 2]))
   return a:status . ' ' . l:name . l:dots . ' ' . a:info
 endfunction
 
-" Update all active spinners
+" Start the spinner timer if not already running and timers are available
+function! s:ensure_spinner() abort
+  if s:has_timers && !s:spinner_timer && !empty(s:active_operations)
+    let l:interval = get(g:, 'plugin_manager_spinner_interval', 80)
+    let s:spinner_timer = timer_start(l:interval, function('s:update_all_spinners'), {'repeat': -1})
+  endif
+endfunction
+
+" Stop the spinner timer when no operations remain
+function! s:maybe_stop_spinner() abort
+  if s:spinner_timer && empty(s:active_operations)
+    call timer_stop(s:spinner_timer)
+    let s:spinner_timer = 0
+  endif
+endfunction
+
+" Backwards-compatible initializer (now a no-op trigger for the spinner)
+function! plugin_manager#ui#init() abort
+  call s:ensure_spinner()
+endfunction
+
+" Advance and render all active spinners (only if the sidebar is visible)
 function! s:update_all_spinners(timer) abort
-  let l:win_id = bufwinid(s:buffer_name)
-  if l:win_id == -1 || empty(s:active_operations)
+  if empty(s:active_operations)
+    call s:maybe_stop_spinner()
     return
   endif
-  
-  call win_gotoid(l:win_id)
-  setlocal modifiable
-  
-  for [l:id, l:op] in items(s:active_operations)
-    let l:line_num = l:op.line
-    
-    if l:line_num <= 0 || l:line_num > line('$')
+
+  let l:buf = s:bufnr()
+  if l:buf == -1
+    return
+  endif
+
+  " Skip the expensive line rewrite when the sidebar is not on screen
+  if s:bufwin() == -1
+    " Still advance frames so they look fresh once reopened
+    for l:op in values(s:active_operations)
+      let l:op.spinner_frame = (l:op.spinner_frame + 1) % len(s:spinner_frames)
+    endfor
+    return
+  endif
+
+  let l:last = s:line_count(l:buf)
+  for l:op in values(s:active_operations)
+    if l:op.line <= 0 || l:op.line > l:last
       continue
     endif
-    
-    " Advance spinner frame
+
     let l:op.spinner_frame = (l:op.spinner_frame + 1) % len(s:spinner_frames)
     let l:spinner = s:spinner_frames[l:op.spinner_frame]
-    
-    " Get current line and update spinner only
-    let l:current = getline(l:line_num)
+
+    let l:current = get(getbufline(l:buf, l:op.line), 0, '')
     if !empty(l:current)
-      let l:new_line = l:spinner . l:current[1:]
-      call setline(l:line_num, l:new_line)
+      " Replace only the leading status glyph, keep the rest of the line
+      let l:rest = strcharpart(l:current, 1)
+      call s:set_lines(l:buf, l:op.line, [l:spinner . l:rest])
     endif
   endfor
-  
-  setlocal nomodifiable
+
   redraw
 endfunction
