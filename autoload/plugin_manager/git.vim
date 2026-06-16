@@ -202,12 +202,24 @@ function! plugin_manager#git#repository_exists(url) abort
   return l:result.success
 endfunction
 
-" Check module update status
+" Check module update status (synchronous: fetches then collects).
+" Kept for the no-async fallback and for tests. Prefer the async flow
+" (fetch as a job, then collect_status_local) for non-blocking operations.
 function! plugin_manager#git#check_updates(module_path) abort
-  let l:result = {
-    \ 'behind': 0, 
-    \ 'ahead': 0, 
-    \ 'has_updates': 0, 
+  if !isdirectory(a:module_path)
+    return s:empty_status()
+  endif
+  " Blocking network fetch, then fast local analysis
+  call plugin_manager#git#execute('git fetch origin --all', a:module_path, 0, 0)
+  return plugin_manager#git#collect_status_local(a:module_path)
+endfunction
+
+" Return an empty status dict
+function! s:empty_status() abort
+  return {
+    \ 'behind': 0,
+    \ 'ahead': 0,
+    \ 'has_updates': 0,
     \ 'has_changes': 0,
     \ 'branch': 'N/A',
     \ 'remote_branch': 'N/A',
@@ -215,6 +227,13 @@ function! plugin_manager#git#check_updates(module_path) abort
     \ 'current_commit': 'N/A',
     \ 'remote_commit': 'N/A'
   \ }
+endfunction
+
+" Collect module status using only fast, local git commands (no network).
+" Call this AFTER a fetch (done synchronously or as an async job) so the
+" remote-tracking refs are up to date.
+function! plugin_manager#git#collect_status_local(module_path) abort
+  let l:result = s:empty_status()
   
   " Check if the directory exists
   if !isdirectory(a:module_path)
@@ -234,9 +253,6 @@ function! plugin_manager#git#check_updates(module_path) abort
   else
     let l:result.branch = 'detached'
   endif
-  
-  " Fetch updates from remote repository more aggressively
-  call plugin_manager#git#execute('git fetch origin --all', a:module_path, 0, 0)
   
   " First try to find remote branch from .gitmodules
   let l:res = plugin_manager#git#execute('git config -f ../.gitmodules submodule.' . 

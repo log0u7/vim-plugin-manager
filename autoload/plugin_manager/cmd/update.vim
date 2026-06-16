@@ -155,8 +155,8 @@ function! s:on_fetch_complete(ctx, result) abort
   
   call plugin_manager#ui#update_operation(l:op_id, 'Checking status')
   
-  " Check update status
-  let l:update_status = plugin_manager#git#check_updates(l:module_path)
+  " Fetch already done as an async job; only fast local analysis here
+  let l:update_status = plugin_manager#git#collect_status_local(l:module_path)
   
   if l:update_status.different_branch && l:update_status.branch != 'detached'
     call plugin_manager#ui#complete_operation(l:op_id, 1, 'On custom branch')
@@ -231,7 +231,8 @@ function! s:update_all_plugins_sync(ctx) abort
   for l:name in a:ctx.module_names
     let l:module = a:ctx.modules[l:name]
     if has_key(l:module, 'is_valid') && l:module.is_valid && plugin_manager#core#dir_exists(l:module.path)
-      let l:update_status = plugin_manager#git#check_updates(l:module.path)
+      " Fetch already done above for all submodules; analyze locally
+      let l:update_status = plugin_manager#git#collect_status_local(l:module.path)
       
       if !l:update_status.different_branch && l:update_status.has_updates
         let l:op_id = plugin_manager#ui#start_operation(l:module.short_name, 'Updating')
@@ -313,7 +314,8 @@ function! s:on_module_fetched(ctx, module, op_id, result) abort
   
   call plugin_manager#ui#update_operation(a:op_id, 'Analyzing')
   
-  let l:update_status = plugin_manager#git#check_updates(l:module_path)
+  " Fetch already done as an async job; only fast local analysis here
+  let l:update_status = plugin_manager#git#collect_status_local(l:module_path)
   
   if l:update_status.different_branch && l:update_status.branch != 'detached'
     call plugin_manager#ui#complete_operation(a:op_id, 1, 'On custom branch')
