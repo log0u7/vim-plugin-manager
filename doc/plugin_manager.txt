@@ -1,4 +1,4 @@
-*plugin_manager.txt*  A Git submodule-based plugin manager for Vim/Neovim
+*plugin_manager.txt*  A Git submodule-based plugin manager for Vim
 
 ===============================================================================
 CONTENTS                                                *plugin-manager-contents*
@@ -18,45 +18,38 @@ CONTENTS                                                *plugin-manager-contents
 ===============================================================================
 1. INTRODUCTION                                     *plugin-manager-introduction*
 
-PluginManager is a simple but powerful plugin management solution for Vim and
-Neovim that uses Git submodules to manage plugins. It follows Vim 8's native
-package structure and provides an easy-to-use interface for managing plugins.
+PluginManager is a simple but powerful plugin management solution for Vim that
+uses Git submodules to manage plugins. It follows Vim 8's native package
+structure and provides an easy-to-use interface for managing plugins.
+
+Note: Neovim is not supported. Neovim already has mature Lua-based managers
+(lazy.nvim, packer.nvim) and vim-plug. Use one of those under Neovim.
 
 Features:
 - Native package management without dependencies
 - Full Git integration for plugin versioning
 - Easy backup and restore functionality
 - Support for optional (lazy-loaded) plugins
-- Interactive sidebar interface
+- Interactive, non-blocking sidebar interface with spinners
 - Helptags generation
-- Compatible with both Vim and Neovim
 
 ===============================================================================
 2. INSTALLATION                                     *plugin-manager-installation*
 
 Prerequisites:
-- Vim 8+ or Neovim
+- Vim 8.2+ (with +job and +channel for async; falls back to synchronous)
 - Git 2.40+
 
 The plugin manager uses Git submodules and Vim 8's native package system. Installation is straightforward:
 
-First, ensure your Vim/Neovim configuration is a Git repository:
+First, ensure your Vim configuration is a Git repository:
 >
-    # For Vim
     cd ~/.vim
-    git init
-    
-    # For Neovim
-    cd ~/.config/nvim
     git init
 <
 Then, add the plugin manager as a Git submodule:
 >
-    # For Vim
     git submodule add https://github.com/username/vim-plugin-manager.git ~/.vim/pack/plugins/start/vim-plugin-manager
-    
-    # For Neovim
-    git submodule add https://github.com/username/vim-plugin-manager.git ~/.config/nvim/pack/plugins/start/vim-plugin-manager
 <
 Finally, generate helptags:
 >
@@ -75,7 +68,7 @@ PluginManager works with minimal configuration, but you can customize its
 behavior with the following global variables:
 
 *g:plugin_manager_vim_dir*       The directory of your Vim configuration.
-                               Default: '~/.vim' or '~/.config/nvim'
+                               Default: '~/.vim' (or '~/vimfiles' on Windows)
 
 *g:plugin_manager_plugins_dir*   The directory where plugins are installed.
                                Default: '~/.vim/pack/plugins'
@@ -87,7 +80,7 @@ behavior with the following global variables:
                                Default: 'opt'
 
 *g:plugin_manager_vimrc_path*    Path to your vimrc file.
-                               Default: '~/.vim/vimrc' or '~/.config/nvim/init.vim'
+                               Default: '~/.vim/vimrc'
 
 *g:plugin_manager_sidebar_width* Width of the sidebar in columns.
                                Default: 60
@@ -110,6 +103,9 @@ behavior with the following global variables:
 *g:plugin_manager_spinner_style* Style for spinners in async operations.
                                Options: 'dots', 'line', 'circle', 'triangle', 'box'
                                Default: 'dots'
+
+*g:plugin_manager_spinner_interval* Spinner refresh interval in milliseconds.
+                                  Default: 80
 
 *g:plugin_manager_progress_style* Style for progress bars.
                                 Options: 'block', 'simple', 'arrow', 'dot'
@@ -287,8 +283,8 @@ The plugin provides the following commands:
                                  remote branch in the sidebar.
 
 :PluginManager backup            Backup configuration to git remotes
-                                1. Copies your main configuration file (.vimrc or 
-                                   init.vim) into your .vim directory
+                                1. Copies your main configuration file (.vimrc)
+                                   into your .vim directory
                                 2. Commits all changes in your Vim configuration
                                    directory (custom files, mappings, settings) 
                                 3. Pushes to configured remote repositories.
@@ -423,7 +419,7 @@ R       Reload configuration
 Backup Your Configuration:
 It's recommended to set up a remote repository and use `:PluginManager backup`
 regularly to ensure your configuration is safe. The backup operation will first
-copy your main configuration file (.vimrc or init.vim) into your .vim directory,
+copy your main configuration file (.vimrc) into your .vim directory,
 then commit all files in your Vim configuration directory that aren't excluded by
 .gitignore, including your custom plugin configurations, mappings, colorschemes,
 syntax files and other personal settings. The only changes not included are those

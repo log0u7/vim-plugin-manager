@@ -13,8 +13,19 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
   redundant network access. Disabled by default (opt-in).
 - Optional automatic updates on startup (`g:plugin_manager_auto_update`), disabled
   by default (opt-in).
+- Modern, non-blocking sidebar UI: operations render via buffer APIs without
+  stealing focus or moving the user's cursor, with a dynamic spinner that only
+  runs while operations are active (`g:plugin_manager_spinner_interval`).
 - UI improvements with clearer progress indicators (`[i/N]`) for batch operations.
 - Enhanced error reporting with detailed diagnostics from async jobs.
+
+### Changed
+- Dropped Neovim support: PluginManager now targets Vim 8.2+ only. Neovim users
+  should use lazy.nvim, packer.nvim or vim-plug. A warning is shown if loaded
+  under Neovim.
+- Fully non-blocking update/status/check flows: the network `git fetch` runs as
+  an async job and status is computed locally afterwards
+  (`git#collect_status_local`), so long operations never freeze the editor.
 
 ### Improvements
 - Simplified, lighter UI module with a unified operation API
@@ -40,10 +51,10 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 
 ### Testing
 - Reworked the Vader test suite to match the actual command API and added
-  coverage for core utilities, the update-check cache, and `.gitmodules` parsing
-  (24 cases, passing on both Vim and Neovim).
+  coverage for core utilities, the update-check cache, `.gitmodules` parsing,
+  and the non-blocking UI (cursor/focus preservation).
 - Made the test runner use an absolute runtimepath so tests that change the
-  working directory still resolve autoload functions under Neovim.
+  working directory still resolve autoload functions.
 
 ### Documentation
 - Added `AGENTS.md` and refreshed `CONTRIBUTING.md` (testing, error format,
