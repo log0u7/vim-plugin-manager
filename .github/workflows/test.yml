@@ -8,7 +8,7 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Vim + Make
         run: sudo apt-get update && sudo apt-get install -y git vim make
@@ -22,7 +22,7 @@ jobs:
 
       - name: Restore cached Vader.vim
         id: cache-vader
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: vader.vim
           key: vader-429b669e6158be3a9fc110799607c232e6ed8e29
