@@ -17,6 +17,11 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 - Usage/reminder sidebar now lists `helptags`, `c` (check), `?` (help)
   shortcuts alongside existing ones.
 
+### CI
+- Pushing a `vX.Y.Z` tag to GitHub triggers a workflow that builds a
+  `.tar.gz` archive via `make archive` and publishes a GitHub Release with
+  the asset and auto-generated release notes.
+
 ## [1.4.0] - 2026-06-17
 ### Features
 - Update notifications: detect plugins with available updates and report them in

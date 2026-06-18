@@ -159,3 +159,14 @@ The project follows a GitFlow-inspired workflow with Conventional Commit prefixe
   merged back into both `main` and `develop` with `--no-ff`.
 
 All merges use `--no-ff` to preserve branch topology.
+
+## Releases
+
+Releases are automated via `.github/workflows/release.yml`:
+- Bump versions: `make update-version VERSION=x.y.z` (updates `Version:`
+  headers across `*.vim`, `*.txt`, `README.md`).
+- Update `CHANGELOG.md` for the new version.
+- Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+- Pushing a `vX.Y.Z` tag to GitHub triggers a job that runs `make archive`
+  and publishes a GitHub Release with the `.tar.gz` asset and auto-generated
+  notes.
