@@ -6,6 +6,21 @@ A lightweight Vim plugin manager that uses Git submodules and Vim 8's native pac
 > managers (lazy.nvim, packer.nvim) as well as vim-plug, so it is not supported
 > here. Neovim users should use one of those instead.
 
+[![CI vader tests](https://github.com/log0u7/vim-plugin-manager/actions/workflows/test.yml/badge.svg)](https://github.com/log0u7/vim-plugin-manager/actions/workflows/test.yml)
+[![Version](https://img.shields.io/github/v/tag/log0u7/vim-plugin-manager?style=flat&label=version&sort=semver)](https://github.com/log0u7/vim-plugin-manager/tags)
+[![Vim](https://img.shields.io/badge/vim-%3E%3D8.2%20%28%2Bjob%20%2Bchannel%29-brightgreen)]()
+
+## Table of Contents
+
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Configuration](#configuration)
+- [Tips & Tricks](#tips--tricks)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
+
 ## Features
 
 - Manage plugins through Git submodules
@@ -46,7 +61,7 @@ git init
 
 ```bash
 # Add the plugin as a submodule directly to the appropriate location
-git submodule add https://github.com/yourusername/vim-plugin-manager.git ~/.vim/pack/plugins/start/vim-plugin-manager
+git submodule add https://github.com/log0u7/vim-plugin-manager.git ~/.vim/pack/plugins/start/vim-plugin-manager
 ```
 
 3. **Generate helptags** (choose one method):
@@ -515,7 +530,7 @@ For detailed documentation, use the `:help plugin-manager` command after install
 
 PluginManager is released under the MIT License.
 
-Copyright (c) 2018 - 2025 G.K.E. <gke@6admin.io>
+Copyright (c) 2018 - 2026 G.K.E. <gke@6admin.io>
 
 ## About
 
