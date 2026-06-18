@@ -77,8 +77,9 @@ function! plugin_manager#api#begin() abort
 endfunction
 
 " Add a plugin declaration to the current block
-function! plugin_manager#api#plugin(url, options) abort
-  call plugin_manager#cmd#declare#plugin(a:url, a:options)
+function! plugin_manager#api#plugin(url, ...) abort
+  let l:options = a:0 > 0 ? a:1 : {}
+  call plugin_manager#cmd#declare#plugin(a:url, l:options)
 endfunction
 
 " End a plugin declaration block and process all declarations
