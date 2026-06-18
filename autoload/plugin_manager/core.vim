@@ -250,6 +250,36 @@ let l:log_dir = plugin_manager#core#get_config('vim_dir', '') . '/logs'
 return l:log_dir . '/plugin_manager.log'
 endfunction
 
+" Rotate the log file if it exceeds max_log_size (in KB).
+" Keeps up to log_history_count rotated copies (.1, .2, ...).
+function! s:check_log_rotation(log_file) abort
+  let l:max_size_kb = plugin_manager#core#get_config('max_log_size', 1024)
+  let l:history = plugin_manager#core#get_config('log_history_count', 3)
+
+  let l:size = getfsize(a:log_file)
+  if l:size < 0 || l:size < l:max_size_kb * 1024
+    return
+  endif
+
+  " Remove the oldest file if it exists
+  let l:last_file = a:log_file . '.' . l:history
+  if filereadable(l:last_file)
+    call delete(l:last_file)
+  endif
+
+  " Shift .(n-1) -> .n
+  for l:i in range(l:history - 1, 1, -1)
+    let l:old = a:log_file . '.' . l:i
+    let l:new = a:log_file . '.' . (l:i + 1)
+    if filereadable(l:old)
+      call rename(l:old, l:new)
+    endif
+  endfor
+
+  " Rename current log to .1
+  call rename(a:log_file, a:log_file . '.1')
+endfunction
+
 " Clear the error log
 function! plugin_manager#core#clear_log() abort
 let l:log_file = plugin_manager#core#get_log_path()
