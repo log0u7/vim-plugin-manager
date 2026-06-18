@@ -224,27 +224,22 @@ function! s:update_all_plugins_sync(ctx) abort
   call plugin_manager#git#execute('git submodule foreach --recursive "git stash -q || true"', '', 0, 0)
   call plugin_manager#git#execute('git submodule foreach --recursive "git fetch origin"', '', 0, 0)
   
-  " Find modules that need updates, tracking their operation IDs
   let l:modules_to_update = []
   let l:pending_ops = []
   
-  for l:name in a:ctx.module_names
-    let l:module = a:ctx.modules[l:name]
-    if has_key(l:module, 'is_valid') && l:module.is_valid && plugin_manager#core#dir_exists(l:module.path)
-      " Fetch already done above for all submodules; analyze locally
-      let l:update_status = plugin_manager#git#collect_status_local(l:module.path)
-      
-      if !l:update_status.different_branch && l:update_status.has_updates
-        let l:op_id = plugin_manager#ui#start_operation(l:module.short_name, 'Updating')
-        call add(l:modules_to_update, l:module)
-        call add(l:pending_ops, l:op_id)
-      elseif l:update_status.different_branch
-        let l:op_id = plugin_manager#ui#start_operation(l:module.short_name, 'Skipped')
-        call plugin_manager#ui#complete_operation(l:op_id, 1, 'On custom branch')
-      else
-        let l:op_id = plugin_manager#ui#start_operation(l:module.short_name, 'Checking')
-        call plugin_manager#ui#complete_operation(l:op_id, 1, 'Up-to-date')
-      endif
+  for l:module in a:ctx.valid_modules
+    let l:update_status = plugin_manager#git#collect_status_local(l:module.path)
+    
+    if !l:update_status.different_branch && l:update_status.has_updates
+      let l:op_id = plugin_manager#ui#start_operation(l:module.short_name, 'Updating')
+      call add(l:modules_to_update, l:module)
+      call add(l:pending_ops, l:op_id)
+    elseif l:update_status.different_branch
+      let l:op_id = plugin_manager#ui#start_operation(l:module.short_name, 'Skipped')
+      call plugin_manager#ui#complete_operation(l:op_id, 1, 'On custom branch')
+    else
+      let l:op_id = plugin_manager#ui#start_operation(l:module.short_name, 'Checking')
+      call plugin_manager#ui#complete_operation(l:op_id, 1, 'Up-to-date')
     endif
   endfor
   
@@ -252,16 +247,13 @@ function! s:update_all_plugins_sync(ctx) abort
     return
   endif
   
-  " Execute update
   let l:result = plugin_manager#git#execute('git submodule update --remote --merge --force', '', 0, 0)
   
-  " Mark each pending operation as complete
   for l:op_id in l:pending_ops
     call plugin_manager#ui#complete_operation(l:op_id, l:result.success,
           \ l:result.success ? 'Updated successfully' : 'Update failed')
   endfor
   
-  " Commit the updated submodule pointers if configured
   if l:result.success && plugin_manager#core#should_auto_commit()
     call plugin_manager#git#execute('git commit -am "Update Modules"', '', 0, 0)
   endif
@@ -269,10 +261,17 @@ function! s:update_all_plugins_sync(ctx) abort
   call plugin_manager#cmd#helptags#execute(0)
 endfunction
 
-" Async update all plugins
+" Async update all plugins - block instant + parallel fan-out
 function! s:update_all_plugins_async(ctx) abort
-  let a:ctx.current_index = 0
   let a:ctx.updated_modules = []
+  let a:ctx.ops = {}
+  let a:ctx.pending = 0
+  
+  " Pre-render all plugin lines as a block with pending spinners
+  for l:module in a:ctx.valid_modules
+    let l:op_id = plugin_manager#ui#start_operation(l:module.short_name, 'Pending')
+    let a:ctx.ops[l:module.short_name] = l:op_id
+  endfor
   
   " Stash all at once
   call plugin_manager#async#git('git submodule foreach --recursive "git stash -q || true"', {
@@ -281,77 +280,71 @@ function! s:update_all_plugins_async(ctx) abort
 endfunction
 
 function! s:on_all_stashed(ctx, result) abort
-  " Start fetch in background
-  call plugin_manager#async#git('git submodule foreach --recursive "git fetch origin"', {})
-  
-  " Start processing modules
-  call timer_start(50, {timer -> s:process_next_module_update(a:ctx)})
-endfunction
-
-function! s:process_next_module_update(ctx) abort
-  if a:ctx.current_index >= len(a:ctx.valid_modules)
-    call s:finalize_update_all(a:ctx)
-    return
-  endif
-  
-  let l:module = a:ctx.valid_modules[a:ctx.current_index]
-  let l:module_path = l:module.path
-  let l:module_name = l:module.short_name
-  
-  " Start operation for this module with [i/N] progress
-  let l:progress = '[' . (a:ctx.current_index + 1) . '/' . len(a:ctx.valid_modules) . ']'
-  let l:op_id = plugin_manager#ui#start_operation(l:module_name, 'Checking ' . l:progress)
-  
-  " Fetch this module
-  call plugin_manager#async#git('git -C "' . l:module_path . '" fetch origin', {
-        \ 'callback': function('s:on_module_fetched', [a:ctx, l:module, l:op_id])
+  " Fetch all at once, then fan-out when done
+  call plugin_manager#async#git('git submodule foreach --recursive "git fetch origin"', {
+        \ 'callback': function('s:on_batch_fetched', [a:ctx])
         \ })
 endfunction
 
-function! s:on_module_fetched(ctx, module, op_id, result) abort
+function! s:on_batch_fetched(ctx, result) abort
+  let a:ctx.pending = len(a:ctx.valid_modules)
+  
+  " Fan-out: analyze and update each module in parallel
+  for l:module in a:ctx.valid_modules
+    call s:analyze_and_update(a:ctx, l:module)
+  endfor
+endfunction
+
+function! s:analyze_and_update(ctx, module) abort
+  let l:op_id = a:ctx.ops[a:module.short_name]
   let l:module_path = a:module.path
-  let l:module_name = a:module.short_name
   
-  call plugin_manager#ui#update_operation(a:op_id, 'Analyzing')
+  call plugin_manager#ui#update_operation(l:op_id, 'Analyzing')
   
-  " Fetch already done as an async job; only fast local analysis here
   let l:update_status = plugin_manager#git#collect_status_local(l:module_path)
   
   if l:update_status.different_branch && l:update_status.branch != 'detached'
-    call plugin_manager#ui#complete_operation(a:op_id, 1, 'On custom branch')
-    let a:ctx.current_index += 1
-    call s:process_next_module_update(a:ctx)
+    call plugin_manager#ui#complete_operation(l:op_id, 1, 'On custom branch')
+    let a:ctx.pending -= 1
+    call s:maybe_finalize(a:ctx)
     return
   endif
   
   if !l:update_status.has_updates
-    call plugin_manager#ui#complete_operation(a:op_id, 1, 'Up-to-date')
-    let a:ctx.current_index += 1
-    call s:process_next_module_update(a:ctx)
+    call plugin_manager#ui#complete_operation(l:op_id, 1, 'Up-to-date')
+    let a:ctx.pending -= 1
+    call s:maybe_finalize(a:ctx)
     return
   endif
   
-  " Update this module
-  call plugin_manager#ui#update_operation(a:op_id, 'Updating')
+  " Needs update: run submodule update
+  call plugin_manager#ui#update_operation(l:op_id, 'Updating')
   let l:update_cmd = 'git submodule update --remote --merge --force -- ' . shellescape(l:module_path)
   call plugin_manager#async#git(l:update_cmd, {
-        \ 'callback': function('s:on_module_updated', [a:ctx, a:module, a:op_id])
+        \ 'callback': function('s:on_module_updated', [a:ctx, a:module])
         \ })
 endfunction
 
-function! s:on_module_updated(ctx, module, op_id, result) abort
+function! s:on_module_updated(ctx, module, result) abort
+  let l:op_id = a:ctx.ops[a:module.short_name]
   let l:success = a:result.status == 0
   
   if l:success
-    call plugin_manager#ui#complete_operation(a:op_id, 1, 'Updated successfully')
+    call plugin_manager#ui#complete_operation(l:op_id, 1, 'Updated successfully')
     call add(a:ctx.updated_modules, a:module)
   else
-    call plugin_manager#ui#complete_operation(a:op_id, 0, 'Update failed')
+    call plugin_manager#ui#complete_operation(l:op_id, 0, 'Update failed')
     call s:report_job_errors(a:result)
   endif
   
-  let a:ctx.current_index += 1
-  call s:process_next_module_update(a:ctx)
+  let a:ctx.pending -= 1
+  call s:maybe_finalize(a:ctx)
+endfunction
+
+function! s:maybe_finalize(ctx) abort
+  if a:ctx.pending == 0
+    call s:finalize_update_all(a:ctx)
+  endif
 endfunction
 
 function! s:finalize_update_all(ctx) abort

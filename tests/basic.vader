@@ -16,6 +16,7 @@ Execute (Default configuration variables are set):
   AssertEqual 'start', g:plugin_manager_start_dir
   AssertEqual 'opt', g:plugin_manager_opt_dir
   AssertEqual 'github.com', g:plugin_manager_default_git_host
+  AssertEqual 80, g:plugin_manager_sidebar_width, 'sidebar_width should default to 80'
 
 Execute (Update notifications are opt-in and off by default):
   runtime! plugin/plugin_manager.vim
