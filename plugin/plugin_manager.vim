@@ -100,10 +100,6 @@ if !exists('g:plugin_manager_spinner_interval')
     let g:plugin_manager_spinner_interval = 80  " Spinner refresh interval in ms
 endif
 
-if !exists('g:plugin_manager_progress_style')
-    let g:plugin_manager_progress_style = 'block'  " Options: block, simple, arrow, dot
-endif
-
 if !exists('g:plugin_manager_show_deprecation_warnings')
     let g:plugin_manager_show_deprecation_warnings = 1  " Enable deprecation warnings
 endif
