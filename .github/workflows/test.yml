@@ -34,4 +34,4 @@ jobs:
           git -C vader.vim checkout 429b669e6158be3a9fc110799607c232e6ed8e29
 
       - name: Run Tests
-        run: make -f Makefile.test VADER=./vader.vim test
+        run: make -f Makefile.test VADER=./vader.vim test-ci

@@ -3,11 +3,15 @@ VADER ?= vader.vim
 VADER_TESTS ?= tests/*.vader
 VIMRC_TEST = .vaderrc.vim
 
-.PHONY: test clean
+.PHONY: test test-ci clean
 
 test: $(VIMRC_TEST)
 	@echo "==> Running Vader tests..."
 	$(VIM) -Nu $(VIMRC_TEST) -c 'Vader! $(VADER_TESTS)' #-c 'qa!'
+
+test-ci: $(VIMRC_TEST)
+	@echo "==> Running Vader tests (headless)..."
+	$(VIM) -es -Nu $(VIMRC_TEST) -c 'Vader! $(VADER_TESTS)'
 
 $(VIMRC_TEST):
 	@echo "set rtp^=$(CURDIR)" > $(VIMRC_TEST)
