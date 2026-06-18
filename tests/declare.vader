@@ -1,0 +1,9 @@
+Execute (declare#plugin with url only does not raise E119):
+  call plugin_manager#cmd#declare#begin()
+  call plugin_manager#api#plugin('tpope/vim-fugitive')
+  Assert 1
+
+Execute (declare#plugin with url and options stores both):
+  call plugin_manager#cmd#declare#begin()
+  call plugin_manager#api#plugin('preservim/nerdtree', {'load': 'opt'})
+  Assert 1
