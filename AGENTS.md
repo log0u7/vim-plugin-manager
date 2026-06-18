@@ -19,14 +19,17 @@ There is no compilation step. The project is loaded directly by Vim.
   ```bash
   git clone https://github.com/junegunn/vader.vim.git
   make -f Makefile.test VADER=./vader.vim test
+  make -f Makefile.test VADER=./vader.vim test-ci  # Headless (same output as CI)
   ```
-- The test target generates a throwaway `.vaderrc.vim` and runs
-  `vim -Nu .vaderrc.vim -c 'Vader! tests/*.vader'`.
+- The `test` target generates a throwaway `.vaderrc.vim` and runs
+  `vim -Nu .vaderrc.vim -c 'Vader! tests/*.vader'` (interactive TUI).
+- The `test-ci` target runs the same suite via `vim -es` (headless/ex mode)
+  producing clean plain-text output with no ANSI sequences.
 - Clean test artifacts:
   ```bash
   make -f Makefile.test clean
   ```
-- CI runs the same target: `.github/workflows/test.yml` (GitHub Actions) and
+- CI runs `test-ci`: `.github/workflows/test.yml` (GitHub Actions) and
   `.gitlab-ci.yml` (GitLab). Keep both green.
 
 Requirements: Vim 8.2+ (with +job and +channel), Git 2.40+. Neovim is not
@@ -114,14 +117,45 @@ PM_ERROR:<component>:<CODE>:<message>
 
 ## Commit conventions
 
-Use the prefixes already established in the history:
+Use Conventional Commits: `type(scope): subject`.
 
-- `feature:` new features
+Valid types:
+- `feat:` new features (prefer over historical `feature:`)
 - `fix:` bug fixes
 - `docs:` documentation changes
 - `test:` test additions or changes
 - `refactor:` code refactoring
 - `style:` formatting changes
 - `chore:` routine maintenance
+- `ci:` CI/CD workflow changes
+- `build:` build system or dependency changes
+
+Scopes (optional but recommended when relevant):
+`core`, `async`, `ui`, `git`, `cmd`, `api`, `github`, `gitlab`, `deps`.
+
+Examples:
+```
+feat(git): add non-blocking status via async fetch
+fix(core): implement missing s:check_log_rotation function
+ci(github): bump checkout to v6 and cache to v5 for Node 24
+test: add headless test-ci target with clean Vader output
+docs: document GitFlow branching and Conventional Commits
+```
 
 Only commit when explicitly requested.
+
+## Branching model (GitFlow)
+
+The project follows a GitFlow-inspired workflow with Conventional Commit prefixes:
+
+- `main` -- stable code, tagged `vX.Y.Z` for releases.
+- `develop` -- integration branch for ongoing work.
+- `feature/*` -- new features, branched from `develop`, merged back with `--no-ff`.
+- `fix/*` -- bug fixes, branched from `develop`.
+- `chore/*` -- maintenance tasks, branched from `develop`.
+- `release/x.y.z` -- release preparation, branched from `develop`, tagged `vX.Y.Z`
+  when merged into `main`, then merged back into `develop`.
+- `hotfix/*` -- urgent fixes on the current release, branched from `main`,
+  merged back into both `main` and `develop` with `--no-ff`.
+
+All merges use `--no-ff` to preserve branch topology.

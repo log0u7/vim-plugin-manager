@@ -37,36 +37,59 @@ This project adheres to a code of conduct that expects all participants to be re
 
 ## Development Workflow
 
+The project follows a GitFlow-inspired workflow:
+
+- `main`: stable code, tagged `vX.Y.Z` for releases.
+- `develop`: integration branch for ongoing work.
+- `feature/*`, `fix/*`, `chore/*`: task branches, branched from `develop`.
+- `release/x.y.z`: release preparation, branched from `develop`.
+- `hotfix/*`: urgent fixes, branched from `main`.
+
+All merges use `--no-ff` to preserve branch topology.
+
 1. Ensure you're working on the latest code:
    ```bash
    git fetch upstream
-   git rebase upstream/main
+   git rebase upstream/develop
    ```
 
-2. Make your changes, following the [coding standards](#coding-standards).
-
-3. Test your changes (see [Testing](#testing)).
-
-4. Commit your changes with a descriptive message:
+2. Create a branch for your work:
    ```bash
-   git commit -m "feature: Add support for XYZ"
+   git checkout -b feature/your-feature-name develop
+   ```
+
+3. Make your changes, following the [coding standards](#coding-standards).
+
+4. Test your changes (see [Testing](#testing)).
+
+5. Commit your changes with a descriptive message following
+   [Conventional Commits](https://www.conventionalcommits.org/):
+   ```bash
+   git commit -m "feat: add support for XYZ"
+   git commit -m "fix(core): implement missing s:check_log_rotation function"
    ```
    
-   Commit message prefixes to use:
-   - `feature:` for new features
-   - `fix:` for bug fixes
-   - `docs:` for documentation changes
-   - `test:` for test additions or modifications
-   - `refactor:` for code refactoring
-   - `style:` for formatting changes
-   - `chore:` for routine tasks and maintenance
+   Format: `type(scope): subject` (scope is optional).
+   
+   Valid types:
+   - `feat:` new features (prefer over the historical `feature:`)
+   - `fix:` bug fixes
+   - `docs:` documentation changes
+   - `test:` test additions or changes
+   - `refactor:` code refactoring
+   - `style:` formatting changes
+   - `chore:` routine maintenance
+   - `ci:` CI/CD workflow changes
+   - `build:` build system or dependency changes
+   
+   Recommended scopes: `core`, `async`, `ui`, `git`, `cmd`, `api`, `github`, `gitlab`, `deps`.
 
-5. Push your branch to your fork:
+6. Push your branch to your fork:
    ```bash
    git push origin feature/your-feature-name
    ```
 
-6. Create a [pull request](#pull-request-process).
+7. Create a [pull request](#pull-request-process).
 
 ## Pull Request Process
 
@@ -203,11 +226,17 @@ Run the suite locally:
 
 ```bash
 git clone https://github.com/junegunn/vader.vim.git
+
+# Interactive (local, with TUI)
 make -f Makefile.test VADER=./vader.vim test
+
+# Headless (same output as CI, clean plain text)
+make -f Makefile.test VADER=./vader.vim test-ci
 ```
 
-The target generates a throwaway `.vaderrc.vim` and runs
-`vim -Nu .vaderrc.vim -c 'Vader! tests/*.vader'`. Clean artifacts with
+The `test` target runs `vim -Nu .vaderrc.vim -c 'Vader! tests/*.vader'`
+(interactive terminal). The `test-ci` target runs the same via `vim -es`
+(headless/ex mode) and produces clean plain-text output. Clean artifacts with
 `make -f Makefile.test clean`.
 
 When adding new features or fixing bugs:
@@ -216,7 +245,7 @@ When adding new features or fixing bugs:
    network access (mock with local fixtures).
 2. Verify your changes work correctly in Vim 8.2+ (Neovim is not supported).
 3. Test all related functionality to ensure no regressions.
-4. Ensure the suite passes (`make -f Makefile.test test`) before opening a PR.
+4. Ensure the suite passes (`make -f Makefile.test test-ci`) before opening a PR.
 
 ## Documentation
 
