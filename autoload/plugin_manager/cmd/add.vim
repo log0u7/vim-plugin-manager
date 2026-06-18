@@ -53,6 +53,7 @@ function! plugin_manager#cmd#add#exists(plugin_name, options) abort
   let l:plugin_dir = plugin_manager#core#get_plugin_dir(l:plugin_type) . '/' . l:plugin_dir_name
   
   return isdirectory(l:plugin_dir)
+        \ || plugin_manager#git#submodule_exists(l:plugin_dir)
 endfunction
 
 " ------------------------------------------------------------------------------
