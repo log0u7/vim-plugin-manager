@@ -1,0 +1,41 @@
+Before:
+  let g:_pm_stat_saved = {
+        \ 'vim_dir': get(g:, 'plugin_manager_vim_dir', ''),
+        \ 'cwd': getcwd(),
+        \ 'plugins_dir': get(g:, 'plugin_manager_plugins_dir', ''),
+        \ 'logging': get(g:, 'plugin_manager_enable_logging', 0),
+        \ }
+  let g:_pm_stat_tmp = tempname()
+  call mkdir(g:_pm_stat_tmp, 'p')
+  call mkdir(g:_pm_stat_tmp . '/.git', 'p')
+  " Single module with missing directory (resolves instantly in both sync/async paths)
+  call writefile([
+        \ '[submodule "myplugin"]',
+        \ '  path = pack/plugins/start/myplugin',
+        \ '  url = https://github.com/user/myplugin.git',
+        \ ], g:_pm_stat_tmp . '/.gitmodules')
+  let g:plugin_manager_vim_dir = g:_pm_stat_tmp
+  let g:plugin_manager_plugins_dir = g:_pm_stat_tmp . '/pack/plugins'
+  let g:plugin_manager_enable_logging = 0
+  execute 'cd ' . fnameescape(g:_pm_stat_tmp)
+
+After:
+  execute 'cd ' . fnameescape(g:_pm_stat_saved.cwd)
+  if isdirectory(g:_pm_stat_tmp)
+    call delete(g:_pm_stat_tmp, 'rf')
+  endif
+  let g:plugin_manager_vim_dir = g:_pm_stat_saved.vim_dir
+  let g:plugin_manager_plugins_dir = g:_pm_stat_saved.plugins_dir
+  let g:plugin_manager_enable_logging = g:_pm_stat_saved.logging
+  unlet g:_pm_stat_tmp g:_pm_stat_saved
+
+Execute (status renders block instantly and resolves missing plugin):
+  call plugin_manager#cmd#status#execute()
+  let sbuf = bufnr('PluginManager')
+  AssertNotEqual -1, sbuf, 'sidebar should exist'
+  let content = getbufline(sbuf, 1, '$')
+  " Header: 'Plugin status:', '----', '' = 3, plus 1 plugin line = 4 total
+  AssertEqual 4, len(content), 'should have header (3) + 1 plugin line'
+  let plugin_line = content[-1]
+  Assert plugin_line =~# 'myplugin', 'plugin line should contain myplugin: ' . plugin_line
+  Assert plugin_line =~# 'Missing', 'missing plugin should show Missing: ' . plugin_line

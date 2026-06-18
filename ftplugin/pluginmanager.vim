@@ -23,6 +23,7 @@ if exists("b:did_ftplugin")
   nnoremap <buffer> l :call <SID>List()<CR>
   nnoremap <buffer> u :call <SID>Update()<CR>
   nnoremap <buffer> h :call <SID>GenerateHelptags()<CR>
+  nnoremap <buffer> c :call <SID>Check()<CR>
   nnoremap <buffer> s :call <SID>Status()<CR>
   nnoremap <buffer> S :call <SID>Summary()<CR>
   nnoremap <buffer> b :call <SID>Backup()<CR>
@@ -31,6 +32,10 @@ if exists("b:did_ftplugin")
   nnoremap <buffer> ? :call <SID>Usage()<CR>
   
 " Local call function for main plugin
+function! s:Check()
+    call plugin_manager#cmd#dispatch("check")
+endfunction
+
 function! s:List()
     call plugin_manager#cmd#dispatch("list")
 endfunction

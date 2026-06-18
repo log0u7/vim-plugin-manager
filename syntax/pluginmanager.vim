@@ -19,7 +19,7 @@ syntax keyword PMKeyword Usage Examples Configuration Commands Options
 
 " Plugin management operations
 syntax keyword PMOperation add install update remove restore reload backup
-syntax keyword PMSecondaryOp list status summary helptags
+syntax keyword PMSecondaryOp list status summary helptags check check-updates
 
 " Special highlighting for important operations
 syntax match PMUpdateOp /\<update\>\|\<updating\>/

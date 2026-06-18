@@ -26,6 +26,13 @@ function! plugin_manager#cmd#status#execute() abort
     call plugin_manager#ui#open_sidebar(l:lines)
     
     let l:ctx = s:create_status_context(l:modules)
+    
+    " Render all plugin lines as a block with pending spinners (instantly, like list)
+    for l:module in l:ctx.valid_modules
+      let l:op_id = plugin_manager#ui#start_operation(l:module.short_name, 'Checking')
+      let l:ctx.ops[l:module.short_name] = l:op_id
+    endfor
+    
     let l:use_async = plugin_manager#async#supported()
     
     if l:use_async
@@ -44,87 +51,90 @@ endfunction
 
 function! s:create_status_context(modules) abort
   let l:module_names = sort(keys(a:modules))
+  let l:valid_modules = []
+  
+  for l:name in l:module_names
+    let l:module = a:modules[l:name]
+    if has_key(l:module, 'is_valid') && l:module.is_valid
+      call add(l:valid_modules, l:module)
+    endif
+  endfor
   
   let l:ctx = {
         \ 'modules': a:modules,
         \ 'module_names': l:module_names,
-        \ 'total': len(l:module_names),
-        \ 'current_index': 0,
-        \ 'valid_modules': []
+        \ 'valid_modules': l:valid_modules,
+        \ 'ops': {}
         \ }
-  
-  for l:name in l:ctx.module_names
-    let l:module = l:ctx.modules[l:name]
-    if has_key(l:module, 'is_valid') && l:module.is_valid
-      call add(l:ctx.valid_modules, l:module)
-    endif
-  endfor
   
   return l:ctx
 endfunction
 
 " ------------------------------------------------------------------------------
-" SYNCHRONOUS STATUS
+" SYNCHRONOUS STATUS (fallback when +job is unavailable)
 " ------------------------------------------------------------------------------
 
 function! s:fetch_status_sync(ctx) abort
   call plugin_manager#git#execute('git submodule foreach --recursive "git fetch -q origin 2>/dev/null || true"', '', 0, 0)
   
-  for l:name in a:ctx.module_names
-    let l:module = a:ctx.modules[l:name]
-    if has_key(l:module, 'is_valid') && l:module.is_valid
-      " Fetch already done above for all submodules; analyze locally
-      let l:info = s:get_module_status_info(l:module, 1)
-      let l:line = s:format_status_line(l:info)
-      call plugin_manager#ui#update_sidebar([l:line], 1)
-    endif
+  for l:module in a:ctx.valid_modules
+    let l:info = s:get_module_status_info(l:module, 1)
+    call s:complete_status_op(a:ctx, l:module, l:info)
   endfor
 endfunction
 
 " ------------------------------------------------------------------------------
-" ASYNCHRONOUS STATUS
+" ASYNCHRONOUS STATUS — fan-out all fetches at once
 " ------------------------------------------------------------------------------
 
 function! s:fetch_status_async(ctx) abort
-  " Process modules one by one: fetch each as an async job, then analyze
-  " locally. This keeps the UI responsive (no blocking system() calls).
-  call timer_start(20, {timer -> s:process_next_module_status(a:ctx)})
-endfunction
-
-function! s:process_next_module_status(ctx) abort
-  if a:ctx.current_index >= len(a:ctx.module_names)
-    return
-  endif
-  
-  let l:name = a:ctx.module_names[a:ctx.current_index]
-  let l:module = a:ctx.modules[l:name]
-  
-  if !has_key(l:module, 'is_valid') || !l:module.is_valid
-    let a:ctx.current_index += 1
-    call s:process_next_module_status(a:ctx)
-    return
-  endif
-  
-  if !isdirectory(l:module.path)
-    let l:info = s:get_module_status_info(l:module, 1)
-    call plugin_manager#ui#update_sidebar([s:format_status_line(l:info)], 1)
-    let a:ctx.current_index += 1
-    call s:process_next_module_status(a:ctx)
-    return
-  endif
-  
-  " Fetch this module in the background, then analyze locally
-  call plugin_manager#async#git('git -C ' . shellescape(l:module.path) . ' fetch -q origin 2>/dev/null || true', {
-        \ 'callback': function('s:on_status_fetched', [a:ctx, l:module])
-        \ })
+  " Launch all fetches in parallel. The async engine's concurrency queue
+  " (g:plugin_manager_max_concurrent_jobs, default 4) limits simultaneous jobs.
+  for l:module in a:ctx.valid_modules
+    if !isdirectory(l:module.path)
+      let l:info = s:get_module_status_info(l:module, 1)
+      call s:complete_status_op(a:ctx, l:module, l:info)
+    else
+      call plugin_manager#async#git(
+            \ 'git -C ' . shellescape(l:module.path) . ' fetch -q origin 2>/dev/null || true', {
+            \ 'callback': function('s:on_status_fetched', [a:ctx, l:module])
+            \ })
+    endif
+  endfor
 endfunction
 
 function! s:on_status_fetched(ctx, module, result) abort
   let l:info = s:get_module_status_info(a:module, 1)
-  call plugin_manager#ui#update_sidebar([s:format_status_line(l:info)], 1)
-  
-  let a:ctx.current_index += 1
-  call s:process_next_module_status(a:ctx)
+  call s:complete_status_op(a:ctx, a:module, l:info)
+endfunction
+
+" ------------------------------------------------------------------------------
+" SHARED HELPERS
+" ------------------------------------------------------------------------------
+
+" Complete a status operation in place (updates the pre-rendered line)
+function! s:complete_status_op(ctx, module, info) abort
+  let l:symbol = s:status_symbol(a:info.status)
+  let l:status_text = a:info.status
+  if !empty(a:info.details)
+    let l:status_text .= ' (' . a:info.details . ')'
+  endif
+  call plugin_manager#ui#complete_operation_symbol(
+        \ a:ctx.ops[a:info.name], l:symbol, l:status_text)
+endfunction
+
+" Map a status string to its rich glyph
+function! s:status_symbol(status) abort
+  let l:map = {
+        \ 'Up-to-date': plugin_manager#ui#get_symbol('tick'),
+        \ 'OK':          plugin_manager#ui#get_symbol('tick'),
+        \ 'Behind':      plugin_manager#ui#get_symbol('warning'),
+        \ 'Ahead':       plugin_manager#ui#get_symbol('info'),
+        \ 'Modified':    plugin_manager#ui#get_symbol('warning'),
+        \ 'Custom branch': plugin_manager#ui#get_symbol('info'),
+        \ 'Missing':     plugin_manager#ui#get_symbol('cross'),
+        \ }
+  return get(l:map, a:status, plugin_manager#ui#get_symbol('info'))
 endfunction
 
 " ------------------------------------------------------------------------------
@@ -185,17 +195,7 @@ endfunction
 " ------------------------------------------------------------------------------
 
 function! s:format_status_line(info) abort
-  let l:status_symbols = {
-        \ 'OK': plugin_manager#ui#get_symbol('tick'),
-        \ 'Up-to-date': plugin_manager#ui#get_symbol('tick'),
-        \ 'Behind': plugin_manager#ui#get_symbol('warning'),
-        \ 'Ahead': plugin_manager#ui#get_symbol('info'),
-        \ 'Modified': plugin_manager#ui#get_symbol('warning'),
-        \ 'Custom branch': plugin_manager#ui#get_symbol('info'),
-        \ 'Missing': plugin_manager#ui#get_symbol('cross'),
-        \ }
-  
-  let l:symbol = get(l:status_symbols, a:info.status, plugin_manager#ui#get_symbol('info'))
+  let l:symbol = s:status_symbol(a:info.status)
   let l:status_text = a:info.status
   
   if !empty(a:info.details)

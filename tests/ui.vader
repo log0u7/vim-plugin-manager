@@ -50,6 +50,18 @@ Execute (show_update_notification reports up-to-date when empty):
   let content = join(getbufline(sbuf, 1, '$'), "\n")
   Assert content =~# 'up-to-date', 'should say up-to-date'
 
+Execute (complete_operation_symbol renders the given glyph in place):
+  call plugin_manager#ui#open_sidebar(['Header'])
+  wincmd p
+  let opid = plugin_manager#ui#start_operation('myplugin', 'Checking')
+  let glyph = plugin_manager#ui#get_symbol('warning')
+  call plugin_manager#ui#complete_operation_symbol(opid, glyph, 'Modified (2 commits)')
+  let sbuf = bufnr('PluginManager')
+  let content = join(getbufline(sbuf, 1, '$'), "\n")
+  Assert content =~# 'myplugin', 'sidebar should contain the plugin name'
+  Assert content =~# 'Modified', 'status text should appear'
+  Assert content =~# glyph, 'the provided glyph should appear'
+
 Execute (purge stale operations does not remove active ops):
   call plugin_manager#ui#open_sidebar(['Header'])
   wincmd p

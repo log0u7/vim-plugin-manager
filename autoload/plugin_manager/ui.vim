@@ -213,8 +213,14 @@ function! plugin_manager#ui#update_operation(op_id, status_text) abort
   call s:redraw_if_visible()
 endfunction
 
-" Complete an operation
+" Complete an operation with a specific symbol
 function! plugin_manager#ui#complete_operation(op_id, success, final_message) abort
+  let l:symbol = a:success ? s:symbols.tick : s:symbols.cross
+  call plugin_manager#ui#complete_operation_symbol(a:op_id, l:symbol, a:final_message)
+endfunction
+
+" Complete an operation with an explicit symbol (rich glyphs)
+function! plugin_manager#ui#complete_operation_symbol(op_id, symbol, final_message) abort
   if !has_key(s:active_operations, a:op_id)
     return
   endif
@@ -222,8 +228,7 @@ function! plugin_manager#ui#complete_operation(op_id, success, final_message) ab
   let l:op = s:active_operations[a:op_id]
   let l:buf = s:bufnr()
   if l:buf != -1 && l:op.line > 0 && l:op.line <= s:line_count(l:buf)
-    let l:symbol = a:success ? s:symbols.tick : s:symbols.cross
-    let l:final_line = plugin_manager#ui#format_plugin_line(l:symbol, l:op.name, a:final_message)
+    let l:final_line = plugin_manager#ui#format_plugin_line(a:symbol, l:op.name, a:final_message)
     call s:set_lines(l:buf, l:op.line, [l:final_line])
     call s:redraw_if_visible()
   endif
@@ -299,11 +304,13 @@ function! plugin_manager#ui#usage() abort
         \ 'check                   - Check for available updates',
         \ 'list                    - List installed plugins',
         \ 'status                  - Show plugin status',
+        \ 'helptags [plugin]       - Generate helptags',
         \ 'backup                  - Backup configuration',
         \ 'restore                 - Restore plugins',
         \ '',
         \ 'Shortcuts:',
-        \ 'q - Close   u - Update   l - List   s - Status',
+        \ 'q - Close   c - Check   u - Update   l - List',
+        \ 's - Status   h - Helptags   ? - Help',
         \ ]
   call plugin_manager#ui#open_sidebar(l:lines)
 endfunction
