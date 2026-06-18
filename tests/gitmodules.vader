@@ -47,6 +47,46 @@ Execute (find_module resolves by short name):
   Assert !empty(info), 'find_module should resolve nerdtree'
   AssertEqual 'pack/plugins/opt/nerdtree', info.module.path
 
+Execute (submodule_exists matches by short_name):
+  call plugin_manager#git#refresh_modules_cache()
+  Assert plugin_manager#git#submodule_exists('vim-fugitive'), 'short_name vim-fugitive should match'
+  Assert plugin_manager#git#submodule_exists('nerdtree'), 'short_name nerdtree should match'
+
+Execute (submodule_exists matches by relative path):
+  call plugin_manager#git#refresh_modules_cache()
+  Assert plugin_manager#git#submodule_exists('pack/plugins/start/vim-fugitive'), 'relative path should match'
+
+Execute (submodule_exists matches by absolute path):
+  call plugin_manager#git#refresh_modules_cache()
+  let abs = g:_pm_tmp . '/pack/plugins/start/vim-fugitive'
+  " Create the directory so isdirectory would also find it
+  call mkdir(g:_pm_tmp . '/pack/plugins/start/vim-fugitive', 'p')
+  Assert plugin_manager#git#submodule_exists(abs), 'absolute path should match'
+
+Execute (submodule_exists returns 0 for unknown):
+  call plugin_manager#git#refresh_modules_cache()
+  Assert !plugin_manager#git#submodule_exists('pack/plugins/start/vim-go'), 'unknown path should not match'
+
+Execute (submodule_exists handles absolute paths in .gitmodules):
+  let abs_fixture = tempname()
+  call mkdir(abs_fixture, 'p')
+  call mkdir(abs_fixture . '/.git', 'p')
+  let saved_vimdir = g:plugin_manager_vim_dir
+  let g:plugin_manager_vim_dir = abs_fixture
+  let abs_path = abs_fixture . '/pack/plugins/opt/myplugin'
+  call writefile([
+        \ '[submodule "myplugin"]',
+        \ '  path = ' . abs_path,
+        \ '  url = https://github.com/user/myplugin.git',
+        \ ], abs_fixture . '/.gitmodules')
+  execute 'cd ' . fnameescape(abs_fixture)
+  call plugin_manager#git#refresh_modules_cache()
+  Assert plugin_manager#git#submodule_exists(abs_path), 'should match absolute path in .gitmodules'
+  Assert plugin_manager#git#submodule_exists('myplugin'), 'should match short_name of absolute-path module'
+  let g:plugin_manager_vim_dir = saved_vimdir
+  execute 'cd ' . fnameescape(g:_pm_saved_cwd)
+  call delete(abs_fixture, 'rf')
+
 Execute (collect_status_local returns empty status for a missing path):
   let st = plugin_manager#git#collect_status_local('/no/such/path')
   AssertEqual 0, st.behind
