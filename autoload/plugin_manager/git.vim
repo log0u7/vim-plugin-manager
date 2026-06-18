@@ -138,6 +138,60 @@ function! plugin_manager#git#find_module(query) abort
   return l:partial_match
 endfunction
 
+" Canonical: check if a plugin path or short_name is already managed as a
+" submodule (declared in .gitmodules OR with a directory on disk). Returns 1
+" if found, 0 otherwise. This is the SINGLE source of truth shared by add#exists,
+" add_submodule, and any other detection site.
+function! plugin_manager#git#submodule_exists(plugin_path_or_name) abort
+  let l:modules = plugin_manager#git#parse_modules()
+  if empty(l:modules)
+    return 0
+  endif
+
+  let l:search = plugin_manager#core#normalize_path(a:plugin_path_or_name)
+  let l:short = fnamemodify(l:search, ':t')
+
+  for [l:name, l:mod] in items(l:modules)
+    let l:mod_path = get(l:mod, 'path', '')
+    let l:mod_short = get(l:mod, 'short_name', '')
+
+    " Match by short_name (last path component)
+    if !empty(l:mod_short) && l:mod_short ==# l:short
+      return 1
+    endif
+    if !empty(l:mod_short) && l:mod_short ==# l:search
+      return 1
+    endif
+
+    " Match by normalized path
+    let l:norm_mod_path = !empty(l:mod_path)
+          \ ? plugin_manager#core#normalize_path(l:mod_path)
+          \ : ''
+    if !empty(l:norm_mod_path) && (l:norm_mod_path ==# l:search
+          \ || l:norm_mod_path ==# l:short)
+      return 1
+    endif
+
+    " Try absolute-vs-relative normalisation: strip vim_dir prefix from search
+    " or add it to the module path, so an absolute install_dir matches a
+    " relative entry in .gitmodules.
+    let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+    if !empty(l:vim_dir) && !empty(l:norm_mod_path)
+      let l:vim_dir_norm = plugin_manager#core#normalize_path(l:vim_dir)
+      let l:abs_mod_path = l:vim_dir_norm . '/' . l:norm_mod_path
+      if l:abs_mod_path ==# l:search
+        return 1
+      endif
+      let l:rel_search = substitute(l:search, '^' . escape(l:vim_dir_norm, '/.\') . '/', '', '')
+      if l:rel_search ==# l:norm_mod_path
+        return 1
+      endif
+    endif
+  endfor
+
+  return 0
+endfunction
+
 " ------------------------------------------------------------------------------
 " GIT COMMAND EXECUTION
 " ------------------------------------------------------------------------------
@@ -364,9 +418,9 @@ function! plugin_manager#git#add_submodule(url, install_dir, options) abort
   let l:parent_dir = fnamemodify(a:install_dir, ':h')
   call plugin_manager#core#ensure_directory(l:parent_dir)
   
-  " Check if submodule already exists
-  let l:gitmodule_check = plugin_manager#git#execute('grep -c "' . l:relative_path . '" .gitmodules', '', 0, 0)
-  if !empty(l:gitmodule_check.output) && l:gitmodule_check.output != '0'
+  " Check if submodule already exists (canonical detection, handles both
+  " relative and absolute paths as well as short_name matching)
+  if plugin_manager#git#submodule_exists(a:install_dir)
     " Standardized error handling
     call plugin_manager#core#throw('git', 'SUBMODULE_EXISTS', 'Submodule already exists at this location: ' . l:relative_path)
   endif
