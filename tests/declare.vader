@@ -51,11 +51,6 @@ Execute (declarative skip does not log SUBMODULE_EXISTS for installed plugin):
             \ 'log should not contain SUBMODULE_EXISTS: ' . line
     endfor
   endif
-  let sbuf = bufnr('PluginManager')
-  if sbuf != -1
-    let content = join(getbufline(sbuf, 1, '$'), "\n")
-    Assert content =~# 'Already installed',
-          \ 'sidebar should show Already installed: ' . content
-    Assert content !~# 'failed',
-          \ 'sidebar should not show failed: ' . content
-  endif
+  " Sidebar is not opened when all plugins are skipped
+  AssertEqual -1, bufnr('PluginManager'),
+        \ 'sidebar should not exist when no work happened'

@@ -102,9 +102,10 @@ function! s:line_count(buf) abort
   return len(getbufline(a:buf, 1, '$'))
 endfunction
 
-" Redraw only when the sidebar is visible (avoids needless global redraws)
+" Redraw only when Vim has fully entered (avoids terminal leak on exit)
+" and the sidebar is visible.
 function! s:redraw_if_visible() abort
-  if s:bufwin() != -1
+  if v:vim_did_enter && s:bufwin() != -1
     redraw
   endif
 endfunction
@@ -140,7 +141,9 @@ function! plugin_manager#ui#open_sidebar(lines) abort
 
   let l:buf = s:bufnr()
   call s:replace_all(l:buf, a:lines)
-  redraw
+  if v:vim_did_enter
+    redraw
+  endif
 endfunction
 
 " Update the sidebar content (append or replace) without stealing focus
@@ -436,7 +439,9 @@ function! s:update_all_spinners(timer) abort
     endif
   endfor
 
-  redraw
+  if v:vim_did_enter
+    redraw
+  endif
 endfunction
 
 " Exposed for Vader tests only — purges stale operations on demand
