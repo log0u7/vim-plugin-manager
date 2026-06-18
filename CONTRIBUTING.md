@@ -181,7 +181,6 @@ The plugin uses global configuration variables defined in `plugin/plugin_manager
 - `g:plugin_manager_max_log_size`: Maximum log file size before rotation.
 - `g:plugin_manager_log_history_count`: Number of log files to keep in rotation.
 - `g:plugin_manager_spinner_style`: Style for spinners in async operations.
-- `g:plugin_manager_progress_style`: Style for progress bars.
 - `g:plugin_manager_pull_strategy`: Git pull strategy for updates (`ff-only`, `merge`, `rebase`).
 - `g:plugin_manager_auto_commit_on_update`: Auto commit after successful updates.
 - `g:plugin_manager_max_concurrent_jobs`: Maximum concurrent async jobs.

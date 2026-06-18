@@ -107,10 +107,6 @@ behavior with the following global variables:
 *g:plugin_manager_spinner_interval* Spinner refresh interval in milliseconds.
                                   Default: 80
 
-*g:plugin_manager_progress_style* Style for progress bars.
-                                Options: 'block', 'simple', 'arrow', 'dot'
-                                Default: 'block'
-
 *g:plugin_manager_pull_strategy* Git pull strategy for updates.
                                Options: 'ff-only', 'merge', 'rebase'
                                Default: 'ff-only'
