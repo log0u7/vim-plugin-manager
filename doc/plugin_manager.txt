@@ -83,7 +83,7 @@ behavior with the following global variables:
                                Default: '~/.vim/vimrc'
 
 *g:plugin_manager_sidebar_width* Width of the sidebar in columns.
-                               Default: 60
+                               Default: 80
 
 *g:plugin_manager_default_git_host* Default git host for short plugin names.
                                   Default: 'github.com'
@@ -399,6 +399,7 @@ Clear the error log:
 The following keyboard shortcuts are available in the PluginManager sidebar:
 
 q       Close the sidebar
+c       Check for available updates (async)
 l       List installed plugins
 u       Update all plugins
 h       Generate helptags for all plugins

@@ -63,7 +63,7 @@ endif
 
 " Sidebar width
 if !exists('g:plugin_manager_sidebar_width')
-    let g:plugin_manager_sidebar_width = 60
+    let g:plugin_manager_sidebar_width = 80
 endif
 
 " Use fancy UI elements if possible
