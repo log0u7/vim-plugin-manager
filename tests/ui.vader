@@ -49,3 +49,14 @@ Execute (show_update_notification reports up-to-date when empty):
   let sbuf = bufnr('PluginManager')
   let content = join(getbufline(sbuf, 1, '$'), "\n")
   Assert content =~# 'up-to-date', 'should say up-to-date'
+
+Execute (purge stale operations does not remove active ops):
+  call plugin_manager#ui#open_sidebar(['Header'])
+  wincmd p
+  let opid = plugin_manager#ui#start_operation('keep', 'Running')
+  call plugin_manager#ui#_purge_stale_test()
+  call plugin_manager#ui#complete_operation(opid, 1, 'Kept')
+  let sbuf = bufnr('PluginManager')
+  let content = join(getbufline(sbuf, 1, '$'), "\n")
+  Assert content =~# 'keep', 'active operation should survive purge'
+  Assert content =~# 'Kept', 'completed operation should render normally'

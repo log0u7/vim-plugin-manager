@@ -113,8 +113,8 @@ function! s:process_plugin(url, options) abort
   
   " Install
   try
-    call plugin_manager#api#add(a:url, a:options)
-    return 'installed'
+    let l:result = plugin_manager#api#add(a:url, a:options)
+    return l:result ? 'installed' : 'error'
   catch
     let l:op_id = plugin_manager#ui#start_operation(l:plugin_name, 'Installing')
     call plugin_manager#ui#complete_operation(l:op_id, 0, 'Installation failed')
