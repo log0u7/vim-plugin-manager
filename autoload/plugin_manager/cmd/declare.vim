@@ -13,15 +13,16 @@ function! plugin_manager#cmd#declare#begin() abort
 endfunction
 
 " Add a plugin declaration
-function! plugin_manager#cmd#declare#plugin(url, options) abort
+function! plugin_manager#cmd#declare#plugin(url, ...) abort
   if !s:plugin_block_active
     echohl WarningMsg
     echomsg "Plugin called outside PluginBegin/PluginEnd block"
     echohl None
     return
   endif
-  
-  call add(s:plugin_declarations, {'url': a:url, 'options': a:options})
+
+  let l:options = a:0 > 0 ? a:1 : {}
+  call add(s:plugin_declarations, {'url': a:url, 'options': l:options})
 endfunction
 
 " End declaration block and process
