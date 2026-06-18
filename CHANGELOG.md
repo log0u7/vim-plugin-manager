@@ -3,6 +3,19 @@
 All notable changes to the Vim Plugin Manager will be documented in this file.
 
 ## [Unreleased]
+### Features
+- `check` and `update` (all) commands now use block-instant rendering with
+  parallel async fan-out: all plugin lines appear at once with spinners, and
+  resolve in place as jobs complete, matching the `status` command display.
+
+### Changed
+- Default `g:plugin_manager_sidebar_width` increased from 60 to 80.
+
+### Improvements
+- New shortcut `c` in the sidebar buffer for `:PluginManager check`.
+- `check` and `check-updates` are now highlighted in the sidebar syntax.
+- Usage/reminder sidebar now lists `helptags`, `c` (check), `?` (help)
+  shortcuts alongside existing ones.
 
 ## [1.4.0] - 2026-06-17
 ### Features

@@ -304,11 +304,13 @@ function! plugin_manager#ui#usage() abort
         \ 'check                   - Check for available updates',
         \ 'list                    - List installed plugins',
         \ 'status                  - Show plugin status',
+        \ 'helptags [plugin]       - Generate helptags',
         \ 'backup                  - Backup configuration',
         \ 'restore                 - Restore plugins',
         \ '',
         \ 'Shortcuts:',
-        \ 'q - Close   u - Update   l - List   s - Status',
+        \ 'q - Close   c - Check   u - Update   l - List',
+        \ 's - Status   h - Helptags   ? - Help',
         \ ]
   call plugin_manager#ui#open_sidebar(l:lines)
 endfunction

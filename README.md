@@ -396,10 +396,12 @@ the check completes.
 #### Sidebar Keyboard Shortcuts
 
 - `q` - Close the sidebar
+- `c` - Check for available updates
 - `l` - List installed plugins
 - `u` - Update all plugins
 - `h` - Generate helptags for all plugins
 - `s` - Show status of submodules
+- `S` - Show summary of changes
 - `b` - Backup configuration
 - `r` - Restore all plugins
 - `R` - Reload configuration
@@ -437,8 +439,8 @@ let g:plugin_manager_opt_dir = 'opt'
 " Custom vimrc location
 let g:plugin_manager_vimrc_path = '~/.vim/vimrc'
 
-" Custom sidebar width
-let g:plugin_manager_sidebar_width = 60
+" Custom sidebar width (default: 80)
+let g:plugin_manager_sidebar_width = 80
 
 " Spinner style and refresh interval (ms) for the non-blocking UI
 let g:plugin_manager_spinner_style = 'dots'  " dots, line, circle, triangle, box

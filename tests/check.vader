@@ -1,0 +1,48 @@
+Before:
+  let g:_pm_chk_saved = {
+        \ 'vim_dir': get(g:, 'plugin_manager_vim_dir', ''),
+        \ 'cwd': getcwd(),
+        \ 'plugins_dir': get(g:, 'plugin_manager_plugins_dir', ''),
+        \ 'logging': get(g:, 'plugin_manager_enable_logging', 0),
+        \ }
+  let g:_pm_chk_tmp = tempname()
+  call mkdir(g:_pm_chk_tmp, 'p')
+  call mkdir(g:_pm_chk_tmp . '/.git', 'p')
+  " Single module with missing directory (resolves instantly in both sync/async paths)
+  call writefile([
+        \ '[submodule "myplugin"]',
+        \ '  path = pack/plugins/start/myplugin',
+        \ '  url = https://github.com/user/myplugin.git',
+        \ ], g:_pm_chk_tmp . '/.gitmodules')
+  let g:plugin_manager_vim_dir = g:_pm_chk_tmp
+  let g:plugin_manager_plugins_dir = g:_pm_chk_tmp . '/pack/plugins'
+  let g:plugin_manager_enable_logging = 0
+  " Wipe any stale PluginManager buffer from previous tests
+  let s:_pm_old = bufnr('PluginManager')
+  if s:_pm_old != -1
+    execute 'bwipeout! ' . s:_pm_old
+  endif
+  execute 'cd ' . fnameescape(g:_pm_chk_tmp)
+
+After:
+  execute 'cd ' . fnameescape(g:_pm_chk_saved.cwd)
+  if isdirectory(g:_pm_chk_tmp)
+    call delete(g:_pm_chk_tmp, 'rf')
+  endif
+  let g:plugin_manager_vim_dir = g:_pm_chk_saved.vim_dir
+  let g:plugin_manager_plugins_dir = g:_pm_chk_saved.plugins_dir
+  let g:plugin_manager_enable_logging = g:_pm_chk_saved.logging
+  unlet g:_pm_chk_tmp g:_pm_chk_saved
+
+Execute (check resolves missing plugin instantly and shows up-to-date notification):
+  call plugin_manager#cmd#check#execute()
+  let sbuf = bufnr('PluginManager')
+  AssertNotEqual -1, sbuf, 'sidebar should exist'
+  let content = getbufline(sbuf, 1, '$')
+  let full = join(content, "\n")
+  Assert full =~# 'up-to-date', 'should report all up-to-date: ' . full
+
+Execute (check silent mode does not open sidebar):
+  call plugin_manager#cmd#check#execute({'silent': 1})
+  let sbuf = bufnr('PluginManager')
+  AssertEqual -1, sbuf, 'sidebar should not exist in silent mode'
