@@ -37,13 +37,12 @@ This project adheres to a code of conduct that expects all participants to be re
 
 ## Development Workflow
 
-The project follows a GitFlow-inspired workflow:
+The project uses a simplified workflow. There is no `develop` branch. All
+changes branch from and merge into `main`:
 
 - `main`: stable code, tagged `vX.Y.Z` for releases.
-- `develop`: integration branch for ongoing work.
-- `feature/*`, `fix/*`, `chore/*`: task branches, branched from `develop`.
-- `release/x.y.z`: release preparation, branched from `develop`.
-- `hotfix/*`: urgent fixes, branched from `main`.
+- `feature/*`, `fix/*`, `chore/*`: task branches, branched from `main`.
+- `hotfix/*`: urgent fixes on the current release, branched from `main`.
 
 All merges use `--no-ff` to preserve branch topology.
 
@@ -70,15 +69,15 @@ Releases are automated via `.github/workflows/release.yml`:
    builds `vim-plugin-manager-vX.Y.Z.tar.gz` via `make archive` and publishes a
    GitHub Release with the asset and auto-generated release notes.
 
-1. Ensure you're working on the latest code:
+1. Ensure you're working on the latest `main`:
    ```bash
    git fetch upstream
-   git rebase upstream/develop
+   git rebase upstream/main
    ```
 
 2. Create a branch for your work:
    ```bash
-   git checkout -b feature/your-feature-name develop
+   git checkout -b feature/your-feature-name main
    ```
 
 3. Make your changes, following the [coding standards](#coding-standards).

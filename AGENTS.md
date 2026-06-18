@@ -144,19 +144,16 @@ docs: document GitFlow branching and Conventional Commits
 
 Only commit when explicitly requested.
 
-## Branching model (GitFlow)
+## Branching model
 
-The project follows a GitFlow-inspired workflow with Conventional Commit prefixes:
+The project uses a simplified workflow with Conventional Commit prefixes.
+There is no `develop` branch. All changes branch from and merge into `main`:
 
 - `main` -- stable code, tagged `vX.Y.Z` for releases.
-- `develop` -- integration branch for ongoing work.
-- `feature/*` -- new features, branched from `develop`, merged back with `--no-ff`.
-- `fix/*` -- bug fixes, branched from `develop`.
-- `chore/*` -- maintenance tasks, branched from `develop`.
-- `release/x.y.z` -- release preparation, branched from `develop`, tagged `vX.Y.Z`
-  when merged into `main`, then merged back into `develop`.
-- `hotfix/*` -- urgent fixes on the current release, branched from `main`,
-  merged back into both `main` and `develop` with `--no-ff`.
+- `feature/*` -- new features, branched from `main`, merged back with `--no-ff`.
+- `fix/*` -- bug fixes, branched from `main`.
+- `chore/*` -- maintenance tasks, branched from `main`.
+- `hotfix/*` -- urgent fixes on the current release, branched from `main`.
 
 All merges use `--no-ff` to preserve branch topology.
 
