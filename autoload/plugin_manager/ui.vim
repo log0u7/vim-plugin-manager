@@ -39,6 +39,9 @@ let s:spinner_frames = has_key(s:spinner_styles, s:active_spinner_style)
       \ ? s:spinner_styles[s:active_spinner_style]
       \ : s:spinner_styles['dots']
 
+" How long (seconds) before an operation is considered stale/orphaned
+let s:orphan_timeout = get(g:, 'plugin_manager_job_timeout', 60) * 2
+
 " Buffer state
 let s:buffer_name = 'PluginManager'
 let s:active_operations = {}
@@ -99,9 +102,10 @@ function! s:line_count(buf) abort
   return len(getbufline(a:buf, 1, '$'))
 endfunction
 
-" Redraw only when the sidebar is visible (avoids needless global redraws)
+" Redraw only when Vim has fully entered (avoids terminal leak on exit)
+" and the sidebar is visible.
 function! s:redraw_if_visible() abort
-  if s:bufwin() != -1
+  if v:vim_did_enter && s:bufwin() != -1
     redraw
   endif
 endfunction
@@ -137,7 +141,9 @@ function! plugin_manager#ui#open_sidebar(lines) abort
 
   let l:buf = s:bufnr()
   call s:replace_all(l:buf, a:lines)
-  redraw
+  if v:vim_did_enter
+    redraw
+  endif
 endfunction
 
 " Update the sidebar content (append or replace) without stealing focus
@@ -358,8 +364,45 @@ function! plugin_manager#ui#init() abort
   call s:ensure_spinner()
 endfunction
 
+" Purge stale/orphaned operations whose timeout has elapsed.
+" Marks each timed-out line in the buffer with a warning symbol.
+function! s:purge_stale_operations() abort
+  let l:now = localtime()
+  let l:stale = []
+  for [l:op_id, l:op] in items(s:active_operations)
+    if l:now - l:op.started > s:orphan_timeout
+      call add(l:stale, l:op_id)
+    endif
+  endfor
+
+  if empty(l:stale)
+    return
+  endif
+
+  let l:buf = s:bufnr()
+  for l:op_id in l:stale
+    if !has_key(s:active_operations, l:op_id)
+      continue
+    endif
+    let l:op = s:active_operations[l:op_id]
+    if l:buf != -1 && l:op.line > 0 && l:op.line <= s:line_count(l:buf)
+      let l:warn_line = s:symbols.warning . ' ' . l:op.name . '... timed out'
+      call s:set_lines(l:buf, l:op.line, [l:warn_line])
+    endif
+    unlet s:active_operations[l:op_id]
+  endfor
+endfunction
+
 " Advance and render all active spinners (only if the sidebar is visible)
 function! s:update_all_spinners(timer) abort
+  if empty(s:active_operations)
+    call s:maybe_stop_spinner()
+    return
+  endif
+
+  " Purge any operations that have been running too long
+  call s:purge_stale_operations()
+
   if empty(s:active_operations)
     call s:maybe_stop_spinner()
     return
@@ -396,5 +439,12 @@ function! s:update_all_spinners(timer) abort
     endif
   endfor
 
-  redraw
+  if v:vim_did_enter
+    redraw
+  endif
+endfunction
+
+" Exposed for Vader tests only — purges stale operations on demand
+function! plugin_manager#ui#_purge_stale_test() abort
+  call s:purge_stale_operations()
 endfunction

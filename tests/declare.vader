@@ -1,3 +1,34 @@
+Before:
+  let g:_pm_dec_saved = {
+        \ 'vim_dir': get(g:, 'plugin_manager_vim_dir', ''),
+        \ 'cwd': getcwd(),
+        \ 'logging': get(g:, 'plugin_manager_enable_logging', 0),
+        \ 'plugins_dir': get(g:, 'plugin_manager_plugins_dir', ''),
+        \ }
+  let g:_pm_dec_tmp = tempname()
+  call mkdir(g:_pm_dec_tmp, 'p')
+  call mkdir(g:_pm_dec_tmp . '/.git', 'p')
+  call mkdir(g:_pm_dec_tmp . '/pack/plugins/start/vim-fugitive', 'p')
+  call writefile([
+        \ '[submodule "vim-fugitive"]',
+        \ '  path = pack/plugins/start/vim-fugitive',
+        \ '  url = https://github.com/tpope/vim-fugitive.git',
+        \ ], g:_pm_dec_tmp . '/.gitmodules')
+  let g:plugin_manager_vim_dir = g:_pm_dec_tmp
+  let g:plugin_manager_plugins_dir = g:_pm_dec_tmp . '/pack/plugins'
+  let g:plugin_manager_enable_logging = 1
+  execute 'cd ' . fnameescape(g:_pm_dec_tmp)
+
+After:
+  execute 'cd ' . fnameescape(g:_pm_dec_saved.cwd)
+  if isdirectory(g:_pm_dec_tmp)
+    call delete(g:_pm_dec_tmp, 'rf')
+  endif
+  let g:plugin_manager_vim_dir = g:_pm_dec_saved.vim_dir
+  let g:plugin_manager_plugins_dir = g:_pm_dec_saved.plugins_dir
+  let g:plugin_manager_enable_logging = g:_pm_dec_saved.logging
+  unlet g:_pm_dec_tmp g:_pm_dec_saved
+
 Execute (declare#plugin with url only does not raise E119):
   call plugin_manager#cmd#declare#begin()
   call plugin_manager#api#plugin('tpope/vim-fugitive')
@@ -7,3 +38,19 @@ Execute (declare#plugin with url and options stores both):
   call plugin_manager#cmd#declare#begin()
   call plugin_manager#api#plugin('preservim/nerdtree', {'load': 'opt'})
   Assert 1
+
+Execute (declarative skip does not log SUBMODULE_EXISTS for installed plugin):
+  call plugin_manager#cmd#declare#begin()
+  call plugin_manager#api#plugin('tpope/vim-fugitive')
+  call plugin_manager#cmd#declare#end()
+  let log_file = g:_pm_dec_tmp . '/logs/plugin_manager.log'
+  if filereadable(log_file)
+    let log_content = readfile(log_file)
+    for line in log_content
+      Assert line !~# 'SUBMODULE_EXISTS',
+            \ 'log should not contain SUBMODULE_EXISTS: ' . line
+    endfor
+  endif
+  " Sidebar is not opened when all plugins are skipped
+  AssertEqual -1, bufnr('PluginManager'),
+        \ 'sidebar should not exist when no work happened'

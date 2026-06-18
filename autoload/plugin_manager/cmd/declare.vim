@@ -54,15 +54,9 @@ function! s:process_declarations() abort
       return
     endif
     
-    let l:header = [
-          \ 'Processing declarations:',
-          \ plugin_manager#ui#get_symbol('separator'),
-          \ ''
-          \ ]
-    call plugin_manager#ui#open_sidebar(l:header)
-    
     let l:installed = 0
     let l:skipped = 0
+    let l:errors = 0
     
     for l:plugin in s:plugin_declarations
       let l:result = s:process_plugin(l:plugin.url, l:plugin.options)
@@ -71,21 +65,29 @@ function! s:process_declarations() abort
         let l:installed += 1
       elseif l:result ==# 'skipped'
         let l:skipped += 1
+      elseif l:result ==# 'error'
+        let l:errors += 1
       endif
     endfor
+    
+    " Open sidebar only if work actually happened
+    if l:installed == 0 && l:errors == 0
+      return
+    endif
     
     " Summary
     let l:summary = []
     if l:installed > 0
       call add(l:summary, plugin_manager#ui#success(l:installed . ' plugins installed'))
     endif
+    if l:errors > 0
+      call add(l:summary, plugin_manager#ui#error(l:errors . ' errors'))
+    endif
     if l:skipped > 0
       call add(l:summary, plugin_manager#ui#info(l:skipped . ' plugins skipped (already installed)'))
     endif
     
-    if !empty(l:summary)
-      call plugin_manager#ui#update_sidebar([''] + l:summary, 1)
-    endif
+    call plugin_manager#ui#update_sidebar([''] + l:summary, 1)
   catch
     call plugin_manager#core#handle_error(v:exception, "declare")
   endtry
@@ -106,15 +108,13 @@ function! s:process_plugin(url, options) abort
   
   " Check if already exists
   if plugin_manager#cmd#add#exists(l:plugin_name, a:options)
-    let l:op_id = plugin_manager#ui#start_operation(l:plugin_name, 'Checking')
-    call plugin_manager#ui#complete_operation(l:op_id, 1, 'Already installed')
     return 'skipped'
   endif
   
   " Install
   try
-    call plugin_manager#api#add(a:url, a:options)
-    return 'installed'
+    let l:result = plugin_manager#api#add(a:url, a:options)
+    return l:result ? 'installed' : 'error'
   catch
     let l:op_id = plugin_manager#ui#start_operation(l:plugin_name, 'Installing')
     call plugin_manager#ui#complete_operation(l:op_id, 0, 'Installation failed')
