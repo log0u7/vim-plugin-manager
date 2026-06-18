@@ -171,32 +171,6 @@ function! plugin_manager#async#stop_job(job_id) abort
     return 0
 endfunction
 
-" Get job status
-function! plugin_manager#async#job_status(job_id) abort
-    if !has_key(s:jobs, a:job_id)
-        return 'invalid'
-    endif
-    
-    let l:job = s:jobs[a:job_id]
-    
-    if l:job.finished
-        return 'finished'
-    endif
-    
-    let l:status = job_status(l:job.job)
-    return l:status ==# 'run' ? 'running' : 'finished'
-endfunction
-
-" Get job information
-function! plugin_manager#async#job_info(job_id) abort
-    if !has_key(s:jobs, a:job_id)
-        return {}
-    endif
-    
-    " Return a copy of job info to prevent modification
-    return copy(s:jobs[a:job_id])
-endfunction
-
 " ------------------------------------------------------------------------------
 " CALLBACKS AND HANDLERS
 " ------------------------------------------------------------------------------
@@ -216,35 +190,6 @@ function! plugin_manager#async#on_complete(job_id, callback) abort
     endif
     
     return 1
-endfunction
-
-" Wait for a job to complete with timeout
-function! plugin_manager#async#wait_job(job_id, timeout_ms) abort
-    if !has_key(s:jobs, a:job_id)
-        " Standardized error handling
-        call plugin_manager#core#throw('async', 'INVALID_JOB_ID', 'Invalid job ID: ' . a:job_id)
-    endif
-    
-    let l:job = s:jobs[a:job_id]
-    
-    if l:job.finished
-        return l:job.status
-    endif
-    
-    let l:start_time = localtime()
-    let l:end_time = l:start_time + (a:timeout_ms / 1000)
-    
-    while localtime() < l:end_time
-        if job_status(l:job.job) !=# 'run'
-            sleep 10m
-            return l:job.status
-        endif
-        
-        sleep 10m
-    endwhile
-    
-    " Standardized error handling for timeout (but return code instead of throwing)
-    return -1  " Timeout
 endfunction
 
 " Clean up finished jobs older than a certain age
@@ -386,4 +331,7 @@ function! s:process_job_completion(job_id) abort
     
     " A slot freed up: start the next queued job if any
     call s:try_start_next()
+
+    " Clean up finished jobs older than 60 seconds
+    call plugin_manager#async#cleanup(60)
 endfunction
