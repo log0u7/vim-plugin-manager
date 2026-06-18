@@ -4,7 +4,7 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 
 ## [Unreleased]
 
-## [1.4.0] - 2026-06-15
+## [1.4.0] - 2026-06-17
 ### Features
 - Update notifications: detect plugins with available updates and report them in
   the sidebar (`:PluginManager check`).
@@ -43,6 +43,16 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
   called on every error path (would raise E117).
 - Fixed the sync "update all" path to mark per-plugin operations complete and to
   commit the updated submodule pointers.
+- Implemented the missing `s:check_log_rotation()` function so log rotation via
+  `g:plugin_manager_max_log_size` and `g:plugin_manager_log_history_count`
+  actually works instead of silently failing.
+- Wired `async#cleanup(60)` into `s:process_job_completion` to prevent unbounded
+  growth of the `s:jobs` dictionary.
+- Removed dead public API functions `job_status()`, `job_info()`, and
+  `wait_job()` from async.vim (unused; Vim built-in `job_status()` still used
+  internally).
+- Removed the inert `g:plugin_manager_progress_style` option (no longer wired
+  in the 1.4.0 UI).
 
 ### Refactoring
 - Migrated all command modules to the structured `plugin_manager#core#throw()`
