@@ -119,7 +119,7 @@ function! s:update_specific_plugin_sync(ctx) abort
   " Update
   if plugin_manager#git#update_submodule(l:module_path)
     call plugin_manager#ui#complete_operation(l:op_id, 1, 'Updated successfully')
-    call plugin_manager#cmd#helptags#execute(0, l:module_name)
+    call plugin_manager#cmd#helptags#execute(0, l:module_name, 1)
   else
     call plugin_manager#ui#complete_operation(l:op_id, 0, 'Update failed')
   endif
@@ -183,7 +183,7 @@ function! s:on_update_complete(ctx, result) abort
   
   if l:success
     call plugin_manager#ui#complete_operation(l:op_id, 1, 'Updated successfully')
-    call plugin_manager#cmd#helptags#execute(0, l:module_name)
+    call plugin_manager#cmd#helptags#execute(0, l:module_name, 1)
     call s:commit_update_async(l:module_name)
   else
     call plugin_manager#ui#complete_operation(l:op_id, 0, 'Update failed')
@@ -258,7 +258,9 @@ function! s:update_all_plugins_sync(ctx) abort
     call plugin_manager#git#execute('git commit -am "Update Modules"', '', 0, 0)
   endif
   
-  call plugin_manager#cmd#helptags#execute(0)
+  for l:module in l:modules_to_update
+    call plugin_manager#cmd#helptags#execute(0, l:module.short_name, 1)
+  endfor
 endfunction
 
 " Async update all plugins - block instant + parallel fan-out
@@ -352,7 +354,9 @@ function! s:finalize_update_all(ctx) abort
     if plugin_manager#core#should_auto_commit()
       call plugin_manager#git#execute('git commit -am "Update Modules"', '', 0, 0)
     endif
-    call plugin_manager#cmd#helptags#execute(0)
+    for l:module in a:ctx.updated_modules
+      call plugin_manager#cmd#helptags#execute(0, l:module.short_name, 1)
+    endfor
   endif
 endfunction
 
