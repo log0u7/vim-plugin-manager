@@ -191,7 +191,7 @@ function! s:on_update_complete(ctx, result) abort
   endif
 endfunction
 
-" Surface detailed error output from a failed async job
+" Surface detailed error output from a failed async job to the log
 function! s:report_job_errors(result) abort
   let l:detail = ''
   if has_key(a:result, 'errors') && !empty(a:result.errors)
@@ -201,9 +201,7 @@ function! s:report_job_errors(result) abort
   endif
 
   if !empty(l:detail)
-    let l:lines = [plugin_manager#ui#error('Details:')]
-    call extend(l:lines, split(l:detail, "\n"))
-    call plugin_manager#ui#update_sidebar(l:lines, 1)
+    call plugin_manager#ui#log_detail('update', l:detail)
   endif
 endfunction
 
