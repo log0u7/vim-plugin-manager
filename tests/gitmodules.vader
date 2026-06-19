@@ -87,6 +87,19 @@ Execute (submodule_exists handles absolute paths in .gitmodules):
   execute 'cd ' . fnameescape(g:_pm_saved_cwd)
   call delete(abs_fixture, 'rf')
 
+Execute (remote_branch_name strips origin/ prefix):
+  AssertEqual 'master', plugin_manager#git#remote_branch_name('origin/master')
+  AssertEqual 'main', plugin_manager#git#remote_branch_name('origin/main')
+  AssertEqual 'feature/foo', plugin_manager#git#remote_branch_name('origin/feature/foo')
+
+Execute (remote_branch_name is idempotent without prefix):
+  AssertEqual 'master', plugin_manager#git#remote_branch_name('master')
+  AssertEqual 'main', plugin_manager#git#remote_branch_name('main')
+  AssertEqual 'origin', plugin_manager#git#remote_branch_name('origin')
+
+Execute (remote_branch_name handles empty input):
+  AssertEqual '', plugin_manager#git#remote_branch_name('')
+
 Execute (collect_status_local returns empty status for a missing path):
   let st = plugin_manager#git#collect_status_local('/no/such/path')
   AssertEqual 0, st.behind

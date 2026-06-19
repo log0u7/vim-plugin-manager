@@ -192,6 +192,12 @@ function! plugin_manager#git#submodule_exists(plugin_path_or_name) abort
   return 0
 endfunction
 
+" Strip the 'origin/' prefix from a remote branch name, e.g.
+" 'origin/master' -> 'master'. Idempotent: 'master' -> 'master'.
+function! plugin_manager#git#remote_branch_name(remote_branch) abort
+  return substitute(a:remote_branch, '^origin/', '', '')
+endfunction
+
 " ------------------------------------------------------------------------------
 " GIT COMMAND EXECUTION
 " ------------------------------------------------------------------------------
@@ -557,12 +563,16 @@ function! plugin_manager#git#update_submodule(module_path) abort
   
   " Skip if already up to date
   if !l:update_status.has_updates
-    return 1
+    return {'success': 1, 'changed': 0, 'message': 'Already up-to-date'}
   endif
   
-  " Update the module using the configured pull strategy
+  " Capture HEAD before update
+  let l:before_commit = l:update_status.current_commit
+  
+  " Build pull command with stripped branch name (remove origin/ prefix)
+  let l:branch = plugin_manager#git#remote_branch_name(l:update_status.remote_branch)
   let l:pull_flag = plugin_manager#core#get_pull_flag()
-  let l:result = plugin_manager#git#execute('git pull origin ' . l:update_status.remote_branch . ' ' . l:pull_flag, 
+  let l:result = plugin_manager#git#execute('git pull origin ' . l:branch . ' ' . l:pull_flag, 
         \ a:module_path, 1, 1)
   
   " Handle error
@@ -571,7 +581,12 @@ function! plugin_manager#git#update_submodule(module_path) abort
     call plugin_manager#core#throw('update', 'UPDATE_FAILED', 'Failed to update module ' . a:module_path . ': ' . l:result.output)
   endif
   
-  return l:result.success
+  " Compare HEAD after pull to determine if anything actually changed
+  let l:after = plugin_manager#git#execute('git rev-parse HEAD', a:module_path, 0, 0)
+  let l:after_commit = l:after.success ? substitute(l:after.output, '\n', '', 'g') : ''
+  let l:changed = !empty(l:before_commit) && !empty(l:after_commit) && l:after_commit !=# l:before_commit
+  
+  return {'success': 1, 'changed': l:changed, 'message': l:changed ? 'Updated' : 'Already up-to-date'}
 endfunction
 
 " Restore all submodules from .gitmodules
