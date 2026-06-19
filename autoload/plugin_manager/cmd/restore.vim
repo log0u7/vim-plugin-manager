@@ -16,31 +16,25 @@ function! plugin_manager#cmd#restore#execute() abort
           \ ]
     call plugin_manager#ui#open_sidebar(l:header)
     
-    " Check .gitmodules exists
     if !plugin_manager#core#file_exists('.gitmodules')
       call plugin_manager#core#throw('restore', 'GITMODULES_NOT_FOUND', '.gitmodules file not found')
     endif
     
-    " Step 1: Initialize
+    let l:tick = plugin_manager#ui#get_symbol('tick')
+    
     let l:op_id = plugin_manager#ui#start_operation('submodules', 'Initializing')
-    call plugin_manager#ui#update_operation(l:op_id, 'Initializing submodules')
-    call plugin_manager#git#execute('git submodule init', '', 0, 1)
-    call plugin_manager#ui#complete_operation(l:op_id, 1, 'Initialized')
+    call plugin_manager#git#execute('git submodule init', '', 0, 0)
+    call plugin_manager#ui#complete_operation_symbol(l:op_id, l:tick, 'Initialized')
     
-    " Step 2: Update
     let l:op_id = plugin_manager#ui#start_operation('plugins', 'Restoring')
-    call plugin_manager#ui#update_operation(l:op_id, 'Fetching and updating')
-    call plugin_manager#git#execute('git submodule update --init --recursive', '', 0, 1)
-    call plugin_manager#ui#complete_operation(l:op_id, 1, 'Restored')
+    call plugin_manager#git#execute('git submodule update --init --recursive', '', 0, 0)
+    call plugin_manager#ui#complete_operation_symbol(l:op_id, l:tick, 'Restored')
     
-    " Step 3: Sync
     let l:op_id = plugin_manager#ui#start_operation('sync', 'Syncing')
-    call plugin_manager#ui#update_operation(l:op_id, 'Ensuring correct state')
     call plugin_manager#git#execute('git submodule sync', '', 0, 0)
-    call plugin_manager#git#execute('git submodule update --init --recursive --force', '', 0, 1)
-    call plugin_manager#ui#complete_operation(l:op_id, 1, 'Synced')
+    call plugin_manager#git#execute('git submodule update --init --recursive --force', '', 0, 0)
+    call plugin_manager#ui#complete_operation_symbol(l:op_id, l:tick, 'Synced')
     
-    " Step 4: Helptags
     call plugin_manager#ui#update_sidebar(['', plugin_manager#ui#info('Generating helptags')], 1)
     call plugin_manager#cmd#helptags#execute(0)
     
