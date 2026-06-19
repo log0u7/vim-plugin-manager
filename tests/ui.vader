@@ -62,6 +62,42 @@ Execute (complete_operation_symbol renders the given glyph in place):
   Assert content =~# 'Modified', 'status text should appear'
   Assert content =~# glyph, 'the provided glyph should appear'
 
+Execute (helptags silent mode does not produce UI lines):
+  let saved_vimdir = get(g:, 'plugin_manager_vim_dir', '')
+  let saved_cwd = getcwd()
+  let tmp = tempname()
+  call mkdir(tmp, 'p')
+  call mkdir(tmp . '/.git', 'p')
+  let g:plugin_manager_vim_dir = tmp
+  execute 'cd ' . fnameescape(tmp)
+  call plugin_manager#ui#open_sidebar(['Header'])
+  call plugin_manager#cmd#helptags#execute(1, '', 1)
+  let sbuf = bufnr('PluginManager')
+  let header1 = getbufline(sbuf, 1)[0]
+  execute 'cd ' . fnameescape(saved_cwd)
+  call delete(tmp, 'rf')
+  let g:plugin_manager_vim_dir = saved_vimdir
+  AssertEqual 'Header', header1, 'silent mode should not change sidebar'
+
+Execute (helptags non-silent mode opens sidebar on error):
+  let saved_vimdir = get(g:, 'plugin_manager_vim_dir', '')
+  let saved_cwd = getcwd()
+  let tmp = tempname()
+  call mkdir(tmp, 'p')
+  call mkdir(tmp . '/.git', 'p')
+  let g:plugin_manager_vim_dir = tmp
+  execute 'cd ' . fnameescape(tmp)
+  call plugin_manager#cmd#helptags#execute(1, '', 0)
+  let sbuf = bufnr('PluginManager')
+  let output = ''
+  if sbuf != -1
+    let output = join(getbufline(sbuf, 1, '$'), "\n")
+  endif
+  execute 'cd ' . fnameescape(saved_cwd)
+  call delete(tmp, 'rf')
+  let g:plugin_manager_vim_dir = saved_vimdir
+  Assert output =~# 'Generating helptags\|No plugins found\|Plugin directory not found', 'non-silent should show output'
+
 Execute (purge stale operations does not remove active ops):
   call plugin_manager#ui#open_sidebar(['Header'])
   wincmd p
