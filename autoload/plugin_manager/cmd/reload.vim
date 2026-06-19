@@ -33,7 +33,6 @@ endfunction
 " ------------------------------------------------------------------------------
 
 function! s:reload_specific_plugin(module_name) abort
-  " Find module
   let l:module_info = plugin_manager#git#find_module(a:module_name)
   if empty(l:module_info)
     call plugin_manager#core#throw('reload', 'MODULE_NOT_FOUND', 'Module not found: ' . a:module_name)
@@ -47,19 +46,11 @@ function! s:reload_specific_plugin(module_name) abort
   
   let l:op_id = plugin_manager#ui#start_operation(a:module_name, 'Reloading')
   
-  " Remove from runtimepath
-  call plugin_manager#ui#update_operation(l:op_id, 'Removing from runtimepath')
   call s:remove_from_runtimepath(l:module_path)
-  
-  " Add back to runtimepath
-  call plugin_manager#ui#update_operation(l:op_id, 'Adding to runtimepath')
   call s:add_to_runtimepath(l:module_path)
-  
-  " Reload runtime files
-  call plugin_manager#ui#update_operation(l:op_id, 'Reloading runtime files')
   call s:reload_plugin_runtime_files(l:module_path)
   
-  call plugin_manager#ui#complete_operation(l:op_id, 1, 'Reloaded')
+  call plugin_manager#ui#complete_operation_symbol(l:op_id, plugin_manager#ui#get_symbol('tick'), 'Reloaded')
   call plugin_manager#ui#update_sidebar(['', plugin_manager#ui#info('Some plugins may require restarting Vim')], 1)
 endfunction
 
@@ -70,15 +61,10 @@ endfunction
 function! s:reload_all_configuration() abort
   let l:op_id = plugin_manager#ui#start_operation('configuration', 'Reloading')
   
-  " Reload runtime files
-  call plugin_manager#ui#update_operation(l:op_id, 'Reloading runtime files')
   call s:reload_all_runtime_files()
-  
-  " Source vimrc
-  call plugin_manager#ui#update_operation(l:op_id, 'Sourcing vimrc')
   call s:source_vimrc()
   
-  call plugin_manager#ui#complete_operation(l:op_id, 1, 'Reloaded')
+  call plugin_manager#ui#complete_operation_symbol(l:op_id, plugin_manager#ui#get_symbol('tick'), 'Reloaded')
   call plugin_manager#ui#update_sidebar(['', plugin_manager#ui#info('Some plugins may require restarting Vim')], 1)
 endfunction
 

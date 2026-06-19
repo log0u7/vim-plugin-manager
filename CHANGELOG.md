@@ -19,6 +19,10 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 - After `update`/`add`, helptags are now generated silently and only for
   the plugins that were actually updated, instead of regenerating for all
   plugins with visible progress lines.
+- Streamlined single-operation command UI (add, remove, reload, backup,
+  restore): removed intermediate cosmetic steps, finish on rich result
+  glyphs with short labels, and route verbose git output to the log
+  instead of the sidebar.
 
 ### CI
 - Pushing a `vX.Y.Z` tag to GitHub triggers a workflow that builds a

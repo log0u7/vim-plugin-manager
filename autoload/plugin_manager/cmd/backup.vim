@@ -18,9 +18,8 @@ function! plugin_manager#cmd#backup#execute() abort
     
     " Step 1: Copy vimrc
     let l:op_id = plugin_manager#ui#start_operation('vimrc', 'Backing up')
-    call plugin_manager#ui#update_operation(l:op_id, 'Copying vimrc')
     call s:backup_vimrc_file()
-    call plugin_manager#ui#complete_operation(l:op_id, 1, 'Copied')
+    call plugin_manager#ui#complete_operation_symbol(l:op_id, plugin_manager#ui#get_symbol('tick'), 'Copied')
     
     " Step 2: Commit changes
     let l:op_id = plugin_manager#ui#start_operation('changes', 'Committing')
@@ -62,41 +61,36 @@ function! s:backup_vimrc_file() abort
 endfunction
 
 function! s:commit_local_changes(op_id) abort
-  call plugin_manager#ui#update_operation(a:op_id, 'Checking for changes')
-  
   let l:status = plugin_manager#git#execute('git status -s', '', 0, 0)
   
   if empty(l:status.output)
-    call plugin_manager#ui#complete_operation(a:op_id, 1, 'No changes to commit')
+    call plugin_manager#ui#complete_operation_symbol(a:op_id, plugin_manager#ui#get_symbol('info'), 'No changes')
     return
   endif
   
-  call plugin_manager#ui#update_operation(a:op_id, 'Committing changes')
   let l:result = plugin_manager#git#execute('git commit -am "Automatic backup"', '', 0, 0)
   
   if l:result.success
-    call plugin_manager#ui#complete_operation(a:op_id, 1, 'Changes committed')
+    call plugin_manager#ui#complete_operation_symbol(a:op_id, plugin_manager#ui#get_symbol('tick'), 'Committed')
   else
-    call plugin_manager#ui#complete_operation(a:op_id, 0, 'Commit failed')
+    call plugin_manager#ui#complete_operation_symbol(a:op_id, plugin_manager#ui#get_symbol('cross'), 'Commit failed')
+    call plugin_manager#ui#log_detail('backup', l:result.output)
   endif
 endfunction
 
 function! s:push_to_remotes(op_id) abort
-  call plugin_manager#ui#update_operation(a:op_id, 'Checking remotes')
-  
-  " Check if remotes exist
   let l:remotes = plugin_manager#git#execute('git remote', '', 0, 0)
   if empty(l:remotes.output)
-    call plugin_manager#ui#complete_operation(a:op_id, 0, 'No remotes configured')
+    call plugin_manager#ui#complete_operation_symbol(a:op_id, plugin_manager#ui#get_symbol('warning'), 'No remotes')
     call plugin_manager#core#throw('backup', 'NO_REMOTES', 'No remote repositories configured')
   endif
   
-  call plugin_manager#ui#update_operation(a:op_id, 'Pushing to remotes')
-  let l:result = plugin_manager#git#execute('git push --all', '', 0, 1)
+  let l:result = plugin_manager#git#execute('git push --all', '', 0, 0)
   
   if l:result.success
-    call plugin_manager#ui#complete_operation(a:op_id, 1, 'Pushed successfully')
+    call plugin_manager#ui#complete_operation_symbol(a:op_id, plugin_manager#ui#get_symbol('tick'), 'Pushed')
   else
-    call plugin_manager#ui#complete_operation(a:op_id, 0, 'Push failed')
+    call plugin_manager#ui#complete_operation_symbol(a:op_id, plugin_manager#ui#get_symbol('cross'), 'Push failed')
+    call plugin_manager#ui#log_detail('backup', l:result.output)
   endif
 endfunction

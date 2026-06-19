@@ -79,25 +79,20 @@ function! s:install_remote_plugin(url, options) abort
   let l:op_id = plugin_manager#ui#start_operation(l:plugin_dir_name, 'Installing')
   
   try
-    " Add submodule
-    call plugin_manager#ui#update_operation(l:op_id, 'Cloning repository')
-    
     if plugin_manager#git#add_submodule(a:url, l:plugin_dir, a:options)
-      " Generate helptags
       let l:doc_path = l:plugin_dir . '/doc'
       if isdirectory(l:doc_path)
-        call plugin_manager#ui#update_operation(l:op_id, 'Generating helptags')
-        execute 'helptags ' . fnameescape(l:doc_path)
+        silent execute 'helptags ' . fnameescape(l:doc_path)
       endif
-      
-      call plugin_manager#ui#complete_operation(l:op_id, 1, 'Installed successfully')
+      call plugin_manager#ui#complete_operation_symbol(l:op_id, plugin_manager#ui#get_symbol('tick'), 'Installed')
       return 1
     else
-      call plugin_manager#ui#complete_operation(l:op_id, 0, 'Installation failed')
+      call plugin_manager#ui#complete_operation_symbol(l:op_id, plugin_manager#ui#get_symbol('cross'), 'Failed')
       return 0
     endif
   catch
-    call plugin_manager#ui#complete_operation(l:op_id, 0, 'Installation failed')
+    call plugin_manager#ui#complete_operation_symbol(l:op_id, plugin_manager#ui#get_symbol('cross'), 'Failed')
+    call plugin_manager#ui#log_detail('add', v:exception)
     call plugin_manager#core#handle_error(v:exception, "add")
     return 0
   endtry
@@ -126,53 +121,42 @@ function! s:install_local_plugin(path, options) abort
   let l:op_id = plugin_manager#ui#start_operation(l:plugin_dir_name, 'Installing')
   
   try
-    " Check if local path exists
     if !isdirectory(a:path)
-      call plugin_manager#ui#complete_operation(l:op_id, 0, 'Source directory not found')
+      call plugin_manager#ui#complete_operation_symbol(l:op_id, plugin_manager#ui#get_symbol('warning'), 'Source not found')
       call plugin_manager#core#throw('add', 'LOCAL_PATH_NOT_FOUND', 'Local directory not found: ' . a:path)
     endif
     
-    " Check if destination exists
     if isdirectory(l:plugin_dir)
-      call plugin_manager#ui#complete_operation(l:op_id, 0, 'Already exists')
+      call plugin_manager#ui#complete_operation_symbol(l:op_id, plugin_manager#ui#get_symbol('warning'), 'Already exists')
       call plugin_manager#core#throw('add', 'TARGET_EXISTS', 'Destination already exists: ' . l:plugin_dir)
     endif
     
-    " Create parent directory
     let l:parent_dir = fnamemodify(l:plugin_dir, ':h')
     if !isdirectory(l:parent_dir)
       call mkdir(l:parent_dir, 'p')
     endif
     
-    " Create destination directory
     call mkdir(l:plugin_dir, 'p')
-    
-    " Copy files
-    call plugin_manager#ui#update_operation(l:op_id, 'Copying files')
     call s:copy_local_files(a:path, l:plugin_dir)
     
-    " Execute custom command if provided
     if !empty(get(a:options, 'exec', ''))
-      call plugin_manager#ui#update_operation(l:op_id, 'Running post-install command')
       let l:result = plugin_manager#git#execute(a:options.exec, l:plugin_dir, 0, 0)
-      
       if !l:result.success
-        call plugin_manager#ui#complete_operation(l:op_id, 0, 'Post-install command failed')
+        call plugin_manager#ui#complete_operation_symbol(l:op_id, plugin_manager#ui#get_symbol('cross'), 'Exec failed')
         return 0
       endif
     endif
     
-    " Generate helptags
     let l:doc_path = l:plugin_dir . '/doc'
     if isdirectory(l:doc_path)
-      call plugin_manager#ui#update_operation(l:op_id, 'Generating helptags')
-      execute 'helptags ' . fnameescape(l:doc_path)
+      silent execute 'helptags ' . fnameescape(l:doc_path)
     endif
     
-    call plugin_manager#ui#complete_operation(l:op_id, 1, 'Installed successfully')
+    call plugin_manager#ui#complete_operation_symbol(l:op_id, plugin_manager#ui#get_symbol('tick'), 'Installed')
     return 1
   catch
-    call plugin_manager#ui#complete_operation(l:op_id, 0, 'Installation failed')
+    call plugin_manager#ui#complete_operation_symbol(l:op_id, plugin_manager#ui#get_symbol('cross'), 'Failed')
+    call plugin_manager#ui#log_detail('add', v:exception)
     call plugin_manager#core#handle_error(v:exception, "add")
     return 0
   endtry

@@ -62,6 +62,12 @@ Execute (complete_operation_symbol renders the given glyph in place):
   Assert content =~# 'Modified', 'status text should appear'
   Assert content =~# glyph, 'the provided glyph should appear'
 
+Execute (log_detail routes to log, never opens sidebar):
+  let sbuf_before = bufnr('PluginManager')
+  call plugin_manager#ui#log_detail('test', 'test detail message')
+  let sbuf_after = bufnr('PluginManager')
+  AssertEqual sbuf_before, sbuf_after, 'log_detail should not create or remove sidebar buffer'
+
 Execute (helptags silent mode does not produce UI lines):
   let saved_vimdir = get(g:, 'plugin_manager_vim_dir', '')
   let saved_cwd = getcwd()
