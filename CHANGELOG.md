@@ -24,6 +24,15 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
   glyphs with short labels, and route verbose git output to the log
   instead of the sidebar.
 
+### Bug Fixes
+- Fixed `update` not actually applying plugin updates: the pull command used
+  `origin/<branch>` as a refspec (e.g. `git pull origin origin/master`), which
+  is invalid and left the plugin unchanged. The branch name is now correctly
+  stripped of the `origin/` prefix before passing to `git pull`. The
+  all-plugins path now uses the same per-module pull logic instead of `git
+  submodule update --remote`. The UI reports `Updated` only when the plugin
+  HEAD commit actually advances.
+
 ### CI
 - Pushing a `vX.Y.Z` tag to GitHub triggers a workflow that builds a
   `.tar.gz` archive via `make archive` and publishes a GitHub Release with
