@@ -117,9 +117,12 @@ function! s:update_specific_plugin_sync(ctx) abort
   endif
   
   " Update
-  if plugin_manager#git#update_submodule(l:module_path)
-    call plugin_manager#ui#complete_operation(l:op_id, 1, 'Updated successfully')
-    call plugin_manager#cmd#helptags#execute(0, l:module_name, 1)
+  let l:result = plugin_manager#git#update_submodule(l:module_path)
+  if l:result.success
+    call plugin_manager#ui#complete_operation(l:op_id, 1, l:result.message)
+    if l:result.changed
+      call plugin_manager#cmd#helptags#execute(0, l:module_name, 1)
+    endif
   else
     call plugin_manager#ui#complete_operation(l:op_id, 0, 'Update failed')
   endif
@@ -169,9 +172,11 @@ function! s:on_fetch_complete(ctx, result) abort
   endif
   
   " Step 3: Pull updates using the configured pull strategy
+  let a:ctx.current_commit = l:update_status.current_commit
   call plugin_manager#ui#update_operation(l:op_id, 'Pulling changes')
   let l:pull_flag = plugin_manager#core#get_pull_flag()
-  call plugin_manager#async#git('git -C "' . l:module_path . '" pull origin ' . l:update_status.remote_branch . ' ' . l:pull_flag, {
+  let l:branch = plugin_manager#git#remote_branch_name(l:update_status.remote_branch)
+  call plugin_manager#async#git('git -C "' . l:module_path . '" pull origin ' . l:branch . ' ' . l:pull_flag, {
         \ 'callback': function('s:on_update_complete', [a:ctx])
         \ })
 endfunction
@@ -179,12 +184,23 @@ endfunction
 function! s:on_update_complete(ctx, result) abort
   let l:op_id = a:ctx.op_id
   let l:module_name = a:ctx.module_short_name
+  let l:module_path = a:ctx.module_path
   let l:success = a:result.status == 0
   
   if l:success
-    call plugin_manager#ui#complete_operation(l:op_id, 1, 'Updated successfully')
-    call plugin_manager#cmd#helptags#execute(0, l:module_name, 1)
-    call s:commit_update_async(l:module_name)
+    " Compare HEAD before/after to determine if anything actually changed
+    let l:new_head = plugin_manager#git#execute('git rev-parse HEAD', l:module_path, 0, 0)
+    let l:new_commit = l:new_head.success ? substitute(l:new_head.output, '\n', '', 'g') : ''
+    let l:before = get(a:ctx, 'current_commit', '')
+    let l:changed = !empty(l:before) && !empty(l:new_commit) && l:new_commit !=# l:before
+    
+    if l:changed
+      call plugin_manager#ui#complete_operation(l:op_id, 1, 'Updated')
+      call plugin_manager#cmd#helptags#execute(0, l:module_name, 1)
+      call s:commit_update_async(l:module_name)
+    else
+      call plugin_manager#ui#complete_operation(l:op_id, 1, 'Up-to-date')
+    endif
   else
     call plugin_manager#ui#complete_operation(l:op_id, 0, 'Update failed')
     call s:report_job_errors(a:result)
@@ -245,18 +261,41 @@ function! s:update_all_plugins_sync(ctx) abort
     return
   endif
   
-  let l:result = plugin_manager#git#execute('git submodule update --remote --merge --force', '', 0, 0)
+  let l:updated_modules = []
   
-  for l:op_id in l:pending_ops
-    call plugin_manager#ui#complete_operation(l:op_id, l:result.success,
-          \ l:result.success ? 'Updated successfully' : 'Update failed')
+  for l:i in range(len(l:modules_to_update))
+    let l:module = l:modules_to_update[l:i]
+    let l:op_id = l:pending_ops[l:i]
+    let l:update_status = plugin_manager#git#collect_status_local(l:module.path)
+    let l:before_commit = l:update_status.current_commit
+    let l:branch = plugin_manager#git#remote_branch_name(l:update_status.remote_branch)
+    let l:pull_flag = plugin_manager#core#get_pull_flag()
+    
+    call plugin_manager#ui#update_operation(l:op_id, 'Updating')
+    let l:result = plugin_manager#git#execute('git pull origin ' . l:branch . ' ' . l:pull_flag, l:module.path, 0, 0)
+    
+    if l:result.success
+      let l:after = plugin_manager#git#execute('git rev-parse HEAD', l:module.path, 0, 0)
+      let l:after_commit = l:after.success ? substitute(l:after.output, '\n', '', 'g') : ''
+      let l:changed = !empty(l:before_commit) && !empty(l:after_commit) && l:after_commit !=# l:before_commit
+      
+      if l:changed
+        call plugin_manager#ui#complete_operation(l:op_id, 1, 'Updated')
+        call add(l:updated_modules, l:module)
+      else
+        call plugin_manager#ui#complete_operation(l:op_id, 1, 'Up-to-date')
+      endif
+    else
+      call plugin_manager#ui#complete_operation(l:op_id, 0, 'Update failed')
+      call plugin_manager#ui#log_detail('update', l:result.output)
+    endif
   endfor
   
-  if l:result.success && plugin_manager#core#should_auto_commit()
+  if !empty(l:updated_modules) && plugin_manager#core#should_auto_commit()
     call plugin_manager#git#execute('git commit -am "Update Modules"', '', 0, 0)
   endif
   
-  for l:module in l:modules_to_update
+  for l:module in l:updated_modules
     call plugin_manager#cmd#helptags#execute(0, l:module.short_name, 1)
   endfor
 endfunction
@@ -266,6 +305,7 @@ function! s:update_all_plugins_async(ctx) abort
   let a:ctx.updated_modules = []
   let a:ctx.ops = {}
   let a:ctx.pending = 0
+  let a:ctx.pre_commits = {}
   
   " Pre-render all plugin lines as a block with pending spinners
   for l:module in a:ctx.valid_modules
@@ -317,9 +357,12 @@ function! s:analyze_and_update(ctx, module) abort
     return
   endif
   
-  " Needs update: run submodule update
+  " Needs update: pull with the correct remote branch
   call plugin_manager#ui#update_operation(l:op_id, 'Updating')
-  let l:update_cmd = 'git submodule update --remote --merge --force -- ' . shellescape(l:module_path)
+  let a:ctx.pre_commits[a:module.short_name] = l:update_status.current_commit
+  let l:branch = plugin_manager#git#remote_branch_name(l:update_status.remote_branch)
+  let l:pull_flag = plugin_manager#core#get_pull_flag()
+  let l:update_cmd = 'git -C ' . shellescape(l:module_path) . ' pull origin ' . l:branch . ' ' . l:pull_flag
   call plugin_manager#async#git(l:update_cmd, {
         \ 'callback': function('s:on_module_updated', [a:ctx, a:module])
         \ })
@@ -327,11 +370,22 @@ endfunction
 
 function! s:on_module_updated(ctx, module, result) abort
   let l:op_id = a:ctx.ops[a:module.short_name]
+  let l:module_path = a:module.path
   let l:success = a:result.status == 0
   
   if l:success
-    call plugin_manager#ui#complete_operation(l:op_id, 1, 'Updated successfully')
-    call add(a:ctx.updated_modules, a:module)
+    " Compare HEAD before/after to determine if anything actually changed
+    let l:new_head = plugin_manager#git#execute('git rev-parse HEAD', l:module_path, 0, 0)
+    let l:new_commit = l:new_head.success ? substitute(l:new_head.output, '\n', '', 'g') : ''
+    let l:before = get(a:ctx.pre_commits, a:module.short_name, '')
+    let l:changed = !empty(l:before) && !empty(l:new_commit) && l:new_commit !=# l:before
+    
+    if l:changed
+      call plugin_manager#ui#complete_operation(l:op_id, 1, 'Updated')
+      call add(a:ctx.updated_modules, a:module)
+    else
+      call plugin_manager#ui#complete_operation(l:op_id, 1, 'Up-to-date')
+    endif
   else
     call plugin_manager#ui#complete_operation(l:op_id, 0, 'Update failed')
     call s:report_job_errors(a:result)
