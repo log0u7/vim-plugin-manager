@@ -102,36 +102,25 @@ function! s:remove_module(module_name, module_path) abort
   
   let l:op_id = plugin_manager#ui#start_operation(a:module_name, 'Removing')
   
-  " Get module info before removal
   let l:module_info = s:get_module_metadata(a:module_path)
   
-  " Step 1: Deinitialize
-  call plugin_manager#ui#update_operation(l:op_id, 'Deinitializing')
   call plugin_manager#git#execute('git submodule deinit -f ' . shellescape(a:module_path), '', 0, 0)
-  
-  " Step 2: Remove from git
-  call plugin_manager#ui#update_operation(l:op_id, 'Removing from git')
   let l:result = plugin_manager#git#execute('git rm -f ' . shellescape(a:module_path), '', 0, 0)
   
   if !l:result.success
-    call plugin_manager#ui#update_operation(l:op_id, 'Cleaning manually')
+    call plugin_manager#ui#log_detail('remove', 'git rm failed, removing path manually: ' . a:module_path)
     call plugin_manager#core#remove_path(a:module_path)
   endif
   
-  " Step 3: Clean .git/modules
-  call plugin_manager#ui#update_operation(l:op_id, 'Cleaning git modules')
   let l:git_modules_path = '.git/modules/' . a:module_path
   if plugin_manager#core#dir_exists(l:git_modules_path)
     call plugin_manager#core#remove_path(l:git_modules_path)
   endif
   
-  " Step 4: Commit
-  call plugin_manager#ui#update_operation(l:op_id, 'Committing changes')
   call s:commit_removal(a:module_name, l:module_info)
   
-  call plugin_manager#ui#complete_operation(l:op_id, 1, 'Removed successfully')
+  call plugin_manager#ui#complete_operation_symbol(l:op_id, plugin_manager#ui#get_symbol('tick'), 'Removed')
   
-  " Refresh cache
   call plugin_manager#git#refresh_modules_cache()
 endfunction
 

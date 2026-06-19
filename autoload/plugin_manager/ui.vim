@@ -239,6 +239,18 @@ function! plugin_manager#ui#complete_operation_symbol(op_id, symbol, final_messa
   call s:maybe_stop_spinner()
 endfunction
 
+" Log a detail message (routed to the debug log, never to the sidebar)
+" Accepts a string or a list of strings (joined by newline)
+function! plugin_manager#ui#log_detail(component, detail) abort
+  if exists('*plugin_manager#core#log_debug')
+    if type(a:detail) == v:t_list
+      call plugin_manager#core#log_debug(a:component, join(a:detail, "\n"))
+    else
+      call plugin_manager#core#log_debug(a:component, a:detail)
+    endif
+  endif
+endfunction
+
 " Format helper functions
 function! plugin_manager#ui#success(msg) abort
   return s:symbols.tick . ' ' . a:msg
