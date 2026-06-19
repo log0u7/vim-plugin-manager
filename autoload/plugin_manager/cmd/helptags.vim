@@ -3,17 +3,21 @@
 " Version: 1.4.0
 
 " Generate helptags for all or a specific plugin
+" Args: [create_header=1], [specific_module=''], [silent=0]
+" When silent is 1, no UI lines are generated (no start_operation/complete_operation).
+" This is used internally after update/add where the parent operation already shows progress.
 function! plugin_manager#cmd#helptags#execute(...) abort
   try
     let l:create_header = a:0 > 0 ? a:1 : 1
     let l:specific_module = a:0 > 1 ? a:2 : ''
+    let l:silent = a:0 > 2 ? a:3 : 0
     
     if !plugin_manager#core#ensure_vim_directory()
       return
     endif
     
-    " Initialize output
-    if l:create_header
+    " Initialize output only when not silent
+    if !l:silent && l:create_header
       let l:header = [
             \ 'Generating helptags:',
             \ plugin_manager#ui#get_symbol('separator'),
@@ -24,15 +28,15 @@ function! plugin_manager#cmd#helptags#execute(...) abort
     
     let l:plugins_dir = plugin_manager#core#get_config('plugins_dir', '')
     
-    if !plugin_manager#core#dir_exists(l:plugins_dir)
+    if !l:silent && !plugin_manager#core#dir_exists(l:plugins_dir)
       call plugin_manager#ui#update_sidebar([plugin_manager#ui#error('Plugin directory not found')], 1)
       return
     endif
     
     if !empty(l:specific_module)
-      call s:generate_for_specific_plugin(l:specific_module)
+      call s:generate_for_specific_plugin(l:specific_module, l:silent)
     else
-      call s:generate_for_all_plugins()
+      call s:generate_for_all_plugins(l:silent)
     endif
     
   catch
@@ -44,21 +48,25 @@ endfunction
 " SPECIFIC PLUGIN
 " ------------------------------------------------------------------------------
 
-function! s:generate_for_specific_plugin(module_name) abort
+function! s:generate_for_specific_plugin(module_name, ...) abort
+  let l:silent = a:0 > 0 ? a:1 : 0
   let l:module_info = plugin_manager#git#find_module(a:module_name)
   if empty(l:module_info)
-    call plugin_manager#ui#update_sidebar([plugin_manager#ui#error('Plugin not found: ' . a:module_name)], 1)
+    if !l:silent
+      call plugin_manager#ui#update_sidebar([plugin_manager#ui#error('Plugin not found: ' . a:module_name)], 1)
+    endif
     return
   endif
   
-  call s:generate_for_plugin(l:module_info.module.short_name, l:module_info.module.path)
+  call s:generate_for_plugin(l:module_info.module.short_name, l:module_info.module.path, l:silent)
 endfunction
 
 " ------------------------------------------------------------------------------
 " ALL PLUGINS
 " ------------------------------------------------------------------------------
 
-function! s:generate_for_all_plugins() abort
+function! s:generate_for_all_plugins(...) abort
+  let l:silent = a:0 > 0 ? a:1 : 0
   let l:start_dir = plugin_manager#core#get_plugin_dir('start')
   let l:opt_dir = plugin_manager#core#get_plugin_dir('opt')
   
@@ -75,7 +83,9 @@ function! s:generate_for_all_plugins() abort
   endif
   
   if empty(l:all_plugin_dirs)
-    call plugin_manager#ui#update_sidebar([plugin_manager#ui#info('No plugins found')], 1)
+    if !l:silent
+      call plugin_manager#ui#update_sidebar([plugin_manager#ui#info('No plugins found')], 1)
+    endif
     return
   endif
   
@@ -86,17 +96,19 @@ function! s:generate_for_all_plugins() abort
     if plugin_manager#core#dir_exists(l:plugin_dir)
       let l:plugin_name = fnamemodify(l:plugin_dir, ':t')
       
-      if s:generate_for_plugin(l:plugin_name, l:plugin_dir)
+      if s:generate_for_plugin(l:plugin_name, l:plugin_dir, l:silent)
         let l:generated_count += 1
       endif
     endif
   endfor
   
-  " Summary
-  if l:generated_count > 0
-    call plugin_manager#ui#update_sidebar(['', plugin_manager#ui#success('Generated helptags for ' . l:generated_count . ' plugins')], 1)
-  else
-    call plugin_manager#ui#update_sidebar(['', plugin_manager#ui#info('No documentation directories found')], 1)
+  " Summary only when not silent
+  if !l:silent
+    if l:generated_count > 0
+      call plugin_manager#ui#update_sidebar(['', plugin_manager#ui#success('Generated helptags for ' . l:generated_count . ' plugins')], 1)
+    else
+      call plugin_manager#ui#update_sidebar(['', plugin_manager#ui#info('No documentation directories found')], 1)
+    endif
   endif
 endfunction
 
@@ -104,7 +116,14 @@ endfunction
 " CORE GENERATION LOGIC
 " ------------------------------------------------------------------------------
 
-function! s:generate_for_plugin(plugin_name, plugin_path) abort
+function! s:generate_for_plugin(plugin_name, plugin_path, ...) abort
+  let l:silent = a:0 > 0 ? a:1 : 0
+  
+  if l:silent
+    " Silent mode: no UI lines, just run helptags internally
+    return s:generate_helptag(a:plugin_path)
+  endif
+  
   let l:op_id = plugin_manager#ui#start_operation(a:plugin_name, 'Generating helptags')
   
   if s:generate_helptag(a:plugin_path)
