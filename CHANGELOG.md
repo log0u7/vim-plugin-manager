@@ -16,6 +16,9 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 - `check` and `check-updates` are now highlighted in the sidebar syntax.
 - Usage/reminder sidebar now lists `helptags`, `c` (check), `?` (help)
   shortcuts alongside existing ones.
+- After `update`/`add`, helptags are now generated silently and only for
+  the plugins that were actually updated, instead of regenerating for all
+  plugins with visible progress lines.
 
 ### CI
 - Pushing a `vX.Y.Z` tag to GitHub triggers a workflow that builds a
