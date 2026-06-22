@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/add.vim - Simplified add command
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.4.0
+" Version: 1.5.0
 
 " Main function to add a plugin
 function! plugin_manager#cmd#add#execute(...) abort

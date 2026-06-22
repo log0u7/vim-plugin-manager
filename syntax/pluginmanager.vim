@@ -1,6 +1,6 @@
 " Enhanced syntax/pluginmanager.vim - Better syntax highlighting for PluginManager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.4.0
+" Version: 1.5.0
 
 " Ensure it's loaded once
 if exists("b:current_syntax")
