@@ -1,6 +1,6 @@
 # .github/workflows/release.yml - Publish GitHub Release on tag push
 # Maintainer: G.K.E. <gke@6admin.io>
-# Version: 1.4.0
+# Version: 1.5.0
 
 name: release
 

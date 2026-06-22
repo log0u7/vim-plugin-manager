@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/declare.vim - Simplified declarative configuration
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.4.0
+" Version: 1.5.0
 
 " State tracking
 let s:plugin_block_active = 0

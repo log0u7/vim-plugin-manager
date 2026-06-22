@@ -3,6 +3,8 @@
 All notable changes to the Vim Plugin Manager will be documented in this file.
 
 ## [Unreleased]
+
+## [1.5.0] - 2026-06-22
 ### Features
 - `check` and `update` (all) commands now use block-instant rendering with
   parallel async fan-out: all plugin lines appear at once with spinners, and
