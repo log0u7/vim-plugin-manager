@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/check.vim - Update detection and notifications
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.4.0
+" Version: 1.5.0
 
 " ------------------------------------------------------------------------------
 " PUBLIC ENTRY POINTS

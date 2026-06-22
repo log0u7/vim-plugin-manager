@@ -1,6 +1,6 @@
 " autoload/plugin_manager/git.vim - Git operations abstraction for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.4.0
+" Version: 1.5.0
 
 " ------------------------------------------------------------------------------
 " GITMODULES CACHE AND PARSING

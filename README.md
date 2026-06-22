@@ -538,4 +538,4 @@ Copyright (c) 2018 - 2026 G.K.E. <gke@6admin.io>
 
 - Maintained by: G.K.E. <gke@6admin.io>
 - Source: https://github.com/log0u7/vim-plugin-manager
-- Version: 1.4.0
+- Version: 1.5.0

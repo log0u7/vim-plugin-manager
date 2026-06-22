@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/reload.vim - Simplified reload command
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.4.0
+" Version: 1.5.0
 
 " Reload a specific plugin or all Vim configuration
 function! plugin_manager#cmd#reload#execute(...) abort
