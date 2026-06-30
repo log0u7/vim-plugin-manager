@@ -5,9 +5,7 @@
 " Execute the remove command
 function! plugin_manager#cmd#remove#execute(module_name, force_flag) abort
   try
-    if !plugin_manager#core#ensure_vim_directory()
-      call plugin_manager#core#throw('remove', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
-    endif
+    call plugin_manager#core#require_vim_directory('remove')
     
     if empty(a:module_name)
       call plugin_manager#core#throw('remove', 'MISSING_ARGS', 'Missing plugin name argument')

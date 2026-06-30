@@ -13,22 +13,16 @@ let s:has_timers = exists('*timer_start') && exists('*timer_stop')
 " (Populated at the bottom of this section, after s:symbols is defined.)
 let s:status_glyphs = {}
 
-" UI Constants
+" UI Constants - only glyphs actively used by the codebase
 let s:symbols = {
-      \ 'tick': s:fancy_ui ? '✓' : '+',
-      \ 'cross': s:fancy_ui ? '✗' : 'x',
-      \ 'arrow': s:fancy_ui ? '→' : '->',
-      \ 'ellipsis': s:fancy_ui ? '…' : '...',
+      \ 'tick':      s:fancy_ui ? '✓' : '+',
+      \ 'cross':     s:fancy_ui ? '✗' : 'x',
+      \ 'arrow':     s:fancy_ui ? '→' : '->',
+      \ 'ellipsis':  s:fancy_ui ? '…' : '...',
       \ 'separator': s:fancy_ui ? '━━━━━━━━━━━━━━━━━━━━' : '--------------------',
-      \ 'bullet': s:fancy_ui ? '•' : '*',
-      \ 'warning': s:fancy_ui ? '⚠' : '!',
-      \ 'info': s:fancy_ui ? 'ℹ' : 'i',
-      \ 'pending': s:fancy_ui ? '○' : 'o',
-      \ 'chevron_right': s:fancy_ui ? '❯' : '>',
-      \ 'chevron_down': s:fancy_ui ? '❮' : '<',
-      \ 'vertical': s:fancy_ui ? '│' : '|',
-      \ 'corner': s:fancy_ui ? '┌' : '+',
-      \ 'horizontal': s:fancy_ui ? '─' : '-',
+      \ 'warning':   s:fancy_ui ? '⚠' : '!',
+      \ 'info':      s:fancy_ui ? 'ℹ' : 'i',
+      \ 'pending':   s:fancy_ui ? '○' : 'o',
       \ }
 
 " Spinner frames

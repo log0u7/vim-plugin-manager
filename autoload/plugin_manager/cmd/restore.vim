@@ -5,9 +5,7 @@
 " Restore all plugins from .gitmodules
 function! plugin_manager#cmd#restore#execute() abort
   try
-    if !plugin_manager#core#ensure_vim_directory()
-      call plugin_manager#core#throw('restore', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
-    endif
+    call plugin_manager#core#require_vim_directory('restore')
     
     call plugin_manager#ui#open_header('Restoring plugins:')
 

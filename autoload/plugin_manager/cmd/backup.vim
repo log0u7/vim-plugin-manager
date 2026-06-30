@@ -5,9 +5,7 @@
 " Backup configuration to remote repositories
 function! plugin_manager#cmd#backup#execute() abort
   try
-    if !plugin_manager#core#ensure_vim_directory()
-      call plugin_manager#core#throw('backup', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
-    endif
+    call plugin_manager#core#require_vim_directory('backup')
     
     call plugin_manager#ui#open_header('Backup configuration:')
     

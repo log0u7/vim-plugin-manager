@@ -13,9 +13,7 @@
 "   - 'force'    : 1 to ignore the cache freshness (always fetch)
 function! plugin_manager#cmd#check#execute(...) abort
   try
-    if !plugin_manager#core#ensure_vim_directory()
-      call plugin_manager#core#throw('check', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
-    endif
+    call plugin_manager#core#require_vim_directory('check')
 
     let l:opts = a:0 > 0 ? a:1 : {}
     let l:silent = get(l:opts, 'silent', 0)

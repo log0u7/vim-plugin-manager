@@ -5,9 +5,7 @@
 " Reload a specific plugin or all Vim configuration
 function! plugin_manager#cmd#reload#execute(...) abort
   try
-    if !plugin_manager#core#ensure_vim_directory()
-      call plugin_manager#core#throw('reload', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
-    endif
+    call plugin_manager#core#require_vim_directory('reload')
     
     call plugin_manager#ui#open_header('Reloading:')
     
