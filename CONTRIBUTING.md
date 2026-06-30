@@ -180,6 +180,108 @@ The project is organized into several key components:
 
 ### Control Flow
 
+#### Static architecture
+
+```mermaid
+graph TD
+  subgraph User["User input"]
+    PM["`:PluginManager [cmd]`"]
+    PMR["`:PluginManagerRemote [url]`"]
+    DECL["`:Plugin` / `:PluginBegin` / `:PluginEnd`"]
+    SB["Sidebar keys (q l u s S c b r R ?)"]
+  end
+
+  subgraph Dispatch["Dispatch and API"]
+    DISP["cmd.vim - cmd#dispatch()"]
+    API["api.vim - public facade"]
+  end
+
+  subgraph Commands["Command modules - cmd/*.vim"]
+    CMDS["add - remove - update - status - check
+list - backup - restore - helptags - reload
+declare - remote"]
+  end
+
+  subgraph Services["Core services"]
+    GIT["git.vim - Git and submodule ops"]
+    ASYNC["async.vim - Vim job/channel queue"]
+    UI["ui.vim - sidebar, spinners, glyphs"]
+  end
+
+  CORE["core.vim - errors, logging, paths, config, URL parsing"]
+
+  subgraph Ext["External"]
+    SUB["Git submodules / .gitmodules"]
+    JOBS["Vim job/channel processes"]
+    BUF["pluginmanager buffer (filetype + syntax)"]
+  end
+
+  PM --> DISP
+  SB --> DISP
+  PMR --> API
+  DECL --> API
+  DISP --> API
+  API --> CMDS
+  CMDS --> GIT
+  CMDS --> ASYNC
+  CMDS --> UI
+  GIT --> SUB
+  ASYNC --> JOBS
+  UI --> BUF
+  CMDS -.->|"core#throw / handle_error / get_config"| CORE
+  GIT -.->|"core#throw / log"| CORE
+  ASYNC -.->|"core#log"| CORE
+  UI -.->|"core#get_config"| CORE
+```
+
+Dotted arrows indicate dependency on `core.vim` utilities; every module uses
+them but they are not part of the primary data flow.
+
+`:PluginManagerRemote` bypasses the dispatcher and calls `api#add_remote`
+directly - it is a dedicated command, not a sub-command of `:PluginManager`.
+
+#### Dynamic flow: `:PluginManager update` (async path)
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant D  as cmd#dispatch
+  participant A  as api.vim
+  participant U  as update.vim
+  participant As as async.vim
+  participant G  as git.vim
+  participant UI as ui.vim
+
+  User->>D: :PluginManager update [name]
+  D->>A: api#update(name)
+  A->>U: update#execute(name)
+  U->>UI: open_header / start_operation per module
+
+  loop for each module
+    U->>As: async#start_job("git fetch origin")
+  end
+
+  Note over As: Vim job/channel queue<br/>(max_concurrent_jobs slots)
+
+  loop on each fetch callback
+    As-->>U: on_fetch_complete(result)
+    U->>G: collect_status_local(path)
+    G-->>U: has_updates / behind / branch
+    alt has updates
+      U->>As: async#start_job("git pull")
+      As-->>U: on_update_complete(result)
+      U->>G: head_changed(path, before)
+      U->>UI: complete_operation "ok"
+      U->>U: helptags (silent)
+    else up-to-date or custom branch
+      U->>UI: complete_operation "skip" / "info"
+    end
+  end
+
+  U->>G: git commit -am "Update Modules" (if auto_commit)
+  U->>UI: footer with summary
+```
+
 1. User commands are processed through `:PluginManager` which calls `plugin_manager#cmd#dispatch()`.
 2. The dispatcher parses arguments and routes to the appropriate command module.
 3. Command modules implement specific operations using the core functionality.
