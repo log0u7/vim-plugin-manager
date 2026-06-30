@@ -2,6 +2,65 @@
 
 All notable changes to the Vim Plugin Manager will be documented in this file.
 
+## [Unreleased]
+
+### Features
+- Tab completion for `:PluginManager`: sub-command names complete at position 1;
+  installed plugin names (from `.gitmodules`) complete at position 2 for
+  `remove`, `update`, `helptags`, and `reload`.
+
+### Bug Fixes
+- Fixed `:help plugin-manager` (hyphen form): the help tag `*plugin-manager*`
+  was absent from `doc/plugin_manager.txt`; only `*plugin_manager.txt*`
+  (underscore) existed, so `:help plugin-manager` silently failed after
+  helptags generation.
+- Fixed `cmd#complete()` calling the non-existent `git#get_modules()`;
+  corrected to use `git#parse_modules()` and extract `short_name` from each
+  valid module entry.
+
+### Changed
+- Sidebar `?` shortcut list now shows all 10 mapped keys (`q l s S u c b r h R ?`);
+  previously only 7 were listed and `S` (Summary), `b` (Backup), `r` (Restore),
+  `R` (Reload) were omitted despite being mapped in `ftplugin/pluginmanager.vim`.
+- `CONTRIBUTING.md`: Development Workflow steps were mis-ordered (steps
+  `1. Ensure you're working...` through `7. Create a pull request` appeared
+  after `## Releases` instead of under `## Development Workflow`). Section
+  order is now: Development Workflow (description + steps) -> Releases -> Pull
+  Request Process.
+
+### Removed (dead code, YAGNI)
+- `plugin_manager#core#format_error()`: 0 callers in the entire codebase.
+- `plugin_manager#git#remove_submodule()`: 0 callers; `cmd/remove.vim`
+  implements the removal flow directly.
+- `plugin_manager#core#get_all_config()`: built a 15-key dict for a single
+  caller that used only 3 values; replaced with 3 direct `get_config()` calls
+  in `get_plugin_dir()`.
+- Dead branch in `parse_error()`: the LEGACY path for bare `throw 'PM_ERROR'`
+  strings was unreachable (all throws go through `core#throw`, which always
+  emits the 4-part format).
+- Dead branch in `handle_error()`: re-split and re-join of the error string
+  after the LEGACY path was removed; now simply distinguishes internal vs
+  external errors for logging.
+- 6 unused glyphs from `s:symbols` in `ui.vim` (`bullet`, `chevron_right`,
+  `chevron_down`, `vertical`, `corner`, `horizontal`): 0 references outside
+  the table itself.
+- 3 unused option keys in `async#git()` / `s:spawn_job()`: `dir`,
+  `ui_message`, `ui_show_output` - none of the 8 call sites ever set them.
+
+### Refactored (DRY)
+- `core#parse_error()`: replaced fragile `split(':')[0:2]` + `join([3:])` with
+  a single `matchlist()` regex, correctly capturing messages that contain `:`
+  (e.g. URLs) without a split/rejoin dance.
+- `core#require_vim_directory(component)`: new helper that combines
+  `ensure_vim_directory()` with a structured `NOT_VIM_DIR` throw; replaces
+  the identical 3-line pattern that appeared at 12 call sites.
+- `git#head_commit(path)` / `git#head_changed(path, before)`: two small
+  helpers that centralize the `rev-parse HEAD + substitute + compare` pattern
+  previously duplicated 5 times across `update.vim` and `git.vim`.
+
+### CI
+- `release.yml` version header bumped from 1.5.0 to 1.6.0.
+
 ## [1.6.0] - 2026-06-30
 
 ### Bug Fixes

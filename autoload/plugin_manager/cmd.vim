@@ -93,14 +93,19 @@ function! plugin_manager#cmd#complete(arglead, cmdline, cursorpos) abort
   " Completing a plugin name (position 2) for commands that accept one
   let l:subcmd = l:words[1]
   if index(['remove', 'update', 'helptags', 'reload'], l:subcmd) >= 0
-    " Collect module names from .gitmodules; fall back silently on any error
+    " Collect module short names from .gitmodules; fall back silently on any error
     try
-      let l:modules = plugin_manager#git#get_modules(0)
+      let l:modules = plugin_manager#git#parse_modules()
     catch
       return []
     endtry
-    let l:names = map(copy(l:modules), {_, m -> m.name})
-    return filter(l:names, {_, v -> v =~# '^' . a:arglead})
+    let l:names = []
+    for l:m in values(l:modules)
+      if get(l:m, 'is_valid', 0) && has_key(l:m, 'short_name')
+        call add(l:names, l:m.short_name)
+      endif
+    endfor
+    return filter(sort(l:names), {_, v -> v =~# '^' . a:arglead})
   endif
 
   return []
