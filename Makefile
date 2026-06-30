@@ -27,7 +27,7 @@ ARCHIVE_NAME := vim-plugin-manager-$(ARCHIVE_VERSION)
 help:
 	@echo ""
 	@echo "Usage:"
-	@echo "  make update-version                          # Update all *.vim and *.txt recursively with Git version"
+	@echo "  make update-version                          # Update all *.vim, *.txt, and README.md recursively with Git version"
 	@echo "  make update-version VERSION=1.6              # Update all with custom version"
 	@echo "  make update-version FILE=chemin/fichier      # Update only that file with Git version"
 	@echo "  make update-version FILE=chemin VERSION=1.6  # Update only that file with custom version"

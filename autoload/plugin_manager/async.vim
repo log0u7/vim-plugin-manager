@@ -1,6 +1,6 @@
 " autoload/plugin_manager/async.vim - Asynchronous operations for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.5.0
+" Version: 1.6.0
 
 " ------------------------------------------------------------------------------
 " PLATFORM DETECTION AND INITIALIZATION
@@ -22,6 +22,17 @@ let s:job_queue = []
 " Check if async is supported
 function! plugin_manager#async#supported() abort
     return s:has_async
+endfunction
+
+" Build the argv list to pass to job_start() for the current platform.
+" On Windows (win32/win64) we use cmd.exe /c; everywhere else we use sh -c.
+" Exposed as a script-local accessor so tests can verify it without
+" depending on actually starting a job.
+function! plugin_manager#async#shell_argv(cmd) abort
+    if has('win32') || has('win64')
+        return ['cmd.exe', '/c', a:cmd]
+    endif
+    return ['sh', '-c', a:cmd]
 endfunction
 
 " ------------------------------------------------------------------------------
@@ -86,10 +97,14 @@ function! s:spawn_job(job_id) abort
     let l:opts = l:job.opts
     let l:job.started = localtime()
     
-    " Change directory if specified
+    " Change directory if specified (platform-aware cd prefix)
     let l:cmd = l:job.cmd
     if has_key(l:opts, 'dir') && !empty(l:opts.dir)
-        let l:cmd = 'cd ' . shellescape(l:opts.dir) . ' && ' . l:cmd
+        if has('win32') || has('win64')
+            let l:cmd = 'cd /d ' . shellescape(l:opts.dir) . ' && ' . l:cmd
+        else
+            let l:cmd = 'cd ' . shellescape(l:opts.dir) . ' && ' . l:cmd
+        endif
     endif
     
     " Report job start to UI if needed
@@ -107,7 +122,7 @@ function! s:spawn_job(job_id) abort
             \ 'mode': 'raw',
             \ }
     
-    let l:vim_job = job_start(['sh', '-c', l:cmd], l:job_opts)
+    let l:vim_job = job_start(plugin_manager#async#shell_argv(l:cmd), l:job_opts)
     
     if job_status(l:vim_job) !=# 'fail'
         let s:jobs[a:job_id].job = l:vim_job

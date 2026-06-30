@@ -1,6 +1,6 @@
 " autoload/plugin_manager/core.vim - Core utilities and error handling for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.5.0
+" Version: 1.6.0
 
 " ------------------------------------------------------------------------------
 " ERROR HANDLING SYSTEM
@@ -9,7 +9,7 @@
 " Improved error types - comprehensive standard error codes for all components
   let s:error_types = {
     \ 'add': ['INVALID_URL', 'REPO_NOT_FOUND', 'TARGET_EXISTS', 'COPY_FAILED', 'MISSING_ARGS', 'INVALID_ARGS', 'INSTALLATION_FAILED', 'LOCAL_PATH_NOT_FOUND'],
-    \ 'remove': ['MODULE_NOT_FOUND', 'DELETE_FAILED', 'CONFIRMATION_REQUIRED', 'MISSING_ARGS', 'NOT_VIM_DIR'],
+    \ 'remove': ['MODULE_NOT_FOUND', 'DELETE_FAILED', 'CONFIRMATION_REQUIRED', 'MISSING_ARGS', 'NOT_VIM_DIR', 'AMBIGUOUS_MATCH'],
     \ 'update': ['MODULE_NOT_FOUND', 'FETCH_FAILED', 'UPDATE_FAILED', 'NO_PLUGINS', 'NOT_VIM_DIR', 'NOT_GIT_REPO', 'PATH_NOT_FOUND'],
     \ 'backup': ['GIT_ERROR', 'NO_REMOTES', 'NOT_VIM_DIR', 'VIMRC_NOT_FOUND', 'COMMIT_FAILED'],
     \ 'restore': ['GITMODULES_NOT_FOUND', 'INIT_FAILED', 'NOT_VIM_DIR', 'UPDATE_FAILED'],
@@ -616,7 +616,7 @@ let l:config.opt_dir = plugin_manager#core#get_config('opt_dir', 'opt')
 let l:config.vimrc_path = plugin_manager#core#get_config('vimrc_path', '')
 
 " UI settings
-let l:config.sidebar_width = plugin_manager#core#get_config('sidebar_width', 60)
+let l:config.sidebar_width = plugin_manager#core#get_config('sidebar_width', 80)
 let l:config.fancy_ui = plugin_manager#core#get_config('fancy_ui', 1)
 
 " Git settings
@@ -670,7 +670,7 @@ endfunction
 " ------------------------------------------------------------------------------
 
 " Regular expressions for URL and plugin short name validation
-let s:url_regexp = '^https\?://.\+\|^git@.\+:.\\+$'
+let s:url_regexp = '^https\?://.\+\|^git@.\+:.\+$'
 let s:short_name_regexp = '^[a-zA-Z0-9_.-]\+/[a-zA-Z0-9_.-]\+$'
 
 " Convert a shortname like 'user/repo' to a full URL
@@ -732,7 +732,8 @@ function! plugin_manager#core#dir_exists(path) abort
 return isdirectory(expand(a:path))
 endfunction
 
-" Platform-independent file or directory removal
+" Platform-independent file or directory removal.
+" Uses Vim's native delete() to avoid shell dependencies.
 function! plugin_manager#core#remove_path(path) abort
 let l:path = expand(a:path)
 
@@ -742,27 +743,10 @@ if empty(l:path) || l:path ==# '/' || l:path =~# '^[A-Za-z]:[\\/]*$'
 endif
 
 if plugin_manager#core#dir_exists(l:path)
-  if has('win32') || has('win64')
-    " Windows
-    let l:cmd = 'rmdir /S /Q ' . shellescape(l:path)
-  else
-    " Unix
-    let l:cmd = 'rm -rf ' . shellescape(l:path)
-  endif
-  
-  let l:result = system(l:cmd)
-  return v:shell_error == 0
+  " delete(path, 'rf') removes a directory tree (Vim 8+), returns 0 on success
+  return delete(l:path, 'rf') == 0
 elseif plugin_manager#core#file_exists(l:path)
-  if has('win32') || has('win64')
-    " Windows
-    let l:cmd = 'del /F /Q ' . shellescape(l:path)
-  else
-    " Unix
-    let l:cmd = 'rm -f ' . shellescape(l:path)
-  endif
-  
-  let l:result = system(l:cmd)
-  return v:shell_error == 0
+  return delete(l:path) == 0
 endif
 
 " Path doesn't exist, so "removal" is successful
@@ -772,31 +756,6 @@ endfunction
 " ------------------------------------------------------------------------------
 " PLUGIN OPTIONS PARSING
 " ------------------------------------------------------------------------------
-
-" Parse options from string to dictionary
-function! plugin_manager#core#parse_options(options_str) abort
-let l:options = {}
-
-" Split by commas, but respect nested structures
-let l:option_parts = split(a:options_str, ',')
-
-for l:part in l:option_parts
-  let l:kv_match = matchlist(l:part, '[''"]\?\(\w\+\)[''"]\?\s*:\s*\(.\{-}\)\s*$')
-  if !empty(l:kv_match)
-    let l:key = trim(l:kv_match[1])
-    let l:value = trim(l:kv_match[2])
-    
-    " Remove quotes from string values
-    if l:value =~ '^[''"].*[''"]$'
-      let l:value = l:value[1:-2]
-    endif
-    
-    let l:options[l:key] = l:value
-  endif
-endfor
-
-return l:options
-endfunction
 
 " Process plugin options with defaults
 " @param args: Either a dictionary of options or a list of positional arguments (legacy format)

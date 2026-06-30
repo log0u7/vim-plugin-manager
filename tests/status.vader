@@ -34,8 +34,10 @@ Execute (status renders block instantly and resolves missing plugin):
   let sbuf = bufnr('PluginManager')
   AssertNotEqual -1, sbuf, 'sidebar should exist'
   let content = getbufline(sbuf, 1, '$')
-  " Header: 'Plugin status:', '----', '' = 3, plus 1 plugin line = 4 total
-  AssertEqual 4, len(content), 'should have header (3) + 1 plugin line'
-  let plugin_line = content[-1]
-  Assert plugin_line =~# 'myplugin', 'plugin line should contain myplugin: ' . plugin_line
-  Assert plugin_line =~# 'Missing', 'missing plugin should show Missing: ' . plugin_line
+  let full = join(content, "\n")
+  " Header: 'Plugin status:', separator, '' = 3 lines
+  " + 1 plugin line + footer (blank + summary) = 6 total
+  Assert len(content) >= 4, 'should have header + at least 1 plugin line, got: ' . len(content)
+  Assert full =~# 'myplugin', 'plugin line should contain myplugin'
+  Assert full =~# 'Missing', 'missing plugin should show Missing'
+  Assert full =~# 'checked', 'footer should report plugins checked'

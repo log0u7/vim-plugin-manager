@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/list.vim - Simplified list command
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.5.0
+" Version: 1.6.0
 
 " List all installed plugins
 function! plugin_manager#cmd#list#all() abort
@@ -12,17 +12,13 @@ function! plugin_manager#cmd#list#all() abort
     let l:modules = plugin_manager#git#parse_modules()
     
     if empty(l:modules)
-      let l:lines = [
-            \ 'Installed plugins:',
-            \ plugin_manager#ui#get_symbol('separator'),
-            \ '',
-            \ plugin_manager#ui#info('No plugins installed')
-            \ ]
-      call plugin_manager#ui#open_sidebar(l:lines)
+      call plugin_manager#ui#open_sidebar(
+            \ plugin_manager#ui#header('Installed plugins:') +
+            \ [plugin_manager#ui#info('No plugins installed')])
       return
     endif
-    
-    let l:lines = ['Installed plugins:', plugin_manager#ui#get_symbol('separator'), '']
+
+    let l:lines = plugin_manager#ui#header('Installed plugins:')
     let l:module_names = sort(keys(l:modules))
     
     for l:name in l:module_names
@@ -52,20 +48,16 @@ function! plugin_manager#cmd#list#summary() abort
     endif
     
     if !filereadable('.gitmodules')
-      let l:lines = [
-            \ 'Plugin summary:',
-            \ plugin_manager#ui#get_symbol('separator'),
-            \ '',
-            \ plugin_manager#ui#info('No plugins found')
-            \ ]
-      call plugin_manager#ui#open_sidebar(l:lines)
+      call plugin_manager#ui#open_sidebar(
+            \ plugin_manager#ui#header('Plugin summary:') +
+            \ [plugin_manager#ui#info('No plugins found')])
       return
     endif
-    
+
     let l:result = plugin_manager#git#execute('git submodule summary', '', 0, 0)
     let l:output = l:result.output
-    
-    let l:lines = ['Plugin summary:', plugin_manager#ui#get_symbol('separator'), '']
+
+    let l:lines = plugin_manager#ui#header('Plugin summary:')
     
     if empty(l:output)
       call add(l:lines, plugin_manager#ui#info('No changes detected'))

@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/backup.vim - Simplified backup command
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.5.0
+" Version: 1.6.0
 
 " Backup configuration to remote repositories
 function! plugin_manager#cmd#backup#execute() abort
@@ -9,17 +9,12 @@ function! plugin_manager#cmd#backup#execute() abort
       call plugin_manager#core#throw('backup', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
     endif
     
-    let l:header = [
-          \ 'Backup configuration:',
-          \ plugin_manager#ui#get_symbol('separator'),
-          \ ''
-          \ ]
-    call plugin_manager#ui#open_sidebar(l:header)
+    call plugin_manager#ui#open_header('Backup configuration:')
     
     " Step 1: Copy vimrc
     let l:op_id = plugin_manager#ui#start_operation('vimrc', 'Backing up')
     call s:backup_vimrc_file()
-    call plugin_manager#ui#complete_operation_symbol(l:op_id, plugin_manager#ui#get_symbol('tick'), 'Copied')
+    call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Copied')
     
     " Step 2: Commit changes
     let l:op_id = plugin_manager#ui#start_operation('changes', 'Committing')
@@ -29,7 +24,7 @@ function! plugin_manager#cmd#backup#execute() abort
     let l:op_id = plugin_manager#ui#start_operation('remotes', 'Pushing')
     call s:push_to_remotes(l:op_id)
     
-    call plugin_manager#ui#update_sidebar(['', plugin_manager#ui#success('Backup completed')], 1)
+    call plugin_manager#ui#footer([plugin_manager#ui#success('Backup completed')])
   catch
     call plugin_manager#core#handle_error(v:exception, "backup")
   endtry
@@ -64,16 +59,16 @@ function! s:commit_local_changes(op_id) abort
   let l:status = plugin_manager#git#execute('git status -s', '', 0, 0)
   
   if empty(l:status.output)
-    call plugin_manager#ui#complete_operation_symbol(a:op_id, plugin_manager#ui#get_symbol('info'), 'No changes')
+    call plugin_manager#ui#complete_operation(a:op_id, 'info', 'No changes')
     return
   endif
-  
+
   let l:result = plugin_manager#git#execute('git commit -am "Automatic backup"', '', 0, 0)
-  
+
   if l:result.success
-    call plugin_manager#ui#complete_operation_symbol(a:op_id, plugin_manager#ui#get_symbol('tick'), 'Committed')
+    call plugin_manager#ui#complete_operation(a:op_id, 'ok', 'Committed')
   else
-    call plugin_manager#ui#complete_operation_symbol(a:op_id, plugin_manager#ui#get_symbol('cross'), 'Commit failed')
+    call plugin_manager#ui#complete_operation(a:op_id, 'fail', 'Commit failed')
     call plugin_manager#ui#log_detail('backup', l:result.output)
   endif
 endfunction
@@ -81,16 +76,16 @@ endfunction
 function! s:push_to_remotes(op_id) abort
   let l:remotes = plugin_manager#git#execute('git remote', '', 0, 0)
   if empty(l:remotes.output)
-    call plugin_manager#ui#complete_operation_symbol(a:op_id, plugin_manager#ui#get_symbol('warning'), 'No remotes')
+    call plugin_manager#ui#complete_operation(a:op_id, 'warn', 'No remotes')
     call plugin_manager#core#throw('backup', 'NO_REMOTES', 'No remote repositories configured')
   endif
-  
+
   let l:result = plugin_manager#git#execute('git push --all', '', 0, 0)
-  
+
   if l:result.success
-    call plugin_manager#ui#complete_operation_symbol(a:op_id, plugin_manager#ui#get_symbol('tick'), 'Pushed')
+    call plugin_manager#ui#complete_operation(a:op_id, 'ok', 'Pushed')
   else
-    call plugin_manager#ui#complete_operation_symbol(a:op_id, plugin_manager#ui#get_symbol('cross'), 'Push failed')
+    call plugin_manager#ui#complete_operation(a:op_id, 'fail', 'Push failed')
     call plugin_manager#ui#log_detail('backup', l:result.output)
   endif
 endfunction

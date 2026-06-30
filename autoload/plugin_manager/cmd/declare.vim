@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/declare.vim - Simplified declarative configuration
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.5.0
+" Version: 1.6.0
 
 " State tracking
 let s:plugin_block_active = 0
@@ -74,8 +74,8 @@ function! s:process_declarations() abort
     if l:installed == 0 && l:errors == 0
       return
     endif
-    
-    " Summary
+
+    " Summary footer
     let l:summary = []
     if l:installed > 0
       call add(l:summary, plugin_manager#ui#success(l:installed . ' plugins installed'))
@@ -86,8 +86,8 @@ function! s:process_declarations() abort
     if l:skipped > 0
       call add(l:summary, plugin_manager#ui#info(l:skipped . ' plugins skipped (already installed)'))
     endif
-    
-    call plugin_manager#ui#update_sidebar([''] + l:summary, 1)
+
+    call plugin_manager#ui#footer(l:summary)
   catch
     call plugin_manager#core#handle_error(v:exception, "declare")
   endtry
@@ -99,7 +99,7 @@ function! s:process_plugin(url, options) abort
   if empty(l:full_url)
     let l:plugin_name = fnamemodify(a:url, ':t')
     let l:op_id = plugin_manager#ui#start_operation(l:plugin_name, 'Processing')
-    call plugin_manager#ui#complete_operation(l:op_id, 0, 'Invalid URL format')
+    call plugin_manager#ui#complete_operation(l:op_id, 'fail', 'Invalid URL format')
     return 'error'
   endif
   
@@ -117,7 +117,7 @@ function! s:process_plugin(url, options) abort
     return l:result ? 'installed' : 'error'
   catch
     let l:op_id = plugin_manager#ui#start_operation(l:plugin_name, 'Installing')
-    call plugin_manager#ui#complete_operation(l:op_id, 0, 'Installation failed')
+    call plugin_manager#ui#complete_operation(l:op_id, 'fail', 'Installation failed')
     return 'error'
   endtry
 endfunction

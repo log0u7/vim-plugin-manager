@@ -104,6 +104,80 @@ Execute (helptags non-silent mode opens sidebar on error):
   let g:plugin_manager_vim_dir = saved_vimdir
   Assert output =~# 'Generating helptags\|No plugins found\|Plugin directory not found', 'non-silent should show output'
 
+Execute (header returns [title, separator, empty string]):
+  let h = plugin_manager#ui#header('Test section:')
+  AssertEqual 3, len(h), 'header should have 3 elements'
+  AssertEqual 'Test section:', h[0], 'first element should be the title'
+  Assert h[1] =~# '^[━\-]\+$', 'second element should be a separator'
+  AssertEqual '', h[2], 'third element should be an empty string'
+
+Execute (open_header opens sidebar with standard header):
+  call plugin_manager#ui#open_header('My command:')
+  let sbuf = bufnr('PluginManager')
+  Assert sbuf != -1, 'sidebar should have been created'
+  let lines = getbufline(sbuf, 1, '$')
+  AssertEqual 'My command:', lines[0], 'first line should be the title'
+  Assert lines[1] =~# '^[━\-]\+$', 'second line should be a separator'
+
+Execute (footer appends summary lines with leading blank line):
+  call plugin_manager#ui#open_sidebar(['Header'])
+  let sbuf = bufnr('PluginManager')
+  let before = len(getbufline(sbuf, 1, '$'))
+  call plugin_manager#ui#footer([plugin_manager#ui#success('Done')])
+  let after_lines = getbufline(sbuf, 1, '$')
+  Assert len(after_lines) > before, 'footer should append lines'
+  " The blank line separator should appear before the summary
+  Assert match(after_lines, '^$') >= 0, 'footer should prepend a blank separator line'
+
+Execute (get_status_glyph maps keyword to glyph):
+  let tick = plugin_manager#ui#get_symbol('tick')
+  let cross = plugin_manager#ui#get_symbol('cross')
+  let warn = plugin_manager#ui#get_symbol('warning')
+  let info = plugin_manager#ui#get_symbol('info')
+  AssertEqual tick,  plugin_manager#ui#get_status_glyph('ok'),   'ok -> tick'
+  AssertEqual cross, plugin_manager#ui#get_status_glyph('fail'), 'fail -> cross'
+  AssertEqual warn,  plugin_manager#ui#get_status_glyph('warn'), 'warn -> warning'
+  AssertEqual info,  plugin_manager#ui#get_status_glyph('info'), 'info -> info'
+  AssertEqual info,  plugin_manager#ui#get_status_glyph('skip'), 'skip -> info'
+
+Execute (get_status_glyph accepts legacy boolean - non-zero is ok):
+  let tick  = plugin_manager#ui#get_symbol('tick')
+  let cross = plugin_manager#ui#get_symbol('cross')
+  AssertEqual tick,  plugin_manager#ui#get_status_glyph(1), 'non-zero bool -> tick'
+  AssertEqual cross, plugin_manager#ui#get_status_glyph(0), 'zero bool -> cross'
+
+Execute (complete_operation with keyword renders correct glyph):
+  call plugin_manager#ui#open_sidebar(['Header'])
+  wincmd p
+  let opid = plugin_manager#ui#start_operation('myplugin', 'Checking')
+  call plugin_manager#ui#complete_operation(opid, 'warn', 'Modified')
+  let sbuf = bufnr('PluginManager')
+  let content = join(getbufline(sbuf, 1, '$'), "\n")
+  let warn_glyph = plugin_manager#ui#get_symbol('warning')
+  Assert content =~# 'myplugin', 'plugin name should appear'
+  Assert content =~# 'Modified', 'status text should appear'
+  Assert content =~# warn_glyph, 'warning glyph should appear for warn status'
+
+Execute (complete_operation with legacy boolean 1 renders tick):
+  call plugin_manager#ui#open_sidebar(['Header'])
+  wincmd p
+  let opid = plugin_manager#ui#start_operation('plugin2', 'Installing')
+  call plugin_manager#ui#complete_operation(opid, 1, 'Installed')
+  let sbuf = bufnr('PluginManager')
+  let content = join(getbufline(sbuf, 1, '$'), "\n")
+  let tick = plugin_manager#ui#get_symbol('tick')
+  Assert content =~# tick, 'legacy boolean 1 should render tick glyph'
+
+Execute (complete_operation with legacy boolean 0 renders cross):
+  call plugin_manager#ui#open_sidebar(['Header'])
+  wincmd p
+  let opid = plugin_manager#ui#start_operation('plugin3', 'Installing')
+  call plugin_manager#ui#complete_operation(opid, 0, 'Failed')
+  let sbuf = bufnr('PluginManager')
+  let content = join(getbufline(sbuf, 1, '$'), "\n")
+  let cross = plugin_manager#ui#get_symbol('cross')
+  Assert content =~# cross, 'legacy boolean 0 should render cross glyph'
+
 Execute (purge stale operations does not remove active ops):
   call plugin_manager#ui#open_sidebar(['Header'])
   wincmd p

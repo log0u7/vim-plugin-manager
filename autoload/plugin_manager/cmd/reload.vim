@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/reload.vim - Simplified reload command
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.5.0
+" Version: 1.6.0
 
 " Reload a specific plugin or all Vim configuration
 function! plugin_manager#cmd#reload#execute(...) abort
@@ -9,12 +9,7 @@ function! plugin_manager#cmd#reload#execute(...) abort
       call plugin_manager#core#throw('reload', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
     endif
     
-    let l:header = [
-          \ 'Reloading:',
-          \ plugin_manager#ui#get_symbol('separator'),
-          \ ''
-          \ ]
-    call plugin_manager#ui#open_sidebar(l:header)
+    call plugin_manager#ui#open_header('Reloading:')
     
     let l:specific_module = a:0 > 0 ? a:1 : ''
     
@@ -50,8 +45,8 @@ function! s:reload_specific_plugin(module_name) abort
   call s:add_to_runtimepath(l:module_path)
   call s:reload_plugin_runtime_files(l:module_path)
   
-  call plugin_manager#ui#complete_operation_symbol(l:op_id, plugin_manager#ui#get_symbol('tick'), 'Reloaded')
-  call plugin_manager#ui#update_sidebar(['', plugin_manager#ui#info('Some plugins may require restarting Vim')], 1)
+  call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Reloaded')
+  call plugin_manager#ui#footer([plugin_manager#ui#info('Some plugins may require restarting Vim')])
 endfunction
 
 " ------------------------------------------------------------------------------
@@ -60,12 +55,12 @@ endfunction
 
 function! s:reload_all_configuration() abort
   let l:op_id = plugin_manager#ui#start_operation('configuration', 'Reloading')
-  
+
   call s:reload_all_runtime_files()
   call s:source_vimrc()
-  
-  call plugin_manager#ui#complete_operation_symbol(l:op_id, plugin_manager#ui#get_symbol('tick'), 'Reloaded')
-  call plugin_manager#ui#update_sidebar(['', plugin_manager#ui#info('Some plugins may require restarting Vim')], 1)
+
+  call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Reloaded')
+  call plugin_manager#ui#footer([plugin_manager#ui#info('Some plugins may require restarting Vim')])
 endfunction
 
 " ------------------------------------------------------------------------------
