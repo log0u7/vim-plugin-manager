@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/update.vim - Simplified update command
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.5.0
+" Version: 1.6.0
 
 " ------------------------------------------------------------------------------
 " MAIN UPDATE COMMAND
@@ -12,8 +12,7 @@ function! plugin_manager#cmd#update#execute(module_name) abort
       call plugin_manager#core#throw('update', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
     endif
     
-    let l:header = ['Updating Plugins:', plugin_manager#ui#get_symbol('separator'), '']
-    call plugin_manager#ui#open_sidebar(l:header)
+    call plugin_manager#ui#open_header('Updating plugins:')
     
     " Check if plugins exist
     let l:modules = plugin_manager#git#parse_modules()
@@ -96,35 +95,41 @@ endfunction
 function! s:update_specific_plugin_sync(ctx) abort
   let l:module_path = a:ctx.module_path
   let l:module_name = a:ctx.module_short_name
-  
+
   " Start operation
   let l:op_id = plugin_manager#ui#start_operation(l:module_name, 'Updating')
-  
-  " Stash changes
-  call plugin_manager#git#execute('git stash -q || true', l:module_path, 0, 0)
-  
-  " Check for updates
+
+  " Check for updates before touching local changes
   let l:update_status = plugin_manager#git#check_updates(l:module_path)
-  
-  if l:update_status.different_branch && l:update_status.branch != 'detached'
-    call plugin_manager#ui#complete_operation(l:op_id, 1, 'On custom branch')
+
+  if l:update_status.different_branch && l:update_status.branch !=# 'detached'
+    call plugin_manager#ui#complete_operation(l:op_id, 'skip', 'On custom branch')
     return
   endif
-  
+
   if !l:update_status.has_updates
-    call plugin_manager#ui#complete_operation(l:op_id, 1, 'Already up-to-date')
+    call plugin_manager#ui#complete_operation(l:op_id, 'info', 'Up-to-date')
     return
   endif
-  
+
+  " Stash local changes only when a pull is actually going to happen
+  let l:had_stash = s:stash_if_needed(l:module_path)
+
   " Update
   let l:result = plugin_manager#git#update_submodule(l:module_path)
+
+  " Always restore stashed changes, regardless of pull outcome
+  if l:had_stash
+    call s:stash_pop(l:module_path, l:op_id)
+  endif
+
   if l:result.success
-    call plugin_manager#ui#complete_operation(l:op_id, 1, l:result.message)
+    call plugin_manager#ui#complete_operation(l:op_id, 'ok', l:result.message)
     if l:result.changed
       call plugin_manager#cmd#helptags#execute(0, l:module_name, 1)
     endif
   else
-    call plugin_manager#ui#complete_operation(l:op_id, 0, 'Update failed')
+    call plugin_manager#ui#complete_operation(l:op_id, 'fail', 'Update failed')
   endif
 endfunction
 
@@ -132,21 +137,10 @@ endfunction
 function! s:update_specific_plugin_async(ctx) abort
   let l:op_id = plugin_manager#ui#start_operation(a:ctx.module_short_name, 'Updating')
   let a:ctx.op_id = l:op_id
-  
-  " Step 1: Stash
-  call plugin_manager#ui#update_operation(l:op_id, 'Stashing changes')
-  call plugin_manager#async#git('git -C "' . a:ctx.module_path . '" stash -q || true', {
-        \ 'callback': function('s:on_stash_complete', [a:ctx])
-        \ })
-endfunction
 
-function! s:on_stash_complete(ctx, result) abort
-  let l:op_id = a:ctx.op_id
-  let l:module_path = a:ctx.module_path
-  
-  " Step 2: Fetch
+  " Step 1: Fetch first, stash only if a pull turns out to be needed
   call plugin_manager#ui#update_operation(l:op_id, 'Fetching updates')
-  call plugin_manager#async#git('git -C "' . l:module_path . '" fetch origin', {
+  call plugin_manager#async#git('git -C ' . shellescape(a:ctx.module_path) . ' fetch origin', {
         \ 'callback': function('s:on_fetch_complete', [a:ctx])
         \ })
 endfunction
@@ -154,29 +148,31 @@ endfunction
 function! s:on_fetch_complete(ctx, result) abort
   let l:op_id = a:ctx.op_id
   let l:module_path = a:ctx.module_path
-  let l:module_name = a:ctx.module_short_name
-  
+
   call plugin_manager#ui#update_operation(l:op_id, 'Checking status')
-  
-  " Fetch already done as an async job; only fast local analysis here
+
+  " Fast local analysis now that fetch is done
   let l:update_status = plugin_manager#git#collect_status_local(l:module_path)
-  
-  if l:update_status.different_branch && l:update_status.branch != 'detached'
-    call plugin_manager#ui#complete_operation(l:op_id, 1, 'On custom branch')
+
+  if l:update_status.different_branch && l:update_status.branch !=# 'detached'
+    call plugin_manager#ui#complete_operation(l:op_id, 'skip', 'On custom branch')
     return
   endif
-  
+
   if !l:update_status.has_updates
-    call plugin_manager#ui#complete_operation(l:op_id, 1, 'Already up-to-date')
+    call plugin_manager#ui#complete_operation(l:op_id, 'info', 'Up-to-date')
     return
   endif
-  
-  " Step 3: Pull updates using the configured pull strategy
+
+  " Step 2: Stash local changes only now that we know a pull is needed
   let a:ctx.current_commit = l:update_status.current_commit
+  let a:ctx.had_stash = s:stash_if_needed(l:module_path)
+
+  " Step 3: Pull
   call plugin_manager#ui#update_operation(l:op_id, 'Pulling changes')
   let l:pull_flag = plugin_manager#core#get_pull_flag()
   let l:branch = plugin_manager#git#remote_branch_name(l:update_status.remote_branch)
-  call plugin_manager#async#git('git -C "' . l:module_path . '" pull origin ' . l:branch . ' ' . l:pull_flag, {
+  call plugin_manager#async#git('git -C ' . shellescape(l:module_path) . ' pull origin ' . l:branch . ' ' . l:pull_flag, {
         \ 'callback': function('s:on_update_complete', [a:ctx])
         \ })
 endfunction
@@ -186,23 +182,28 @@ function! s:on_update_complete(ctx, result) abort
   let l:module_name = a:ctx.module_short_name
   let l:module_path = a:ctx.module_path
   let l:success = a:result.status == 0
-  
+
+  " Restore stashed local changes regardless of pull outcome
+  if get(a:ctx, 'had_stash', 0)
+    call s:stash_pop(l:module_path, l:op_id)
+  endif
+
   if l:success
     " Compare HEAD before/after to determine if anything actually changed
     let l:new_head = plugin_manager#git#execute('git rev-parse HEAD', l:module_path, 0, 0)
     let l:new_commit = l:new_head.success ? substitute(l:new_head.output, '\n', '', 'g') : ''
     let l:before = get(a:ctx, 'current_commit', '')
     let l:changed = !empty(l:before) && !empty(l:new_commit) && l:new_commit !=# l:before
-    
+
     if l:changed
-      call plugin_manager#ui#complete_operation(l:op_id, 1, 'Updated')
+      call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Updated')
       call plugin_manager#cmd#helptags#execute(0, l:module_name, 1)
       call s:commit_update_async(l:module_name)
     else
-      call plugin_manager#ui#complete_operation(l:op_id, 1, 'Up-to-date')
+      call plugin_manager#ui#complete_operation(l:op_id, 'info', 'Up-to-date')
     endif
   else
-    call plugin_manager#ui#complete_operation(l:op_id, 0, 'Update failed')
+    call plugin_manager#ui#complete_operation(l:op_id, 'fail', 'Update failed')
     call s:report_job_errors(a:result)
   endif
 endfunction
@@ -235,34 +236,34 @@ endfunction
 
 " Sync update all plugins
 function! s:update_all_plugins_sync(ctx) abort
-  call plugin_manager#git#execute('git submodule foreach --recursive "git stash -q || true"', '', 0, 0)
+  " Fetch all modules first (no stash yet - only stash if a pull is needed)
   call plugin_manager#git#execute('git submodule foreach --recursive "git fetch origin"', '', 0, 0)
-  
+
   let l:modules_to_update = []
   let l:pending_ops = []
-  
+
   for l:module in a:ctx.valid_modules
     let l:update_status = plugin_manager#git#collect_status_local(l:module.path)
-    
+
     if !l:update_status.different_branch && l:update_status.has_updates
       let l:op_id = plugin_manager#ui#start_operation(l:module.short_name, 'Updating')
       call add(l:modules_to_update, l:module)
       call add(l:pending_ops, l:op_id)
     elseif l:update_status.different_branch
-      let l:op_id = plugin_manager#ui#start_operation(l:module.short_name, 'Skipped')
-      call plugin_manager#ui#complete_operation(l:op_id, 1, 'On custom branch')
+      let l:op_id = plugin_manager#ui#start_operation(l:module.short_name, 'Checking')
+      call plugin_manager#ui#complete_operation(l:op_id, 'skip', 'On custom branch')
     else
       let l:op_id = plugin_manager#ui#start_operation(l:module.short_name, 'Checking')
-      call plugin_manager#ui#complete_operation(l:op_id, 1, 'Up-to-date')
+      call plugin_manager#ui#complete_operation(l:op_id, 'info', 'Up-to-date')
     endif
   endfor
-  
+
   if empty(l:modules_to_update)
     return
   endif
-  
+
   let l:updated_modules = []
-  
+
   for l:i in range(len(l:modules_to_update))
     let l:module = l:modules_to_update[l:i]
     let l:op_id = l:pending_ops[l:i]
@@ -270,34 +271,50 @@ function! s:update_all_plugins_sync(ctx) abort
     let l:before_commit = l:update_status.current_commit
     let l:branch = plugin_manager#git#remote_branch_name(l:update_status.remote_branch)
     let l:pull_flag = plugin_manager#core#get_pull_flag()
-    
+
+    " Stash per-module, only for modules that will actually be pulled
+    let l:had_stash = s:stash_if_needed(l:module.path)
+
     call plugin_manager#ui#update_operation(l:op_id, 'Updating')
     let l:result = plugin_manager#git#execute('git pull origin ' . l:branch . ' ' . l:pull_flag, l:module.path, 0, 0)
-    
+
+    " Restore stashed changes regardless of pull outcome
+    if l:had_stash
+      call s:stash_pop(l:module.path, l:op_id)
+    endif
+
     if l:result.success
       let l:after = plugin_manager#git#execute('git rev-parse HEAD', l:module.path, 0, 0)
       let l:after_commit = l:after.success ? substitute(l:after.output, '\n', '', 'g') : ''
       let l:changed = !empty(l:before_commit) && !empty(l:after_commit) && l:after_commit !=# l:before_commit
-      
+
       if l:changed
-        call plugin_manager#ui#complete_operation(l:op_id, 1, 'Updated')
+        call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Updated')
         call add(l:updated_modules, l:module)
       else
-        call plugin_manager#ui#complete_operation(l:op_id, 1, 'Up-to-date')
+        call plugin_manager#ui#complete_operation(l:op_id, 'info', 'Up-to-date')
       endif
     else
-      call plugin_manager#ui#complete_operation(l:op_id, 0, 'Update failed')
+      call plugin_manager#ui#complete_operation(l:op_id, 'fail', 'Update failed')
       call plugin_manager#ui#log_detail('update', l:result.output)
     endif
   endfor
-  
+
   if !empty(l:updated_modules) && plugin_manager#core#should_auto_commit()
     call plugin_manager#git#execute('git commit -am "Update Modules"', '', 0, 0)
   endif
-  
+
   for l:module in l:updated_modules
     call plugin_manager#cmd#helptags#execute(0, l:module.short_name, 1)
   endfor
+
+  let l:n = len(l:updated_modules)
+  let l:total = len(a:ctx.valid_modules)
+  if l:n > 0
+    call plugin_manager#ui#footer([plugin_manager#ui#success(l:n . ' of ' . l:total . ' plugins updated')])
+  else
+    call plugin_manager#ui#footer([plugin_manager#ui#info('All ' . l:total . ' plugins are up-to-date')])
+  endif
 endfunction
 
 " Async update all plugins - block instant + parallel fan-out
@@ -313,14 +330,7 @@ function! s:update_all_plugins_async(ctx) abort
     let a:ctx.ops[l:module.short_name] = l:op_id
   endfor
   
-  " Stash all at once
-  call plugin_manager#async#git('git submodule foreach --recursive "git stash -q || true"', {
-        \ 'callback': function('s:on_all_stashed', [a:ctx])
-        \ })
-endfunction
-
-function! s:on_all_stashed(ctx, result) abort
-  " Fetch all at once, then fan-out when done
+  " Fetch all at once first - stash will happen per-module only if a pull is needed
   call plugin_manager#async#git('git submodule foreach --recursive "git fetch origin"', {
         \ 'callback': function('s:on_batch_fetched', [a:ctx])
         \ })
@@ -338,28 +348,34 @@ endfunction
 function! s:analyze_and_update(ctx, module) abort
   let l:op_id = a:ctx.ops[a:module.short_name]
   let l:module_path = a:module.path
-  
+
   call plugin_manager#ui#update_operation(l:op_id, 'Analyzing')
-  
+
   let l:update_status = plugin_manager#git#collect_status_local(l:module_path)
-  
-  if l:update_status.different_branch && l:update_status.branch != 'detached'
-    call plugin_manager#ui#complete_operation(l:op_id, 1, 'On custom branch')
+
+  if l:update_status.different_branch && l:update_status.branch !=# 'detached'
+    call plugin_manager#ui#complete_operation(l:op_id, 'skip', 'On custom branch')
     let a:ctx.pending -= 1
     call s:maybe_finalize(a:ctx)
     return
   endif
-  
+
   if !l:update_status.has_updates
-    call plugin_manager#ui#complete_operation(l:op_id, 1, 'Up-to-date')
+    call plugin_manager#ui#complete_operation(l:op_id, 'info', 'Up-to-date')
     let a:ctx.pending -= 1
     call s:maybe_finalize(a:ctx)
     return
   endif
-  
-  " Needs update: pull with the correct remote branch
-  call plugin_manager#ui#update_operation(l:op_id, 'Updating')
+
+  " Stash local changes per-module, only for modules that will be pulled
   let a:ctx.pre_commits[a:module.short_name] = l:update_status.current_commit
+  if !has_key(a:ctx, 'stashed')
+    let a:ctx.stashed = {}
+  endif
+  let a:ctx.stashed[a:module.short_name] = s:stash_if_needed(l:module_path)
+
+  " Pull with the correct remote branch
+  call plugin_manager#ui#update_operation(l:op_id, 'Updating')
   let l:branch = plugin_manager#git#remote_branch_name(l:update_status.remote_branch)
   let l:pull_flag = plugin_manager#core#get_pull_flag()
   let l:update_cmd = 'git -C ' . shellescape(l:module_path) . ' pull origin ' . l:branch . ' ' . l:pull_flag
@@ -372,25 +388,30 @@ function! s:on_module_updated(ctx, module, result) abort
   let l:op_id = a:ctx.ops[a:module.short_name]
   let l:module_path = a:module.path
   let l:success = a:result.status == 0
-  
+
+  " Restore stashed local changes regardless of pull outcome
+  if get(get(a:ctx, 'stashed', {}), a:module.short_name, 0)
+    call s:stash_pop(l:module_path, l:op_id)
+  endif
+
   if l:success
     " Compare HEAD before/after to determine if anything actually changed
     let l:new_head = plugin_manager#git#execute('git rev-parse HEAD', l:module_path, 0, 0)
     let l:new_commit = l:new_head.success ? substitute(l:new_head.output, '\n', '', 'g') : ''
     let l:before = get(a:ctx.pre_commits, a:module.short_name, '')
     let l:changed = !empty(l:before) && !empty(l:new_commit) && l:new_commit !=# l:before
-    
+
     if l:changed
-      call plugin_manager#ui#complete_operation(l:op_id, 1, 'Updated')
+      call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Updated')
       call add(a:ctx.updated_modules, a:module)
     else
-      call plugin_manager#ui#complete_operation(l:op_id, 1, 'Up-to-date')
+      call plugin_manager#ui#complete_operation(l:op_id, 'info', 'Up-to-date')
     endif
   else
-    call plugin_manager#ui#complete_operation(l:op_id, 0, 'Update failed')
+    call plugin_manager#ui#complete_operation(l:op_id, 'fail', 'Update failed')
     call s:report_job_errors(a:result)
   endif
-  
+
   let a:ctx.pending -= 1
   call s:maybe_finalize(a:ctx)
 endfunction
@@ -410,11 +431,43 @@ function! s:finalize_update_all(ctx) abort
       call plugin_manager#cmd#helptags#execute(0, l:module.short_name, 1)
     endfor
   endif
+
+  let l:n = len(a:ctx.updated_modules)
+  let l:total = len(a:ctx.valid_modules)
+  if l:n > 0
+    call plugin_manager#ui#footer([plugin_manager#ui#success(l:n . ' of ' . l:total . ' plugins updated')])
+  else
+    call plugin_manager#ui#footer([plugin_manager#ui#info('All ' . l:total . ' plugins are up-to-date')])
+  endif
 endfunction
 
 " ------------------------------------------------------------------------------
 " HELPERS
 " ------------------------------------------------------------------------------
+
+" Stash local changes if any exist. Returns 1 if a stash was created, 0 otherwise.
+" Only creates a stash when there are actual tracked or untracked changes to save.
+function! s:stash_if_needed(module_path) abort
+  let l:status = plugin_manager#git#execute('git status -s', a:module_path, 0, 0)
+  if !l:status.success || empty(trim(l:status.output))
+    return 0
+  endif
+  call plugin_manager#git#execute('git stash -q', a:module_path, 0, 0)
+  return 1
+endfunction
+
+" Pop the most recent stash. If the pop creates a conflict, leave the stash
+" in place and warn the user so their changes are never silently lost.
+function! s:stash_pop(module_path, op_id) abort
+  let l:result = plugin_manager#git#execute('git stash pop -q', a:module_path, 0, 0)
+  if !l:result.success
+    " Pop failed (conflict or empty stash). Preserve stash and warn.
+    call plugin_manager#ui#complete_operation(a:op_id, 'warn',
+          \ 'Local changes preserved in stash (run: git stash pop)')
+    call plugin_manager#ui#log_detail('update',
+          \ 'stash pop failed in ' . a:module_path . ': ' . l:result.output)
+  endif
+endfunction
 
 function! s:commit_update_async(module_name) abort
   " Respect the auto-commit configuration

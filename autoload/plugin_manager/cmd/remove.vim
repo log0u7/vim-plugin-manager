@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/remove.vim - Simplified remove command
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.5.0
+" Version: 1.6.0
 
 " Execute the remove command
 function! plugin_manager#cmd#remove#execute(module_name, force_flag) abort
@@ -37,20 +37,57 @@ endfunction
 " ------------------------------------------------------------------------------
 
 function! s:find_module(module_name) abort
-  " Try .gitmodules first
-  let l:module_info = plugin_manager#git#find_module(a:module_name)
-  
-  if !empty(l:module_info)
-    return {
-          \ 'name': l:module_info.module.short_name,
-          \ 'path': l:module_info.module.path,
-          \ 'url': get(l:module_info.module, 'url', '')
-          \ }
+  " Check for ambiguity in .gitmodules before attempting any match.
+  " An exact match (short_name or path) is unambiguous; a partial match that
+  " hits more than one module must be refused to prevent wrong-plugin deletion.
+  let l:modules = plugin_manager#git#parse_modules()
+  let l:exact = {}
+  let l:partials = []
+
+  for [l:name, l:module] in items(l:modules)
+    if !get(l:module, 'is_valid', 0)
+      continue
+    endif
+    let l:sn = get(l:module, 'short_name', '')
+    let l:path = get(l:module, 'path', '')
+    " Exact match: short_name or path
+    if l:sn ==# a:module_name || l:path ==# a:module_name || l:name ==# a:module_name
+      let l:exact = {'name': l:sn, 'path': l:path, 'url': get(l:module, 'url', '')}
+      break
+    endif
+    " Partial match
+    if l:sn =~? a:module_name || l:path =~? a:module_name || l:name =~? a:module_name
+      call add(l:partials, l:sn)
+    endif
+  endfor
+
+  " Exact match: safe
+  if !empty(l:exact)
+    return l:exact
   endif
-  
-  " Fallback to filesystem search
+
+  " Ambiguous partial match: refuse
+  if len(l:partials) > 1
+    call plugin_manager#core#throw('remove', 'AMBIGUOUS_MATCH',
+          \ 'Ambiguous name "' . a:module_name . '" matches multiple plugins: ' .
+          \ join(l:partials, ', ') . '. Use the exact plugin name.')
+  endif
+
+  " Single partial match in .gitmodules
+  if len(l:partials) == 1
+    let l:module_info = plugin_manager#git#find_module(a:module_name)
+    if !empty(l:module_info)
+      return {
+            \ 'name': l:module_info.module.short_name,
+            \ 'path': l:module_info.module.path,
+            \ 'url': get(l:module_info.module, 'url', '')
+            \ }
+    endif
+  endif
+
+  " Fallback to filesystem search (handles modules not in .gitmodules)
   let l:found = s:find_in_filesystem(a:module_name)
-  
+
   if empty(l:found)
     call plugin_manager#core#throw('remove', 'MODULE_NOT_FOUND', 'Module not found: ' . a:module_name)
   endif
@@ -61,25 +98,31 @@ endfunction
 function! s:find_in_filesystem(name) abort
   for l:dir_type in ['start', 'opt']
     let l:base_dir = plugin_manager#core#get_plugin_dir(l:dir_type)
-    
+
     if !plugin_manager#core#dir_exists(l:base_dir)
       continue
     endif
-    
-    " Direct match
+
+    " Direct (exact) match - unambiguous, always safe
     let l:direct_path = l:base_dir . '/' . a:name
     if plugin_manager#core#dir_exists(l:direct_path)
       return {'name': a:name, 'path': l:direct_path, 'url': ''}
     endif
-    
-    " Fuzzy match
+
+    " Fuzzy match: refuse if more than one candidate to avoid removing the
+    " wrong plugin. Even -f does not override this safety check.
     let l:matches = glob(l:base_dir . '/*' . a:name . '*', 0, 1)
-    if !empty(l:matches)
+    if len(l:matches) == 1
       let l:path = l:matches[0]
       return {'name': fnamemodify(l:path, ':t'), 'path': l:path, 'url': ''}
+    elseif len(l:matches) > 1
+      let l:names = join(map(copy(l:matches), 'fnamemodify(v:val, ":t")'), ', ')
+      call plugin_manager#core#throw('remove', 'AMBIGUOUS_MATCH',
+            \ 'Ambiguous name "' . a:name . '" matches multiple plugins: ' . l:names .
+            \ '. Use the exact plugin name.')
     endif
   endfor
-  
+
   return {}
 endfunction
 
@@ -93,13 +136,8 @@ function! s:confirm_removal(module_name, module_path) abort
 endfunction
 
 function! s:remove_module(module_name, module_path) abort
-  let l:header = [
-        \ 'Removing plugin:',
-        \ plugin_manager#ui#get_symbol('separator'),
-        \ ''
-        \ ]
-  call plugin_manager#ui#open_sidebar(l:header)
-  
+  call plugin_manager#ui#open_header('Removing plugin:')
+
   let l:op_id = plugin_manager#ui#start_operation(a:module_name, 'Removing')
   
   let l:module_info = s:get_module_metadata(a:module_path)
@@ -119,8 +157,9 @@ function! s:remove_module(module_name, module_path) abort
   
   call s:commit_removal(a:module_name, l:module_info)
   
-  call plugin_manager#ui#complete_operation_symbol(l:op_id, plugin_manager#ui#get_symbol('tick'), 'Removed')
-  
+  call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Removed')
+  call plugin_manager#ui#footer([plugin_manager#ui#success('Plugin removed')])
+
   call plugin_manager#git#refresh_modules_cache()
 endfunction
 

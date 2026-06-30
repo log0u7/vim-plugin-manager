@@ -1,0 +1,102 @@
+Before:
+  let g:_pm_disp_saved = {
+        \ 'vim_dir': get(g:, 'plugin_manager_vim_dir', ''),
+        \ 'cwd': getcwd(),
+        \ 'plugins_dir': get(g:, 'plugin_manager_plugins_dir', ''),
+        \ 'logging': get(g:, 'plugin_manager_enable_logging', 0),
+        \ }
+  let g:_pm_disp_tmp = tempname()
+  call mkdir(g:_pm_disp_tmp, 'p')
+  call mkdir(g:_pm_disp_tmp . '/.git', 'p')
+  call writefile([], g:_pm_disp_tmp . '/.gitmodules')
+  let g:plugin_manager_vim_dir   = g:_pm_disp_tmp
+  let g:plugin_manager_plugins_dir = g:_pm_disp_tmp . '/pack/plugins'
+  let g:plugin_manager_enable_logging = 0
+  execute 'cd ' . fnameescape(g:_pm_disp_tmp)
+  " Wipe stale sidebar
+  let s:_pm_sbuf = bufnr('PluginManager')
+  if s:_pm_sbuf != -1
+    execute 'bwipeout! ' . s:_pm_sbuf
+  endif
+
+After:
+  execute 'cd ' . fnameescape(g:_pm_disp_saved.cwd)
+  if isdirectory(g:_pm_disp_tmp)
+    call delete(g:_pm_disp_tmp, 'rf')
+  endif
+  let g:plugin_manager_vim_dir     = g:_pm_disp_saved.vim_dir
+  let g:plugin_manager_plugins_dir = g:_pm_disp_saved.plugins_dir
+  let g:plugin_manager_enable_logging = g:_pm_disp_saved.logging
+  unlet g:_pm_disp_tmp g:_pm_disp_saved
+  let s:_pm_sbuf2 = bufnr('PluginManager')
+  if s:_pm_sbuf2 != -1
+    execute 'bwipeout! ' . s:_pm_sbuf2
+  endif
+
+Execute (dispatch with no args shows usage):
+  " No argument: should show usage, not raise an unhandled exception
+  call plugin_manager#cmd#dispatch()
+  " If we reach here no exception was thrown
+  Assert 1
+
+Execute (dispatch unknown command shows error, not crash):
+  call plugin_manager#cmd#dispatch('doesnotexist')
+  " Should be handled gracefully by handle_error
+  Assert 1
+
+Execute (dispatch list runs without error on empty plugin set):
+  call plugin_manager#cmd#dispatch('list')
+  Assert 1
+
+Execute (dispatch status runs without error on empty plugin set):
+  call plugin_manager#cmd#dispatch('status')
+  Assert 1
+
+Execute (dispatch update runs without error when no modules):
+  call plugin_manager#cmd#dispatch('update')
+  Assert 1
+
+Execute (dispatch check-updates alias works):
+  call plugin_manager#cmd#dispatch('check-updates')
+  Assert 1
+
+Execute (legacy add format: url + dirname + opt translates args correctly):
+  " Stub api#add to capture what s:cmd_add builds, without touching the network.
+  " We overwrite the function temporarily and restore it after.
+  let g:_pm_api_add_calls = []
+  function! plugin_manager#api#add(url, opts) abort
+    call add(g:_pm_api_add_calls, {'url': a:url, 'opts': a:opts})
+  endfunction
+
+  call plugin_manager#cmd#dispatch('add', 'user/repo', 'my_dir', 'opt')
+
+  AssertEqual 1, len(g:_pm_api_add_calls), 'api#add should be called once'
+  AssertEqual 'user/repo', g:_pm_api_add_calls[0].url, 'url should be passed through'
+  AssertEqual 'my_dir',    g:_pm_api_add_calls[0].opts.dir,  'dir should be translated'
+  AssertEqual 'opt',       g:_pm_api_add_calls[0].opts.load, 'load=opt should be set'
+
+  " Restore the real api#add
+  runtime! autoload/plugin_manager/api.vim
+  unlet g:_pm_api_add_calls
+
+Execute (legacy add format: url + dirname without opt defaults to start):
+  let g:_pm_api_add_calls = []
+  function! plugin_manager#api#add(url, opts) abort
+    call add(g:_pm_api_add_calls, {'url': a:url, 'opts': a:opts})
+  endfunction
+
+  call plugin_manager#cmd#dispatch('add', 'user/repo', 'my_dir')
+
+  AssertEqual 1, len(g:_pm_api_add_calls)
+  AssertEqual 'my_dir', g:_pm_api_add_calls[0].opts.dir
+  " No 'opt' token: load key should be absent or not 'opt'
+  Assert get(g:_pm_api_add_calls[0].opts, 'load', '') !=# 'opt',
+        \ 'load should not be opt when third arg is absent'
+
+  runtime! autoload/plugin_manager/api.vim
+  unlet g:_pm_api_add_calls
+
+Execute (dispatch add with missing arg shows usage, not MISSING_ARGS crash):
+  " dispatch guards a:0 >= 2 for add, so missing arg shows usage silently
+  call plugin_manager#cmd#dispatch('add')
+  Assert 1

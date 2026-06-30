@@ -1,0 +1,110 @@
+Before:
+  let g:_pm_rm_saved = {
+        \ 'vim_dir':     get(g:, 'plugin_manager_vim_dir', ''),
+        \ 'cwd':         getcwd(),
+        \ 'plugins_dir': get(g:, 'plugin_manager_plugins_dir', ''),
+        \ 'logging':     get(g:, 'plugin_manager_enable_logging', 0),
+        \ }
+
+  let g:_pm_rm_root = tempname()
+  let g:_pm_rm_vim  = g:_pm_rm_root . '/vim'
+  let g:_pm_rm_bare = g:_pm_rm_root . '/bare'
+
+  call mkdir(g:_pm_rm_root, 'p')
+
+  " Bare upstream repo
+  call system('git init --bare ' . shellescape(g:_pm_rm_bare))
+  let g:_pm_rm_src = g:_pm_rm_root . '/src'
+  call mkdir(g:_pm_rm_src, 'p')
+  call system('git init ' . shellescape(g:_pm_rm_src))
+  call system('git -C ' . shellescape(g:_pm_rm_src) . ' config user.email "t@t.com"')
+  call system('git -C ' . shellescape(g:_pm_rm_src) . ' config user.name "T"')
+  call system('git -C ' . shellescape(g:_pm_rm_src) . ' remote add origin ' . shellescape(g:_pm_rm_bare))
+  call writefile(['x'], g:_pm_rm_src . '/f.txt')
+  call system('git -C ' . shellescape(g:_pm_rm_src) . ' add .')
+  call system('git -C ' . shellescape(g:_pm_rm_src) . ' commit -m "init"')
+  call system('git -C ' . shellescape(g:_pm_rm_src) . ' push -u origin HEAD:main')
+  call system('git -C ' . shellescape(g:_pm_rm_bare) . ' symbolic-ref HEAD refs/heads/main')
+
+  " Vim config repo
+  call mkdir(g:_pm_rm_vim, 'p')
+  call system('git init ' . shellescape(g:_pm_rm_vim))
+  call system('git -C ' . shellescape(g:_pm_rm_vim) . ' config user.email "t@t.com"')
+  call system('git -C ' . shellescape(g:_pm_rm_vim) . ' config user.name "T"')
+  call writefile(['# vimrc'], g:_pm_rm_vim . '/vimrc')
+  call system('git -C ' . shellescape(g:_pm_rm_vim) . ' add .')
+  call system('git -C ' . shellescape(g:_pm_rm_vim) . ' commit -m "init"')
+
+  " Add two plugins: vim-fugitive and vim-fugitive-blame
+  call mkdir(g:_pm_rm_vim . '/pack/plugins/start', 'p')
+  call system('git -C ' . shellescape(g:_pm_rm_vim) .
+        \ ' -c protocol.file.allow=always submodule add ' . shellescape(g:_pm_rm_bare) .
+        \ ' pack/plugins/start/vim-fugitive')
+  call system('git -C ' . shellescape(g:_pm_rm_vim) .
+        \ ' -c protocol.file.allow=always submodule add ' . shellescape(g:_pm_rm_bare) .
+        \ ' pack/plugins/start/vim-fugitive-blame')
+  call system('git -C ' . shellescape(g:_pm_rm_vim) . ' commit -m "add plugins"')
+
+  let g:plugin_manager_vim_dir     = g:_pm_rm_vim
+  let g:plugin_manager_plugins_dir = g:_pm_rm_vim . '/pack/plugins'
+  let g:plugin_manager_enable_logging = 0
+
+  execute 'cd ' . fnameescape(g:_pm_rm_vim)
+
+  let s:_pm_rm_sbuf = bufnr('PluginManager')
+  if s:_pm_rm_sbuf != -1
+    execute 'bwipeout! ' . s:_pm_rm_sbuf
+  endif
+
+  call plugin_manager#git#refresh_modules_cache()
+
+After:
+  execute 'cd ' . fnameescape(g:_pm_rm_saved.cwd)
+  if isdirectory(g:_pm_rm_root)
+    call delete(g:_pm_rm_root, 'rf')
+  endif
+  let g:plugin_manager_vim_dir     = g:_pm_rm_saved.vim_dir
+  let g:plugin_manager_plugins_dir = g:_pm_rm_saved.plugins_dir
+  let g:plugin_manager_enable_logging = g:_pm_rm_saved.logging
+  unlet g:_pm_rm_saved g:_pm_rm_root g:_pm_rm_vim g:_pm_rm_bare g:_pm_rm_src
+  let s:_pm_rm_sbuf2 = bufnr('PluginManager')
+  if s:_pm_rm_sbuf2 != -1
+    execute 'bwipeout! ' . s:_pm_rm_sbuf2
+  endif
+  call plugin_manager#git#refresh_modules_cache()
+
+Execute (remove ambiguous name refuses and lists candidates):
+  " 'fugitive' matches both vim-fugitive and vim-fugitive-blame.
+  " The command must refuse without removing either plugin.
+  call plugin_manager#cmd#remove#execute('fugitive', '-f')
+
+  " The most important invariant: neither plugin was touched
+  Assert isdirectory(g:_pm_rm_vim . '/pack/plugins/start/vim-fugitive'),
+        \ 'vim-fugitive should still exist after ambiguous remove'
+  Assert isdirectory(g:_pm_rm_vim . '/pack/plugins/start/vim-fugitive-blame'),
+        \ 'vim-fugitive-blame should still exist after ambiguous remove'
+
+  " The sidebar should mention both plugin names in an error context
+  let g:_pm_rm_sbuf = bufnr('PluginManager')
+  if g:_pm_rm_sbuf != -1
+    let g:_pm_rm_content = join(getbufline(g:_pm_rm_sbuf, 1, '$'), "\n")
+    Assert g:_pm_rm_content =~# 'fugitive',
+          \ 'sidebar should mention the matching plugin names: ' . g:_pm_rm_content
+    unlet g:_pm_rm_content
+  endif
+  unlet g:_pm_rm_sbuf
+
+Execute (remove exact name succeeds and deletes only that plugin):
+  " Exact name: only vim-fugitive-blame matches, so it is removed cleanly.
+  call plugin_manager#cmd#remove#execute('vim-fugitive-blame', '-f')
+  Assert !isdirectory(g:_pm_rm_vim . '/pack/plugins/start/vim-fugitive-blame'),
+        \ 'vim-fugitive-blame should be removed'
+  Assert isdirectory(g:_pm_rm_vim . '/pack/plugins/start/vim-fugitive'),
+        \ 'vim-fugitive should still exist'
+
+Execute (remove unknown plugin shows error and removes nothing):
+  " An unknown plugin name should fail gracefully without removing anything.
+  call plugin_manager#cmd#remove#execute('nosuchplugin', '-f')
+  " Both plugins must still be intact
+  Assert isdirectory(g:_pm_rm_vim . '/pack/plugins/start/vim-fugitive'),
+        \ 'vim-fugitive should still exist after failed remove'

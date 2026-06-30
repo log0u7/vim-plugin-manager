@@ -1,6 +1,6 @@
 " autoload/plugin_manager/git.vim - Git operations abstraction for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.5.0
+" Version: 1.6.0
 
 " ------------------------------------------------------------------------------
 " GITMODULES CACHE AND PARSING
@@ -40,6 +40,8 @@ function! plugin_manager#git#parse_modules() abort
   let l:in_module = 0
   
   for l:line in l:lines
+    " Strip CR so CRLF line endings (files edited on Windows) are handled cleanly
+    let l:line = substitute(l:line, '\r$', '', '')
     " Skip empty lines and comments
     if l:line =~ '^\s*$' || l:line =~ '^\s*#'
       continue
@@ -207,8 +209,8 @@ function! plugin_manager#git#execute(cmd, dir, ...) abort
   let l:output_to_ui = get(a:, 1, 0)
   let l:throw_on_error = get(a:, 2, 1)
   
-  " Handle directory change if needed
-  let l:full_cmd = empty(a:dir) ? a:cmd : 'cd "' . a:dir . '" && ' . a:cmd
+  " Handle directory change if needed (shellescape for consistent quoting)
+  let l:full_cmd = empty(a:dir) ? a:cmd : 'cd ' . shellescape(a:dir) . ' && ' . a:cmd
   
   " Trace the command to the debug log if enabled
   if get(g:, 'plugin_manager_trace_commands', 0)
@@ -237,18 +239,6 @@ function! plugin_manager#git#execute(cmd, dir, ...) abort
   return {'success': l:success, 'output': l:output}
 endfunction
 
-" Execute a git command asynchronously if supported
-function! plugin_manager#git#execute_async(cmd, dir, callback) abort
-  " Check if async is available and loaded
-  if exists('*plugin_manager#async#start_job')
-    return plugin_manager#async#start_job(a:cmd, {'dir': a:dir, 'callback': a:callback})
-  else
-    " Fall back to synchronous execution
-    let l:result = plugin_manager#git#execute(a:cmd, a:dir, 0, 0)
-    call a:callback(l:result)
-    return -1  " No job ID for sync execution
-  endif
-endfunction
 
 " ------------------------------------------------------------------------------
 " REPOSITORY STATUS AND CHECKS
@@ -256,8 +246,9 @@ endfunction
 
 " Check if a repository exists
 function! plugin_manager#git#repository_exists(url) abort
-  " Use git ls-remote to check if the repository exists
-  let l:cmd = 'git ls-remote --exit-code "' . a:url . '" HEAD > /dev/null 2>&1'
+  " Use git ls-remote to check if the repository exists.
+  " system() captures stdout/stderr; we only need the exit code.
+  let l:cmd = 'git ls-remote --exit-code ' . shellescape(a:url) . ' HEAD'
   let l:result = plugin_manager#git#execute(l:cmd, '', 0, 0)
   return l:result.success
 endfunction
@@ -314,13 +305,19 @@ function! plugin_manager#git#collect_status_local(module_path) abort
     let l:result.branch = 'detached'
   endif
   
-  " First try to find remote branch from .gitmodules
-  let l:res = plugin_manager#git#execute('git config -f ../.gitmodules submodule.' . 
-        \ fnamemodify(a:module_path, ':t') . '.branch', a:module_path, 0, 0)
+  " First try to find remote branch from .gitmodules at the vim config root.
+  " Use the relative path as the submodule section key (not just the basename).
+  let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+  let l:gitmodules_path = l:vim_dir . '/.gitmodules'
+  let l:rel_path = plugin_manager#core#make_relative_path(a:module_path)
+  let l:res = plugin_manager#git#execute(
+        \ 'git config -f ' . shellescape(l:gitmodules_path) .
+        \ ' submodule.' . shellescape(l:rel_path) . '.branch',
+        \ '', 0, 0)
   let l:remote_branch = l:res.success ? substitute(l:res.output, '\n', '', 'g') : ''
   
   " If not found in .gitmodules, try to determine from the current branch's upstream
-  if empty(l:remote_branch) && l:result.branch != 'detached'
+  if empty(l:remote_branch) && l:result.branch !=# 'detached'
     let l:res = plugin_manager#git#execute('git rev-parse --abbrev-ref ' . 
           \ l:result.branch . '@{upstream}', a:module_path, 0, 0)
     if l:res.success
@@ -349,18 +346,38 @@ function! plugin_manager#git#collect_status_local(module_path) abort
     endif
   endif
   
-  " Default to origin/master if all attempts failed
+  " Ask the remote for its default HEAD branch
   if empty(l:remote_branch)
-    let l:remote_branch = 'origin/master'
+    let l:res = plugin_manager#git#execute(
+          \ 'git rev-parse --abbrev-ref origin/HEAD', a:module_path, 0, 0)
+    if l:res.success
+      let l:remote_branch = substitute(l:res.output, '\n', '', 'g')
+    endif
   endif
+
+  " Last resort: try origin/<current-local-branch> when all else fails
+  if empty(l:remote_branch) && l:result.branch !=# 'detached' && !empty(l:result.branch)
+    let l:candidate = 'origin/' . l:result.branch
+    let l:res = plugin_manager#git#execute(
+          \ 'git show-ref --verify --quiet refs/remotes/' . l:candidate,
+          \ a:module_path, 0, 0)
+    if l:res.success
+      let l:remote_branch = l:candidate
+    endif
+  endif
+
+  " If no remote branch found at all, leave empty so rev-parse fails gracefully
+  " rather than targeting a nonexistent branch
   
   let l:result.remote_branch = l:remote_branch
-  
-  " Get the latest commit on the remote branch
-  let l:res = plugin_manager#git#execute('git rev-parse ' . l:result.remote_branch, 
-        \ a:module_path, 0, 0)
-  if l:res.success
-    let l:result.remote_commit = substitute(l:res.output, '\n', '', 'g')
+
+  " Get the latest commit on the remote branch (skip if branch unknown)
+  if !empty(l:remote_branch)
+    let l:res = plugin_manager#git#execute('git rev-parse ' . shellescape(l:result.remote_branch),
+          \ a:module_path, 0, 0)
+    if l:res.success
+      let l:result.remote_commit = substitute(l:res.output, '\n', '', 'g')
+    endif
   endif
   
   " Direct check if remote commit is different from current commit
@@ -393,7 +410,7 @@ function! plugin_manager#git#collect_status_local(module_path) abort
   " For submodules, we primarily care about commit differences, not branch names
   " If current branch is not detached and doesn't match remote branch name, note this
   let l:remote_branch_name = substitute(l:result.remote_branch, '^origin/', '', '')
-  if l:result.branch != 'detached' && l:result.branch != l:remote_branch_name
+  if l:result.branch !=# 'detached' && l:result.branch !=# l:remote_branch_name
     let l:result.different_branch = 1
   endif
   
@@ -518,28 +535,6 @@ function! plugin_manager#git#remove_submodule(module_path) abort
   return 1
 endfunction
 
-" Update all git submodules
-function! plugin_manager#git#update_all_submodules() abort
-  " Ensure we're in the vim directory
-  if !plugin_manager#core#ensure_vim_directory()
-    " Standardized error handling
-    call plugin_manager#core#throw('git', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
-  endif
-  
-  " Sync submodules
-  call plugin_manager#git#execute('git submodule sync', '', 1, 0)
-  
-  " Update submodules
-  let l:result = plugin_manager#git#execute('git submodule update --remote --merge --force', '', 1, 1)
-  
-  " Handle error
-  if !l:result.success
-    " Standardized error handling
-    call plugin_manager#core#throw('update', 'UPDATE_FAILED', 'Failed to update submodules: ' . l:result.output)
-  endif
-  
-  return l:result.success
-endfunction
 
 " Update a specific git submodule
 function! plugin_manager#git#update_submodule(module_path) abort
@@ -589,76 +584,6 @@ function! plugin_manager#git#update_submodule(module_path) abort
   return {'success': 1, 'changed': l:changed, 'message': l:changed ? 'Updated' : 'Already up-to-date'}
 endfunction
 
-" Restore all submodules from .gitmodules
-function! plugin_manager#git#restore_all_submodules() abort
-  " Ensure we're in the vim directory
-  if !plugin_manager#core#ensure_vim_directory()
-    " Standardized error handling
-    call plugin_manager#core#throw('git', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
-  endif
-  
-  " Check if .gitmodules exists
-  if !filereadable('.gitmodules')
-    " Standardized error handling
-    call plugin_manager#core#throw('restore', 'GITMODULES_NOT_FOUND', '.gitmodules file not found')
-  endif
-  
-  " Initialize submodules
-  call plugin_manager#git#execute('git submodule init', '', 1, 0)
-  
-  " Update submodules
-  let l:result = plugin_manager#git#execute('git submodule update --init --recursive', '', 1, 1)
-  
-  " Handle error
-  if !l:result.success
-    " Standardized error handling
-    call plugin_manager#core#throw('restore', 'UPDATE_FAILED', 'Failed to restore submodules: ' . l:result.output)
-  endif
-  
-  " Final sync and update to ensure everything is at the correct state
-  call plugin_manager#git#execute('git submodule sync', '', 1, 0)
-  call plugin_manager#git#execute('git submodule update --init --recursive --force', '', 1, 0)
-  
-  return l:result.success
-endfunction
-
-" Backup configuration to remote repositories
-function! plugin_manager#git#backup_config() abort
-  " Ensure we're in the vim directory
-  if !plugin_manager#core#ensure_vim_directory()
-    " Standardized error handling
-    call plugin_manager#core#throw('git', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
-  endif
-  
-  " Check if there are changes to commit
-  let l:status = plugin_manager#git#execute('git status -s', '', 0, 0)
-  
-  if !empty(l:status.output)
-    let l:result = plugin_manager#git#execute('git commit -am "Automatic backup"', '', 1, 0)
-    if !l:result.success
-      " Standardized error handling
-      call plugin_manager#core#throw('backup', 'COMMIT_FAILED', 'Failed to commit changes: ' . l:result.output)
-    endif
-  endif
-  
-  " Check if any remotes exist
-  let l:remotes = plugin_manager#git#execute('git remote', '', 0, 0)
-  if empty(l:remotes.output)
-    " Standardized error handling
-    call plugin_manager#core#throw('backup', 'NO_REMOTES', 'No remote repositories configured.')
-  endif
-  
-  " Push to all remotes
-  let l:result = plugin_manager#git#execute('git push --all', '', 1, 1)
-  
-  " Handle error
-  if !l:result.success
-    " Standardized error handling
-    call plugin_manager#core#throw('backup', 'GIT_ERROR', 'Failed to push to remotes: ' . l:result.output)
-  endif
-  
-  return l:result.success
-endfunction
 
 " Add a remote repository
 function! plugin_manager#git#add_remote(url, name) abort
