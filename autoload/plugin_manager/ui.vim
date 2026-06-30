@@ -355,8 +355,9 @@ function! plugin_manager#ui#usage() abort
         \ 'restore                 - Restore plugins',
         \ '',
         \ 'Shortcuts:',
-        \ 'q - Close   c - Check   u - Update   l - List',
-        \ 's - Status   h - Helptags   ? - Help',
+        \ 'q - Close   l - List      s - Status   S - Summary',
+        \ 'u - Update  c - Check     b - Backup   r - Restore',
+        \ 'h - Helptags   R - Reload   ? - Help',
         \ ]
   call plugin_manager#ui#open_sidebar(l:lines)
 endfunction
