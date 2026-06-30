@@ -149,7 +149,7 @@ endif
 " ------------------------------------------------------------------------------
 
 " Main command for plugin operations
-command! -nargs=* PluginManager call plugin_manager#cmd#dispatch(<f-args>)
+command! -nargs=* -complete=customlist,plugin_manager#cmd#complete PluginManager call plugin_manager#cmd#dispatch(<f-args>)
 
 " Command to add remote repositories
 command! -nargs=1 PluginManagerRemote call plugin_manager#api#add_remote(<f-args>)

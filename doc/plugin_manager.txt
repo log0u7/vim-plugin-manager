@@ -1,4 +1,4 @@
-*plugin_manager.txt*  A Git submodule-based plugin manager for Vim
+*plugin_manager.txt*  *plugin-manager*  A Git submodule-based plugin manager for Vim
 
 ===============================================================================
 CONTENTS                                                *plugin-manager-contents*

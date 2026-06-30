@@ -72,6 +72,41 @@ function! s:cmd_reload(...)
 endfunction
 
 " ------------------------------------------------------------------------------
+" COMMAND COMPLETION
+" ------------------------------------------------------------------------------
+
+" Tab-completion for :PluginManager
+" - First word: sub-command names
+" - Second word: installed plugin (module) names when first word takes a name
+function! plugin_manager#cmd#complete(arglead, cmdline, cursorpos) abort
+  let l:words = split(a:cmdline, '\s\+', 1)
+  " l:words[0] is 'PluginManager', l:words[1] is the sub-command (may be partial)
+  let l:nwords = len(l:words)
+
+  " Completing the sub-command (position 1)
+  if l:nwords <= 2
+    let l:cmds = ['add', 'backup', 'check', 'helptags', 'list', 'reload',
+          \        'remove', 'restore', 'status', 'summary', 'update']
+    return filter(copy(l:cmds), {_, v -> v =~# '^' . a:arglead})
+  endif
+
+  " Completing a plugin name (position 2) for commands that accept one
+  let l:subcmd = l:words[1]
+  if index(['remove', 'update', 'helptags', 'reload'], l:subcmd) >= 0
+    " Collect module names from .gitmodules; fall back silently on any error
+    try
+      let l:modules = plugin_manager#git#get_modules(0)
+    catch
+      return []
+    endtry
+    let l:names = map(copy(l:modules), {_, m -> m.name})
+    return filter(l:names, {_, v -> v =~# '^' . a:arglead})
+  endif
+
+  return []
+endfunction
+
+" ------------------------------------------------------------------------------
 " COMMAND DISPATCHER
 " ------------------------------------------------------------------------------
 
