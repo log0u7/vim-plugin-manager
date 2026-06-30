@@ -8,9 +8,7 @@
 
 function! plugin_manager#cmd#update#execute(module_name) abort
   try
-    if !plugin_manager#core#ensure_vim_directory()
-      call plugin_manager#core#throw('update', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
-    endif
+    call plugin_manager#core#require_vim_directory('update')
     
     call plugin_manager#ui#open_header('Updating plugins:')
     
@@ -190,10 +188,8 @@ function! s:on_update_complete(ctx, result) abort
 
   if l:success
     " Compare HEAD before/after to determine if anything actually changed
-    let l:new_head = plugin_manager#git#execute('git rev-parse HEAD', l:module_path, 0, 0)
-    let l:new_commit = l:new_head.success ? substitute(l:new_head.output, '\n', '', 'g') : ''
     let l:before = get(a:ctx, 'current_commit', '')
-    let l:changed = !empty(l:before) && !empty(l:new_commit) && l:new_commit !=# l:before
+    let l:changed = plugin_manager#git#head_changed(l:module_path, l:before)
 
     if l:changed
       call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Updated')
@@ -284,9 +280,7 @@ function! s:update_all_plugins_sync(ctx) abort
     endif
 
     if l:result.success
-      let l:after = plugin_manager#git#execute('git rev-parse HEAD', l:module.path, 0, 0)
-      let l:after_commit = l:after.success ? substitute(l:after.output, '\n', '', 'g') : ''
-      let l:changed = !empty(l:before_commit) && !empty(l:after_commit) && l:after_commit !=# l:before_commit
+      let l:changed = plugin_manager#git#head_changed(l:module.path, l:before_commit)
 
       if l:changed
         call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Updated')
@@ -395,11 +389,8 @@ function! s:on_module_updated(ctx, module, result) abort
   endif
 
   if l:success
-    " Compare HEAD before/after to determine if anything actually changed
-    let l:new_head = plugin_manager#git#execute('git rev-parse HEAD', l:module_path, 0, 0)
-    let l:new_commit = l:new_head.success ? substitute(l:new_head.output, '\n', '', 'g') : ''
     let l:before = get(a:ctx.pre_commits, a:module.short_name, '')
-    let l:changed = !empty(l:before) && !empty(l:new_commit) && l:new_commit !=# l:before
+    let l:changed = plugin_manager#git#head_changed(l:module_path, l:before)
 
     if l:changed
       call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Updated')

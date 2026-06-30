@@ -5,9 +5,7 @@
 " Add a remote repository for backup
 function! plugin_manager#cmd#remote#add(url) abort
   try
-    if !plugin_manager#core#ensure_vim_directory()
-      call plugin_manager#core#throw('remote', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
-    endif
+    call plugin_manager#core#require_vim_directory('remote')
 
     call plugin_manager#ui#open_header('Add remote repository:')
 

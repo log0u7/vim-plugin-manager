@@ -46,9 +46,7 @@ endfunction
 
 function! s:process_declarations() abort
   try
-    if !plugin_manager#core#ensure_vim_directory()
-      call plugin_manager#core#throw('declare', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
-    endif
+    call plugin_manager#core#require_vim_directory('declare')
     
     if empty(s:plugin_declarations)
       return

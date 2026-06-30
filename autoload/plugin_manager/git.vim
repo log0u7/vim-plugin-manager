@@ -200,6 +200,24 @@ function! plugin_manager#git#remote_branch_name(remote_branch) abort
   return substitute(a:remote_branch, '^origin/', '', '')
 endfunction
 
+" Return the current HEAD commit SHA for a repository, or '' on failure.
+function! plugin_manager#git#head_commit(path) abort
+  let l:res = plugin_manager#git#execute('git rev-parse HEAD', a:path, 0, 0)
+  if !l:res.success
+    return ''
+  endif
+  return substitute(l:res.output, '\n', '', 'g')
+endfunction
+
+" Return 1 if HEAD at a:path has moved past a:before (non-empty SHAs, differ).
+function! plugin_manager#git#head_changed(path, before) abort
+  if empty(a:before)
+    return 0
+  endif
+  let l:after = plugin_manager#git#head_commit(a:path)
+  return !empty(l:after) && l:after !=# a:before
+endfunction
+
 " ------------------------------------------------------------------------------
 " GIT COMMAND EXECUTION
 " ------------------------------------------------------------------------------
@@ -292,10 +310,7 @@ function! plugin_manager#git#collect_status_local(module_path) abort
   endif
   
   " Get current commit hash (more reliable for submodules than branch)
-  let l:res = plugin_manager#git#execute('git rev-parse HEAD', a:module_path, 0, 0)
-  if l:res.success
-    let l:result.current_commit = substitute(l:res.output, '\n', '', 'g')
-  endif
+  let l:result.current_commit = plugin_manager#git#head_commit(a:module_path)
   
   " Get current symbolic ref - might be a branch or HEAD
   let l:res = plugin_manager#git#execute('git symbolic-ref --short HEAD', a:module_path, 0, 0)
@@ -428,11 +443,7 @@ endfunction
 
 " Add a git submodule
 function! plugin_manager#git#add_submodule(url, install_dir, options) abort
-  " Ensure we're in the vim directory
-  if !plugin_manager#core#ensure_vim_directory()
-    " Standardized error handling
-    call plugin_manager#core#throw('git', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
-  endif
+  call plugin_manager#core#require_vim_directory('git')
   
   " Get relative install path
   let l:relative_path = plugin_manager#core#make_relative_path(a:install_dir)
@@ -489,60 +500,10 @@ function! plugin_manager#git#add_submodule(url, install_dir, options) abort
   return l:result.success
 endfunction
 
-" Remove a git submodule
-function! plugin_manager#git#remove_submodule(module_path) abort
-  " Ensure we're in the vim directory
-  if !plugin_manager#core#ensure_vim_directory()
-    " Standardized error handling
-    call plugin_manager#core#throw('git', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
-  endif
-  
-  " Get module information
-  let l:module_info = {}
-  let l:modules = plugin_manager#git#parse_modules()
-  
-  for [l:name, l:module] in items(l:modules)
-    if has_key(l:module, 'path') && l:module.path ==# a:module_path
-      let l:module_info = l:module
-      break
-    endif
-  endfor
-  
-  " Step 1: Deinitialize the submodule
-  let l:res = plugin_manager#git#execute('git submodule deinit -f ' . shellescape(a:module_path), 
-        \ '', 1, 0)
-  
-  " Step 2: Remove the submodule from git
-  let l:res = plugin_manager#git#execute('git rm -f ' . shellescape(a:module_path), '', 1, 0)
-  
-  " Step 3: Clean .git modules directory if it exists
-  if isdirectory('.git/modules/' . a:module_path)
-    call plugin_manager#core#remove_path('.git/modules/' . a:module_path)
-  endif
-  
-  " Step 4: Commit the changes
-  let l:commit_msg = 'Remove ' . fnamemodify(a:module_path, ':t') . ' plugin'
-  if !empty(l:module_info) && has_key(l:module_info, 'url')
-    let l:commit_msg .= ' (' . l:module_info.url . ')'
-  endif
-  
-  call plugin_manager#git#execute('git add -A && git commit -m ' . shellescape(l:commit_msg) . 
-        \ ' || git commit --allow-empty -m ' . shellescape(l:commit_msg), '', 1, 0)
-  
-  " Force refresh the module cache
-  call plugin_manager#git#refresh_modules_cache()
-  
-  return 1
-endfunction
-
 
 " Update a specific git submodule
 function! plugin_manager#git#update_submodule(module_path) abort
-  " Ensure we're in the vim directory
-  if !plugin_manager#core#ensure_vim_directory()
-    " Standardized error handling
-    call plugin_manager#core#throw('git', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
-  endif
+  call plugin_manager#core#require_vim_directory('git')
   
   " Check if directory exists
   if !isdirectory(a:module_path)
@@ -577,21 +538,15 @@ function! plugin_manager#git#update_submodule(module_path) abort
   endif
   
   " Compare HEAD after pull to determine if anything actually changed
-  let l:after = plugin_manager#git#execute('git rev-parse HEAD', a:module_path, 0, 0)
-  let l:after_commit = l:after.success ? substitute(l:after.output, '\n', '', 'g') : ''
-  let l:changed = !empty(l:before_commit) && !empty(l:after_commit) && l:after_commit !=# l:before_commit
-  
+  let l:changed = plugin_manager#git#head_changed(a:module_path, l:before_commit)
+
   return {'success': 1, 'changed': l:changed, 'message': l:changed ? 'Updated' : 'Already up-to-date'}
 endfunction
 
 
 " Add a remote repository
 function! plugin_manager#git#add_remote(url, name) abort
-  " Ensure we're in the vim directory
-  if !plugin_manager#core#ensure_vim_directory()
-    " Standardized error handling
-    call plugin_manager#core#throw('git', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
-  endif
+  call plugin_manager#core#require_vim_directory('git')
   
   " Check if the repository exists
   if !plugin_manager#git#repository_exists(a:url)

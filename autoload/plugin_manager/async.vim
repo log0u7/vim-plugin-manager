@@ -97,21 +97,6 @@ function! s:spawn_job(job_id) abort
     let l:opts = l:job.opts
     let l:job.started = localtime()
     
-    " Change directory if specified (platform-aware cd prefix)
-    let l:cmd = l:job.cmd
-    if has_key(l:opts, 'dir') && !empty(l:opts.dir)
-        if has('win32') || has('win64')
-            let l:cmd = 'cd /d ' . shellescape(l:opts.dir) . ' && ' . l:cmd
-        else
-            let l:cmd = 'cd ' . shellescape(l:opts.dir) . ' && ' . l:cmd
-        endif
-    endif
-    
-    " Report job start to UI if needed
-    if has_key(l:opts, 'ui_message') && !empty(l:opts.ui_message) && exists('*plugin_manager#ui#update_sidebar')
-        call plugin_manager#ui#update_sidebar(['Starting: ' . l:opts.ui_message], 1)
-    endif
-    
     let s:active_count += 1
     
     " Start the job using Vim's job/channel API
@@ -228,21 +213,16 @@ endfunction
 " HELPER FUNCTIONS FOR EXECUTING COMMON OPERATIONS
 " ------------------------------------------------------------------------------
 
-" Execute a git command asynchronously
+" Execute a git command asynchronously.
+" opts: dict with optional 'callback' key (Funcref called on completion).
 function! plugin_manager#async#git(cmd, opts) abort
-    " Default options
-    let l:opts = {
-        \ 'ui_message': get(a:opts, 'ui_message', ''),
-        \ 'callback': get(a:opts, 'callback', v:null),
-        \ 'dir': get(a:opts, 'dir', ''),
-        \ }
-    
-    let l:job_id = plugin_manager#async#start_job(a:cmd, l:opts)
-    
-    if l:job_id > 0 && !empty(l:opts.callback)
-        call plugin_manager#async#on_complete(l:job_id, l:opts.callback)
+    let l:callback = get(a:opts, 'callback', v:null)
+    let l:job_id = plugin_manager#async#start_job(a:cmd, {})
+
+    if l:job_id > 0 && !empty(l:callback)
+        call plugin_manager#async#on_complete(l:job_id, l:callback)
     endif
-    
+
     return l:job_id
 endfunction
 
@@ -303,24 +283,6 @@ function! s:process_job_completion(job_id) abort
     endif
     if s:active_count > 0
         let s:active_count -= 1
-    endif
-    
-    " Report job completion to UI if needed
-    if has_key(l:job.opts, 'ui_message') && !empty(l:job.opts.ui_message) && exists('*plugin_manager#ui#update_sidebar')
-        let l:success = l:job.status == 0
-        let l:status_msg = l:success ? 'Completed' : 'Failed with status ' . l:job.status
-        call plugin_manager#ui#update_sidebar([l:status_msg . ': ' . l:job.opts.ui_message], 1)
-    
-        " Show output if requested
-        if get(l:job.opts, 'ui_show_output', 0) && !empty(l:job.output)
-            call plugin_manager#ui#update_sidebar(split(l:job.output, "\n"), 1)
-        endif
-    
-        " Show errors if there are any
-        if !empty(l:job.errors)
-            call plugin_manager#ui#update_sidebar(['Errors:'], 1)
-            call plugin_manager#ui#update_sidebar(split(l:job.errors, "\n"), 1)
-        endif
     endif
     
     " Call the callback if provided

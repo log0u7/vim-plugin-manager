@@ -119,61 +119,34 @@ function! plugin_manager#core#is_pm_error(error) abort
   return a:error =~# '^PM_ERROR:' || a:error =~# '^DEBUG:' || a:error =~# '^TRACE:'
 endfunction
 
-" Parse plugin manager error into structured format
+" Parse a PM_ERROR:component:code:message string into a structured dict.
+" Uses a single regex so messages containing ':' (e.g. URLs) are captured whole.
 function! plugin_manager#core#parse_error(error) abort
-if !plugin_manager#core#is_pm_error(a:error)
-  return {'type': 'external', 'component': 'vim', 'code': 'EXTERNAL', 'message': a:error}
-endif
+  if !plugin_manager#core#is_pm_error(a:error)
+    return {'type': 'external', 'component': 'vim', 'code': 'EXTERNAL', 'message': a:error}
+  endif
 
-let l:parts = split(a:error, ':')
+  let l:m = matchlist(a:error, '^PM_ERROR:\([^:]*\):\([^:]*\):\(.*\)$')
+  if empty(l:m)
+    " Malformed PM_ERROR string - treat as external
+    return {'type': 'external', 'component': 'vim', 'code': 'EXTERNAL', 'message': a:error}
+  endif
 
-" Handle both new format (with error code) and old format
-if len(l:parts) >= 4  " New format: PM_ERROR:component:code:message
   return {
         \ 'type': 'internal',
-        \ 'component': l:parts[1],
-        \ 'code': l:parts[2],
-        \ 'message': join(l:parts[3:], ':')
+        \ 'component': l:m[1],
+        \ 'code':      l:m[2],
+        \ 'message':   l:m[3],
         \ }
-else  " Old format: PM_ERROR:component:message
-  return {
-        \ 'type': 'internal',
-        \ 'component': l:parts[1],
-        \ 'code': 'LEGACY',
-        \ 'message': join(l:parts[2:], ':')
-        \ }
-endif
 endfunction
 
-" Format plugin manager error for user display with improved organization
-function! plugin_manager#core#format_error(error) abort
-let l:parsed = plugin_manager#core#parse_error(a:error)
-
-if l:parsed.type ==# 'external'
-  return l:parsed.message
-endif
-
-" Return a user-friendly message
-if l:parsed.code ==# 'LEGACY'
-  return l:parsed.message
-else
-  return l:parsed.code . ': ' . l:parsed.message
-endif
-endfunction
 
 " Handle errors consistently throughout the plugin with better diagnostics
 function! plugin_manager#core#handle_error(error, component) abort
-" Make sure error is logged (if it wasn't already by plugin_manager#core#throw)
+" Internal PM_ERRORs are already logged by core#throw when created.
+" Only log external (non-PM_ERROR) exceptions here to avoid double-logging.
 if get(g:, 'plugin_manager_enable_logging', 1)
-  if plugin_manager#core#is_pm_error(a:error)
-    " Only log if this error wasn't created with plugin_manager#core#throw
-    " which already would have logged it
-    let l:parts = split(a:error, ':')
-    if len(l:parts) < 4 || l:parts[2] == 'LEGACY'
-      call s:log_error_internally(a:error, a:component)
-    endif
-  else
-    " Always log external errors
+  if !plugin_manager#core#is_pm_error(a:error)
     call s:log_error_internally(a:error, a:component)
   endif
 endif
@@ -521,6 +494,16 @@ endif
 return 1
 endfunction
 
+" Guard that combines ensure_vim_directory() with a structured throw.
+" Use this in cmd/*#execute functions that want to abort via PM_ERROR on
+" failure. Functions that prefer a silent 'return' should keep using
+" ensure_vim_directory() directly.
+function! plugin_manager#core#require_vim_directory(component) abort
+  if !plugin_manager#core#ensure_vim_directory()
+    call plugin_manager#core#throw(a:component, 'NOT_VIM_DIR', 'Not in Vim configuration directory')
+  endif
+endfunction
+
 " Check if a path is a local filesystem path
 function! plugin_manager#core#is_local_path(path) abort
 " Starts with '~' (home path)
@@ -604,36 +587,6 @@ let l:var_name = 'g:plugin_manager_' . a:name
 return exists(l:var_name) ? eval(l:var_name) : a:default
 endfunction
 
-" Get all plugin manager configuration as a dictionary
-function! plugin_manager#core#get_all_config() abort
-let l:config = {}
-
-" Core paths
-let l:config.vim_dir = plugin_manager#core#get_config('vim_dir', '')
-let l:config.plugins_dir = plugin_manager#core#get_config('plugins_dir', l:config.vim_dir . '/pack/plugins')
-let l:config.start_dir = plugin_manager#core#get_config('start_dir', 'start')
-let l:config.opt_dir = plugin_manager#core#get_config('opt_dir', 'opt')
-let l:config.vimrc_path = plugin_manager#core#get_config('vimrc_path', '')
-
-" UI settings
-let l:config.sidebar_width = plugin_manager#core#get_config('sidebar_width', 80)
-let l:config.fancy_ui = plugin_manager#core#get_config('fancy_ui', 1)
-
-" Git settings
-let l:config.default_git_host = plugin_manager#core#get_config('default_git_host', 'github.com')
-
-" Logging settings
-let l:config.enable_logging = plugin_manager#core#get_config('enable_logging', 1)
-let l:config.max_log_size = plugin_manager#core#get_config('max_log_size', 1024)
-let l:config.log_history_count = plugin_manager#core#get_config('log_history_count', 3)
-
-" Update check / auto-update settings
-let l:config.check_on_startup = plugin_manager#core#get_config('check_on_startup', 0)
-let l:config.check_interval = plugin_manager#core#get_config('check_interval', 24)
-let l:config.auto_update = plugin_manager#core#get_config('auto_update', 0)
-
-return l:config
-endfunction
 
 " Translate the configured pull strategy into a git pull flag
 " Options: ff-only (default), merge, rebase
@@ -653,16 +606,16 @@ function! plugin_manager#core#should_auto_commit() abort
   return plugin_manager#core#get_config('auto_commit_on_update', 1)
 endfunction
 
-" Get plugin directory for specific type (start or opt)
+" Get plugin directory for a specific load type ('start' or 'opt').
 function! plugin_manager#core#get_plugin_dir(type) abort
-let l:config = plugin_manager#core#get_all_config()
+  let l:plugins_dir = plugin_manager#core#get_config('plugins_dir', '')
+  let l:start_dir   = plugin_manager#core#get_config('start_dir', 'start')
+  let l:opt_dir     = plugin_manager#core#get_config('opt_dir', 'opt')
 
-if a:type ==# 'start' || a:type ==# 'opt'
-  return l:config.plugins_dir . '/' . l:config[a:type . '_dir']
-endif
-
-" Default to start
-return l:config.plugins_dir . '/' . l:config.start_dir
+  if a:type ==# 'opt'
+    return l:plugins_dir . '/' . l:opt_dir
+  endif
+  return l:plugins_dir . '/' . l:start_dir
 endfunction
 
 " ------------------------------------------------------------------------------

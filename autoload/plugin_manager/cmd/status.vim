@@ -5,9 +5,7 @@
 " Show detailed status of all plugins
 function! plugin_manager#cmd#status#execute() abort
   try
-    if !plugin_manager#core#ensure_vim_directory()
-      call plugin_manager#core#throw('status', 'NOT_VIM_DIR', 'Not in Vim configuration directory')
-    endif
+    call plugin_manager#core#require_vim_directory('status')
     
     let l:modules = plugin_manager#git#parse_modules()
     
