@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/helptags.vim - Simplified helptags command
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.5.0
+" Version: 1.6.0
 
 " Generate helptags for all or a specific plugin
 " Args: [create_header=1], [specific_module=''], [silent=0]
@@ -18,12 +18,7 @@ function! plugin_manager#cmd#helptags#execute(...) abort
     
     " Initialize output only when not silent
     if !l:silent && l:create_header
-      let l:header = [
-            \ 'Generating helptags:',
-            \ plugin_manager#ui#get_symbol('separator'),
-            \ ''
-            \ ]
-      call plugin_manager#ui#open_sidebar(l:header)
+      call plugin_manager#ui#open_header('Generating helptags:')
     endif
     
     let l:plugins_dir = plugin_manager#core#get_config('plugins_dir', '')
@@ -105,9 +100,9 @@ function! s:generate_for_all_plugins(...) abort
   " Summary only when not silent
   if !l:silent
     if l:generated_count > 0
-      call plugin_manager#ui#update_sidebar(['', plugin_manager#ui#success('Generated helptags for ' . l:generated_count . ' plugins')], 1)
+      call plugin_manager#ui#footer([plugin_manager#ui#success('Generated helptags for ' . l:generated_count . ' plugins')])
     else
-      call plugin_manager#ui#update_sidebar(['', plugin_manager#ui#info('No documentation directories found')], 1)
+      call plugin_manager#ui#footer([plugin_manager#ui#info('No documentation directories found')])
     endif
   endif
 endfunction
@@ -127,10 +122,10 @@ function! s:generate_for_plugin(plugin_name, plugin_path, ...) abort
   let l:op_id = plugin_manager#ui#start_operation(a:plugin_name, 'Generating helptags')
   
   if s:generate_helptag(a:plugin_path)
-    call plugin_manager#ui#complete_operation(l:op_id, 1, 'Helptags generated')
+    call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Helptags generated')
     return 1
   else
-    call plugin_manager#ui#complete_operation(l:op_id, 1, 'No doc directory')
+    call plugin_manager#ui#complete_operation(l:op_id, 'skip', 'No doc directory')
     return 0
   endif
 endfunction

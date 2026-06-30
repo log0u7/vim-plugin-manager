@@ -6,6 +6,12 @@ Execute (convert_to_full_url passes through full URLs):
   let url = plugin_manager#core#convert_to_full_url('https://gitlab.com/user/repo.git')
   AssertEqual 'https://gitlab.com/user/repo.git', url
 
+Execute (convert_to_full_url passes through SSH URLs unchanged):
+  let url = plugin_manager#core#convert_to_full_url('git@github.com:user/repo.git')
+  AssertEqual 'git@github.com:user/repo.git', url
+  let url2 = plugin_manager#core#convert_to_full_url('git@gitlab.com:group/project.git')
+  AssertEqual 'git@gitlab.com:group/project.git', url2
+
 Execute (convert_to_full_url rejects garbage):
   let url = plugin_manager#core#convert_to_full_url('not a url at all !!')
   AssertEqual '', url
@@ -13,6 +19,11 @@ Execute (convert_to_full_url rejects garbage):
 Execute (extract_plugin_name from shorthand and URL):
   AssertEqual 'vim-fugitive', plugin_manager#core#extract_plugin_name('tpope/vim-fugitive')
   AssertEqual 'vim-fugitive', plugin_manager#core#extract_plugin_name('https://github.com/tpope/vim-fugitive.git')
+
+Execute (extract_plugin_name from SSH URL):
+  AssertEqual 'repo', plugin_manager#core#extract_plugin_name('git@github.com:user/repo.git')
+  AssertEqual 'project', plugin_manager#core#extract_plugin_name('git@gitlab.com:group/project.git')
+  AssertEqual 'repo', plugin_manager#core#extract_plugin_name('git@github.com:user/repo')
 
 Execute (process_plugin_options applies defaults):
   let opts = plugin_manager#core#process_plugin_options([])

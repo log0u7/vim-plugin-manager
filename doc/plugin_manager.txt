@@ -135,6 +135,23 @@ behavior with the following global variables:
                                auto-commit settings.
                                Default: 0
 
+*g:plugin_manager_debug_mode*    Enable verbose debug output to the log file.
+                               When set to 1, additional diagnostic information
+                               is written for async operations and internal
+                               state changes.
+                               Default: 0
+
+*g:plugin_manager_trace_commands* Log every shell command executed by the
+                                 plugin to the log file. Useful for
+                                 troubleshooting git errors.
+                                 Default: 0
+
+*g:plugin_manager_show_deprecation_warnings* Show deprecation warnings when
+                                            legacy positional argument formats
+                                            are used with commands like
+                                            :PluginManager add.
+                                            Default: 1
+
 ===============================================================================
 4. CONFIGURATION MANAGEMENT                    *plugin-manager-config-management*
 
@@ -526,7 +543,7 @@ Permission Issues:
 10. LICENSE                                             *plugin-manager-license*
 
 PluginManager is released under the MIT License.
-Copyright (c) 2018 - 2025 G.K.E. <gke@6admin.io>
+Copyright (c) 2018 - 2026 G.K.E. <gke@6admin.io>
 
 See LICENSE file or plugin header for full license text.
 
@@ -535,6 +552,6 @@ See LICENSE file or plugin header for full license text.
 
 Maintained by: G.K.E. <gke@6admin.io>
 Source: https://github.com/log0u7/vim-plugin-manager
-Version: 1.5.0
+Version: 1.6.0
 
 vim:tw=78:ts=8:ft=help:norl:

@@ -1,11 +1,17 @@
 " autoload/plugin_manager/ui.vim - Modern, non-blocking sidebar UI for Vim
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.5.0
+" Version: 1.6.0
 
 " Terminal capability detection (Vim 8.2+, UTF-8 aware)
 let s:unicode_support = &encoding ==# 'utf-8'
 let s:fancy_ui = get(g:, 'plugin_manager_fancy_ui', 1) && s:unicode_support
 let s:has_timers = exists('*timer_start') && exists('*timer_stop')
+
+" Status-to-glyph mapping (single source of truth used by complete_operation
+" and status.vim). Keys: 'ok', 'fail', 'warn', 'info', 'skip', 'pending'.
+" Built lazily after s:symbols so the references resolve correctly.
+" (Populated at the bottom of this section, after s:symbols is defined.)
+let s:status_glyphs = {}
 
 " UI Constants
 let s:symbols = {
@@ -32,6 +38,16 @@ let s:spinner_styles = {
       \ 'circle': s:fancy_ui ? ['◐', '◓', '◑', '◒'] : ['|', '/', '-', '\'],
       \ 'triangle': s:fancy_ui ? ['◢', '◣', '◤', '◥'] : ['^', '>', 'v', '<'],
       \ 'box': s:fancy_ui ? ['▌', '▀', '▐', '▄'] : ['+', '+', '+', '+'],
+      \ }
+
+" Populate status-to-glyph map now that s:symbols is defined
+let s:status_glyphs = {
+      \ 'ok':      s:symbols.tick,
+      \ 'fail':    s:symbols.cross,
+      \ 'warn':    s:symbols.warning,
+      \ 'info':    s:symbols.info,
+      \ 'skip':    s:symbols.info,
+      \ 'pending': s:symbols.pending,
       \ }
 
 let s:active_spinner_style = get(g:, 'plugin_manager_spinner_style', 'dots')
@@ -133,7 +149,7 @@ function! plugin_manager#ui#open_sidebar(lines) abort
 
   " Create the sidebar window. This is an explicit user-facing open, so it is
   " acceptable to create/focus the window here.
-  let l:width = get(g:, 'plugin_manager_sidebar_width', 60)
+  let l:width = get(g:, 'plugin_manager_sidebar_width', 80)
   execute 'silent! rightbelow ' . l:width . 'vnew ' . s:buffer_name
   setlocal filetype=pluginmanager
   setlocal buftype=nofile bufhidden=hide noswapfile nobuflisted
@@ -213,9 +229,25 @@ function! plugin_manager#ui#update_operation(op_id, status_text) abort
   call s:redraw_if_visible()
 endfunction
 
-" Complete an operation with a specific symbol
-function! plugin_manager#ui#complete_operation(op_id, success, final_message) abort
-  let l:symbol = a:success ? s:symbols.tick : s:symbols.cross
+" Resolve a status value to a glyph.
+" Accepts a keyword ('ok','fail','warn','info','skip','pending') or a legacy
+" boolean/number (non-zero -> 'ok', zero -> 'fail').
+function! plugin_manager#ui#get_status_glyph(status) abort
+  if type(a:status) == v:t_number
+    return a:status ? s:symbols.tick : s:symbols.cross
+  endif
+  if has_key(s:status_glyphs, a:status)
+    return s:status_glyphs[a:status]
+  endif
+  call plugin_manager#core#log_debug('ui', 'Unknown status key: ' . a:status)
+  return s:symbols.info
+endfunction
+
+" Complete an operation. status can be:
+"   - a boolean/number (legacy): non-zero -> ok (tick), zero -> fail (cross)
+"   - a keyword string: 'ok','fail','warn','info','skip','pending'
+function! plugin_manager#ui#complete_operation(op_id, status, final_message) abort
+  let l:symbol = plugin_manager#ui#get_status_glyph(a:status)
   call plugin_manager#ui#complete_operation_symbol(a:op_id, l:symbol, a:final_message)
 endfunction
 
@@ -268,6 +300,25 @@ function! plugin_manager#ui#info(msg) abort
   return s:symbols.info . ' ' . a:msg
 endfunction
 
+" Return the standard 3-line header block: [title, separator, '']
+function! plugin_manager#ui#header(title) abort
+  return [a:title, s:symbols.separator, '']
+endfunction
+
+" Open (or refresh) the sidebar with a standard header for a given title
+function! plugin_manager#ui#open_header(title) abort
+  call plugin_manager#ui#open_sidebar(plugin_manager#ui#header(a:title))
+endfunction
+
+" Append a footer block to the sidebar: a blank line followed by the given
+" summary lines (list of strings). Typically called at the end of a command.
+function! plugin_manager#ui#footer(lines) abort
+  if empty(a:lines)
+    return
+  endif
+  call plugin_manager#ui#update_sidebar([''] + a:lines, 1)
+endfunction
+
 " Show update notification with the list of plugins that have updates available
 " @param plugins: list of dicts {name, behind}
 function! plugin_manager#ui#show_update_notification(plugins) abort
@@ -291,17 +342,6 @@ function! plugin_manager#ui#show_update_notification(plugins) abort
 
   call add(l:lines, '')
   call add(l:lines, plugin_manager#ui#info('Run :PluginManager update to install'))
-  call plugin_manager#ui#open_sidebar(l:lines)
-endfunction
-
-" Display error in sidebar
-function! plugin_manager#ui#display_error(component, message) abort
-  let l:lines = [
-        \ 'Error in ' . a:component . ':',
-        \ s:symbols.separator,
-        \ '',
-        \ s:symbols.cross . ' ' . a:message
-        \ ]
   call plugin_manager#ui#open_sidebar(l:lines)
 endfunction
 
@@ -337,7 +377,7 @@ function! plugin_manager#ui#toggle_sidebar() abort
     let l:buf_id = s:bufnr()
     if l:buf_id != -1 && bufloaded(l:buf_id)
       execute 'vertical rightbelow sbuffer ' . l:buf_id
-      execute 'vertical resize ' . get(g:, 'plugin_manager_sidebar_width', 60)
+      execute 'vertical resize ' . get(g:, 'plugin_manager_sidebar_width', 80)
     else
       call plugin_manager#ui#usage()
     endif
@@ -376,11 +416,6 @@ function! s:maybe_stop_spinner() abort
     call timer_stop(s:spinner_timer)
     let s:spinner_timer = 0
   endif
-endfunction
-
-" Backwards-compatible initializer (now a no-op trigger for the spinner)
-function! plugin_manager#ui#init() abort
-  call s:ensure_spinner()
 endfunction
 
 " Purge stale/orphaned operations whose timeout has elapsed.

@@ -1,6 +1,6 @@
 " ftdetect/pluginmanager.vim - Filetype detection for PluginManager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.5.0
+" Version: 1.6.0
 
 augroup pluginmanager_ftdetect
   autocmd!

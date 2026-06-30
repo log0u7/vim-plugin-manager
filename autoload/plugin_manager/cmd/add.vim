@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/add.vim - Simplified add command
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.5.0
+" Version: 1.6.0
 
 " Main function to add a plugin
 function! plugin_manager#cmd#add#execute(...) abort
@@ -68,30 +68,25 @@ function! s:install_remote_plugin(url, options) abort
   let l:plugin_type = get(a:options, 'load', 'start')
   let l:plugin_dir = plugin_manager#core#get_plugin_dir(l:plugin_type) . '/' . l:plugin_dir_name
   
-  let l:header = [
-        \ 'Installing plugin:',
-        \ plugin_manager#ui#get_symbol('separator'),
-        \ ''
-        \ ]
-  call plugin_manager#ui#open_sidebar(l:header)
-  
-  " Start operation
+  call plugin_manager#ui#open_header('Installing plugin:')
+
   let l:op_id = plugin_manager#ui#start_operation(l:plugin_dir_name, 'Installing')
-  
+
   try
     if plugin_manager#git#add_submodule(a:url, l:plugin_dir, a:options)
       let l:doc_path = l:plugin_dir . '/doc'
       if isdirectory(l:doc_path)
         silent execute 'helptags ' . fnameescape(l:doc_path)
       endif
-      call plugin_manager#ui#complete_operation_symbol(l:op_id, plugin_manager#ui#get_symbol('tick'), 'Installed')
+      call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Installed')
+      call plugin_manager#ui#footer([plugin_manager#ui#success('Plugin installed')])
       return 1
     else
-      call plugin_manager#ui#complete_operation_symbol(l:op_id, plugin_manager#ui#get_symbol('cross'), 'Failed')
+      call plugin_manager#ui#complete_operation(l:op_id, 'fail', 'Failed')
       return 0
     endif
   catch
-    call plugin_manager#ui#complete_operation_symbol(l:op_id, plugin_manager#ui#get_symbol('cross'), 'Failed')
+    call plugin_manager#ui#complete_operation(l:op_id, 'fail', 'Failed')
     call plugin_manager#ui#log_detail('add', v:exception)
     call plugin_manager#core#handle_error(v:exception, "add")
     return 0
@@ -110,52 +105,47 @@ function! s:install_local_plugin(path, options) abort
   let l:plugin_type = get(a:options, 'load', 'start')
   let l:plugin_dir = plugin_manager#core#get_plugin_dir(l:plugin_type) . '/' . l:plugin_dir_name
   
-  let l:header = [
-        \ 'Installing local plugin:',
-        \ plugin_manager#ui#get_symbol('separator'),
-        \ ''
-        \ ]
-  call plugin_manager#ui#open_sidebar(l:header)
-  
-  " Start operation
+  call plugin_manager#ui#open_header('Installing local plugin:')
+
   let l:op_id = plugin_manager#ui#start_operation(l:plugin_dir_name, 'Installing')
-  
+
   try
     if !isdirectory(a:path)
-      call plugin_manager#ui#complete_operation_symbol(l:op_id, plugin_manager#ui#get_symbol('warning'), 'Source not found')
+      call plugin_manager#ui#complete_operation(l:op_id, 'warn', 'Source not found')
       call plugin_manager#core#throw('add', 'LOCAL_PATH_NOT_FOUND', 'Local directory not found: ' . a:path)
     endif
-    
+
     if isdirectory(l:plugin_dir)
-      call plugin_manager#ui#complete_operation_symbol(l:op_id, plugin_manager#ui#get_symbol('warning'), 'Already exists')
+      call plugin_manager#ui#complete_operation(l:op_id, 'skip', 'Already exists')
       call plugin_manager#core#throw('add', 'TARGET_EXISTS', 'Destination already exists: ' . l:plugin_dir)
     endif
-    
+
     let l:parent_dir = fnamemodify(l:plugin_dir, ':h')
     if !isdirectory(l:parent_dir)
       call mkdir(l:parent_dir, 'p')
     endif
-    
+
     call mkdir(l:plugin_dir, 'p')
     call s:copy_local_files(a:path, l:plugin_dir)
-    
+
     if !empty(get(a:options, 'exec', ''))
       let l:result = plugin_manager#git#execute(a:options.exec, l:plugin_dir, 0, 0)
       if !l:result.success
-        call plugin_manager#ui#complete_operation_symbol(l:op_id, plugin_manager#ui#get_symbol('cross'), 'Exec failed')
+        call plugin_manager#ui#complete_operation(l:op_id, 'fail', 'Exec failed')
         return 0
       endif
     endif
-    
+
     let l:doc_path = l:plugin_dir . '/doc'
     if isdirectory(l:doc_path)
       silent execute 'helptags ' . fnameescape(l:doc_path)
     endif
-    
-    call plugin_manager#ui#complete_operation_symbol(l:op_id, plugin_manager#ui#get_symbol('tick'), 'Installed')
+
+    call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Installed')
+    call plugin_manager#ui#footer([plugin_manager#ui#success('Plugin installed')])
     return 1
   catch
-    call plugin_manager#ui#complete_operation_symbol(l:op_id, plugin_manager#ui#get_symbol('cross'), 'Failed')
+    call plugin_manager#ui#complete_operation(l:op_id, 'fail', 'Failed')
     call plugin_manager#ui#log_detail('add', v:exception)
     call plugin_manager#core#handle_error(v:exception, "add")
     return 0
@@ -194,35 +184,39 @@ endfunction
 
 function! s:copy_files_windows(src_path, dest_path) abort
   if executable('robocopy')
-    let l:result = plugin_manager#git#execute('robocopy ' . shellescape(a:src_path) . ' ' . 
+    " robocopy exit codes 0-7 are success (8+ are errors)
+    let l:result = plugin_manager#git#execute('robocopy ' . shellescape(a:src_path) . ' ' .
           \ shellescape(a:dest_path) . ' /E /XD .git', '', 0, 0)
     return v:shell_error < 8
   endif
-  
+
   if executable('xcopy')
-    let l:result = plugin_manager#git#execute('xcopy ' . shellescape(a:src_path) . '\* ' . 
-          \ shellescape(a:dest_path) . ' /E /I /Y /EXCLUDE:.git', '', 0, 0)
+    " xcopy /EXCLUDE requires a file listing patterns, one per line
+    let l:excl_file = tempname()
+    call writefile(['.git'], l:excl_file)
+    let l:result = plugin_manager#git#execute('xcopy ' . shellescape(a:src_path) . '\* ' .
+          \ shellescape(a:dest_path) . ' /E /I /Y /EXCLUDE:' . l:excl_file, '', 0, 0)
+    call delete(l:excl_file)
     return l:result.success
   endif
-  
+
   return 0
 endfunction
 
 function! s:copy_files_unix(src_path, dest_path) abort
-  let l:copy_cmd = 'cd ' . shellescape(a:src_path) . ' && find . -type d -name ".git" -prune -o -type f -print | ' .
-        \ 'xargs -I{} cp --parents {} ' . shellescape(a:dest_path)
-  let l:result = plugin_manager#git#execute(l:copy_cmd, '', 0, 0)
-  let l:copy_success = l:result.success
-  
-  if !l:copy_success
-    let l:result = plugin_manager#git#execute('cp -R ' . shellescape(a:src_path) . '/* ' . 
-          \ shellescape(a:dest_path), '', 0, 0)
-    let l:copy_success = l:result.success
-    
-    if l:copy_success && isdirectory(a:dest_path . '/.git')
-      call plugin_manager#git#execute('rm -rf ' . shellescape(a:dest_path . '/.git'), '', 0, 0)
-    endif
+  " cp -R is portable across BSD and GNU; exclude .git with Vim's delete()
+  let l:result = plugin_manager#git#execute(
+        \ 'cp -R ' . shellescape(a:src_path) . '/. ' . shellescape(a:dest_path),
+        \ '', 0, 0)
+  if !l:result.success
+    return 0
   endif
-  
-  return l:copy_success
+
+  " Remove the copied .git directory if present (avoids nested repo)
+  let l:git_dir = a:dest_path . '/.git'
+  if isdirectory(l:git_dir)
+    call delete(l:git_dir, 'rf')
+  endif
+
+  return 1
 endfunction

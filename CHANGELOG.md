@@ -2,7 +2,111 @@
 
 All notable changes to the Vim Plugin Manager will be documented in this file.
 
-## [Unreleased]
+## [1.6.0] - 2026-06-30
+
+### Bug Fixes
+- Fixed `core.vim` SSH URL regex: `\\+` in single-quote string was a literal
+  backslash+plus, making all `git@host:user/repo` URLs unrecognized and
+  rejected. Corrected to `.\+` so SSH remotes work as expected.
+- Fixed `async.vim` job argv: `['sh', '-c', cmd]` was hardcoded, breaking all
+  async operations silently on Windows. The new `plugin_manager#async#shell_argv()`
+  helper returns `['cmd.exe', '/c', cmd]` on win32/win64 and `['sh', '-c', cmd]`
+  on all other platforms.
+
+### Changed
+- Unified sidebar UI across all commands: every command now uses the shared
+  `plugin_manager#ui#header()` / `open_header()` helpers instead of
+  duplicating the `[title, separator, '']` pattern inline.
+- Added `plugin_manager#ui#footer()` helper for consistent summary lines at
+  the end of each command (`update`, `status`, `check`, `add`, `remove`,
+  `backup`, `restore`, `reload`, `helptags`, `remote`).
+- `plugin_manager#ui#complete_operation()` is now backwards-compatible: it
+  accepts either a legacy boolean (0/1) or a semantic keyword (`'ok'`,
+  `'fail'`, `'warn'`, `'info'`, `'skip'`, `'pending'`), all mapped to their
+  glyph via the new `s:status_glyphs` table (single source of truth).
+- Completion semantics are now consistent across commands: "Up-to-date" and
+  "On custom branch" use `info`/`skip` glyphs (previously rendered with a
+  success tick), "Missing" and "N commits behind" use the warning glyph in
+  `check`, and `update`/`check`/`status` agree on the same visual language.
+- `status.vim` `s:status_symbol()` now delegates to the centralized
+  `plugin_manager#ui#get_status_glyph()` instead of maintaining a separate
+  local glyph map.
+- `remote.vim` rewritten to the project standard: 2-space indentation,
+  `open_header()`, `start_operation()` / `complete_operation()`, footer.
+- `syntax/pluginmanager.vim` resynchronized with the actual output of the UI:
+  removed dead rules (`[DONE]`/`[FAILED]`/`[RUNNING]`, progress bars,
+  `BEHIND`/`AHEAD`/`DIVERGED`); added rules matching real glyphs
+  (✓ ✗ ⚠ ℹ ○ →), status labels ("Up-to-date", "Missing",
+  "On custom branch", ...), and footer lines.
+- `core.vim` `remove_path()` now uses Vim's native `delete()` instead of
+  shelling out to `rm -rf`/`rmdir`, removing the OS-shell dependency.
+- `git.vim` `execute()` now uses `shellescape()` for the `cd` directory
+  prefix, consistent with the async path (`async.vim`).
+- `git.vim` `repository_exists()` no longer appends `> /dev/null 2>&1`;
+  `system()` already captures output, so only the exit code matters.
+- `add.vim` copy helpers: replaced GNU-only `cp --parents` / broken
+  `xcopy /EXCLUDE:.git` with `cp -R` (BSD/GNU portable) + `delete(.git, 'rf')`,
+  and a properly-written xcopy exclusion file for Windows.
+- `async.vim` `cd` prefix is now `cd /d ...` on Windows and `cd ...` on POSIX.
+- `sidebar_width` fallback defaults aligned to 80 throughout (`ui.vim`,
+  `core.vim`) matching the entry-point declaration.
+- Copyright year updated to 2026 in `doc/plugin_manager.txt`.
+- `ftplugin/pluginmanager.vim` indentation normalized to 2 spaces.
+
+### Removed
+- `plugin_manager#ui#display_error()`: was never called anywhere in the
+  codebase; errors go through `core#handle_error()`.
+- `plugin_manager#ui#init()`: was a no-op kept for backwards compatibility;
+  callers that relied on it can remove the call safely.
+- `plugin_manager#git#execute_async()`: had no callers; async dispatch goes
+  directly through `plugin_manager#async#start_job()`.
+- `plugin_manager#git#update_all_submodules()`: had no callers; the update
+  command uses per-module `update_submodule()` with concurrency control.
+- `plugin_manager#git#restore_all_submodules()`: had no callers; `cmd/restore.vim`
+  implements the restore flow directly.
+- `plugin_manager#git#backup_config()`: had no callers; `cmd/backup.vim`
+  implements the backup flow directly.
+- `plugin_manager#cmd#check#show_cached()`: had no callers in the dispatch
+  or API layer.
+- `s:format_status_line()` in `cmd/status.vim`: had no callers.
+- `plugin_manager#core#parse_options()`: was unwired (no callers); option
+  parsing goes through `process_plugin_options()`.
+
+### Bug Fixes (continued)
+- Fixed `check.vim` `s:check_sync`: `l:op_id` was conditionally assigned
+  (`!silent`) but unconditionally referenced one line later, causing `E121`
+  in silent+sync mode.
+- Fixed `status.vim` async path: a missing plugin directory was resolved
+  without decrementing `ctx.pending`, so `s:maybe_finalize_status` was never
+  called and the footer was never appended.
+
+### Documentation
+- Documented three previously-undocumented live config options:
+  `g:plugin_manager_debug_mode`, `g:plugin_manager_trace_commands`, and
+  `g:plugin_manager_show_deprecation_warnings` (in `doc/plugin_manager.txt`
+  and `README.md`).
+- Updated `AGENTS.md` example header from `1.4.0` to `1.5.0`.
+- Fixed Makefile help text to mention `README.md` alongside `*.vim`/`*.txt`.
+
+### Tests
+- Added `tests/async.vader`: covers `shell_argv()`, `start_job()` sync
+  fallback, and concurrency queue serialization (guarded for headless mode).
+- Added `tests/update.vader`: covers update-all and update-specific against
+  a local bare repo fixture (no network); sync path forced deterministically
+  via `async#supported()` stub; assertions validate real submodule HEAD commit,
+  not just sidebar text; stash pop correctness tested (local changes survive).
+- Added `tests/dispatch.vader`: covers `cmd#dispatch()` routing, unknown
+  command handling, empty-plugin-set commands, and legacy arg translation
+  (stubs `api#add` to assert dict shape, not just absence of MISSING_ARGS).
+- Added `tests/remove.vader`: covers ambiguous fuzzy match refusal (both
+  plugins preserved), exact-name removal, and unknown-plugin no-crash.
+- Added `tests/backup.vader`: covers no-change push, change-commit-push,
+  and no-remote graceful handling via local bare repo fixture.
+- Added `tests/restore.vader`: covers submodule re-initialization from
+  `.gitmodules` (missing working-tree) and missing-`.gitmodules` fallback.
+- Extended `tests/core.vader`: added SSH URL passthrough and
+  `extract_plugin_name` cases for `git@` remotes.
+- Extended `tests/basic.vader`: added `shell_argv` shape assertion.
 
 ## [1.5.0] - 2026-06-22
 ### Features

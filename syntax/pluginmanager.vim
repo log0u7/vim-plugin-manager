@@ -1,139 +1,120 @@
-" Enhanced syntax/pluginmanager.vim - Better syntax highlighting for PluginManager
+" syntax/pluginmanager.vim - Syntax highlighting for the PluginManager sidebar
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.5.0
+" Version: 1.6.0
 
-" Ensure it's loaded once
 if exists("b:current_syntax")
   finish
 endif
 
 syntax clear
 
-" Headers and Titles
+" ------------------------------------------------------------------------------
+" HEADERS
+" ------------------------------------------------------------------------------
+
+" Section titles: lines ending with a colon (e.g. "Plugin status:")
 syntax match PMHeader /^[A-Za-z0-9 ]\+:$/
-syntax match PMSubHeader /^-\+$\|^[⎯]\+$/
-syntax match PMTitle /^[A-Za-z0-9 ]\+[A-Za-z0-9 :]\+$/
 
-" Keywords
-syntax keyword PMKeyword Usage Examples Configuration Commands Options
+" Separator line produced by s:symbols.separator (━ repeated or - repeated)
+syntax match PMSeparator /^[━─\-]\+$/
 
-" Plugin management operations
-syntax keyword PMOperation add install update remove restore reload backup
-syntax keyword PMSecondaryOp list status summary helptags check check-updates
+" ------------------------------------------------------------------------------
+" PLUGIN STATUS LINES
+" The format is: <glyph> name......... status text
+" Glyphs: ✓ ✗ ⚠ ℹ ○ → (or ASCII fallbacks + - ! i o >)
+" ------------------------------------------------------------------------------
 
-" Special highlighting for important operations
-syntax match PMUpdateOp /\<update\>\|\<updating\>/
-syntax match PMInstallOp /\<install\>\|\<installing\>/
-syntax match PMRemoveOp /\<remove\>\|\<removing\>/
+" Success / ok glyph at start of line (✓ or +)
+syntax match PMSymbolOk    /^[✓+] / contains=NONE
+" Failure glyph (✗ or x)
+syntax match PMSymbolFail  /^[✗x] / contains=NONE
+" Warning glyph (⚠ or !)
+syntax match PMSymbolWarn  /^[⚠!] / contains=NONE
+" Info glyph (ℹ or i)
+syntax match PMSymbolInfo  /^[ℹi] / contains=NONE
+" Pending / spinner characters at start of line
+syntax match PMSpinner     /^[○o⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏⣾⣽⣻⢿⡿⣟⣯⣷◐◓◑◒◢◣◤◥▌▀▐▄|\/\\\-] / contains=NONE
+" Arrow glyph (→ or ->)
+syntax match PMSymbolArrow /^[→>][-> ] / contains=NONE
+" Bullet glyph (• or *)
+syntax match PMSymbolBullet /^\s*[•*] / contains=NONE
 
-" Commands
-syntax match PMCommand /^\s*\(PluginManager\|PluginManagerRemote\|PluginManagerToggle\)/
+" Status text keywords that appear after the dots
+syntax match PMStatusOk       /Up-to-date\|Installed\|Initialized\|Restored\|Synced\|Updated\|Committed\|Pushed\|Copied\|Reloaded\|Helptags generated\|Added/
+syntax match PMStatusSkip     /On custom branch\|Already exists\|No changes\|No doc directory\|Skipped/
+syntax match PMStatusWarn     /\<Missing\>\|commits behind\|No remotes\|Source not found\|timed out/
+syntax match PMStatusFail     /\<Failed\>\|Update failed\|Push failed\|Commit failed\|Exec failed\|Installation failed\|Invalid URL format/
+syntax match PMStatusProgress /Installing\|Removing\|Updating\|Checking\|Fetching updates\|Stashing changes\|Pulling changes\|Analyzing\|Generating helptags\|Backing up\|Committing\|Pushing\|Pending\|Reloading\|Processing\|Adding/
 
-" URLs and repositories
-syntax match PMUrl /https\?:\/\/\S\+/
-syntax match PMRepository /[a-zA-Z0-9_.-]\+\/[a-zA-Z0-9_.-]\+/
+" Dots separating name from status (the padding in format_plugin_line)
+syntax match PMDots /\.\{2,}/
 
-" Success messages and statuses
-syntax match PMSuccess /\<successfully\>\|\<completed\>/
-syntax match PMOkStatus /\<OK\>/
+" ------------------------------------------------------------------------------
+" FOOTER SUMMARY LINES (lines starting with ✓/+/ℹ/i/✗/x/⚠/!)
+" These are produced by ui#success(), ui#info(), ui#error(), ui#warning()
+" ------------------------------------------------------------------------------
 
-" Warning and error messages
-syntax match PMWarning /\<Warning\>\|\<BEHIND\>\|\<AHEAD\>/
-syntax match PMError /\<Error\>\|\<MISSING\>\|\<failed\>/
-syntax match PMChanged /\<LOCAL CHANGES\>\|\<\+ LOCAL CHANGES\>/
-syntax match PMDiverged /\<DIVERGED\>/
-syntax match PMBranch /\<DIFFERENT BRANCH\>\|\<CUSTOM BRANCH\>/
+syntax match PMFooterOk   /^[✓+] .\+$/
+syntax match PMFooterInfo /^[ℹi] .\+$/
+syntax match PMFooterWarn /^[⚠!] .\+$/
+syntax match PMFooterFail /^[✗x] .\+$/
 
-" Error codes in the enhanced error system
-syntax match PMErrorCode /[A-Z_]\+:/ contained
-syntax match PMErrorMessage /[A-Z_]\+: .*/ contains=PMErrorCode
+" ------------------------------------------------------------------------------
+" NOTIFICATIONS (show_update_notification output)
+" ------------------------------------------------------------------------------
 
-" Unicode symbols - using more specific patterns to avoid false matches
-syntax match PMSymbolSuccess /^.*\s\+✓/ contains=NONE
-syntax match PMSymbolError /^.*\s\+✗/ contains=NONE
-syntax match PMSymbolWarning /^.*\s\+⚠/ contains=NONE
-syntax match PMSymbolInfo /^.*\s\+ℹ/ contains=NONE
-syntax match PMSymbolArrow /^.*\s\+→/ contains=NONE
-syntax match PMSymbolBullet /^\s*•\s/ contains=NONE
+syntax match PMNotifTitle /^Update notification:$/
+syntax match PMNotifCount /\d\+ plugin\(s\)\? ha\(ve\|s\) updates available/
 
-" Progress indicators
-syntax match PMProgressBar /\[█\+░\+\]\|\[#\+-\+\]/ 
-syntax match PMPercentage /\d\+%/ contained
-syntax match PMProgressComplete /\[\(█\+\|#\+\)\] \d\+%/ contains=PMProgressBar,PMPercentage
+" ------------------------------------------------------------------------------
+" COMMANDS (usage block)
+" ------------------------------------------------------------------------------
 
-" Spinners - multiple patterns for different spinner styles
-syntax match PMSpinner /\s[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]\(\s\|$\)/ contains=NONE
-syntax match PMSpinner /\s[|\/\\-]\(\s\|$\)/ contains=NONE
-syntax match PMSpinner /\s[⣾⣽⣻⢿⡿⣟⣯⣷]\(\s\|$\)/ contains=NONE
-syntax match PMSpinner /\s[◐◓◑◒]\(\s\|$\)/ contains=NONE
-syntax match PMSpinner /\s[◴◷◶◵]\(\s\|$\)/ contains=NONE
+syntax match PMCommand /^\(PluginManager\|PluginManagerRemote\|PluginManagerToggle\|PluginBegin\|Plugin\|PluginEnd\)/
+syntax match PMUsageCmd /^[a-z][a-z-]\+\s\+/
 
-" Asynchronous task indicators
-syntax match PMAsyncTask /^\s*\[\w\+\]/ contains=NONE
-syntax match PMAsyncComplete /\[DONE\]/ contained
-syntax match PMAsyncFailed /\[FAILED\]/ contained
-syntax match PMAsyncRunning /\[RUNNING\]/ contained
-syntax match PMAsyncStatus /\[\(DONE\|FAILED\|RUNNING\)\]/ contains=PMAsyncComplete,PMAsyncFailed,PMAsyncRunning
+" ------------------------------------------------------------------------------
+" PATHS AND URLs
+" ------------------------------------------------------------------------------
 
-" Additional features for time information
-syntax match PMTimestamp /\[\d\d:\d\d:\d\d\]/ contains=NONE
-syntax match PMElapsedTime /(\d\+\.\d\+s)/ contains=NONE
+syntax match PMUrl  /https\?:\/\/\S\+/
+syntax match PMPath /\(pack\/plugins\/\(start\|opt\)\/\|~\/\|\.\.\?\/\)[[:alnum:]_\-\.\/]\+/
 
-" Path highlighting for different scenarios
-syntax match PMPluginPath /\(pack\/plugins\/\(start\|opt\)\/[[:alnum:]_\-\.\/]\+\)/ contains=NONE
-syntax match PMPath /\(\/\|\~\/\)\?[[:alnum:]_\-\.]\+\/[[:alnum:]_\-\.\/]\+/
+" ------------------------------------------------------------------------------
+" HIGHLIGHT LINKS
+" ------------------------------------------------------------------------------
 
-" Color configuration - enhanced with more specific highlighting
-highlight default link PMHeader Title
-highlight default link PMSubHeader Comment
-highlight default link PMTitle Statement
-highlight default link PMKeyword Statement
-highlight default link PMOperation Function
-highlight default link PMSecondaryOp Identifier
+highlight default link PMHeader        Title
+highlight default link PMSeparator     Comment
 
-" Special highlighting for important operations
-highlight default link PMUpdateOp MoreMsg
-highlight default link PMInstallOp Type
-highlight default link PMRemoveOp WarningMsg
+highlight default link PMSymbolOk      String
+highlight default link PMSymbolFail    Error
+highlight default link PMSymbolWarn    Todo
+highlight default link PMSymbolInfo    Identifier
+highlight default link PMSymbolArrow   Statement
+highlight default link PMSymbolBullet  Identifier
+highlight default link PMSpinner       Type
 
-highlight default link PMCommand Function
-highlight default link PMUrl Underlined
-highlight default link PMRepository Special
-highlight default link PMSuccess String
-highlight default link PMOkStatus String
-highlight default link PMWarning Todo
-highlight default link PMError Error
-highlight default link PMChanged WarningMsg
-highlight default link PMDiverged Special
-highlight default link PMBranch PreProc
-highlight default link PMPath Directory
+highlight default link PMStatusOk      String
+highlight default link PMStatusSkip    Comment
+highlight default link PMStatusWarn    Todo
+highlight default link PMStatusFail    Error
+highlight default link PMStatusProgress Type
 
-" Error system highlighting
-highlight default link PMErrorCode Error
-highlight default link PMErrorMessage ErrorMsg
+highlight default link PMDots          NonText
 
-" Progress indicators highlighting
-highlight default link PMProgressBar Special
-highlight default link PMPercentage Number
-highlight default link PMProgressComplete Special
-highlight default link PMSpinner Type
-highlight default link PMAsyncTask Identifier
-highlight default link PMAsyncComplete String
-highlight default link PMAsyncFailed Error
-highlight default link PMAsyncRunning Special
-highlight default link PMAsyncStatus Special
-highlight default link PMTimestamp Number
-highlight default link PMElapsedTime Comment
+highlight default link PMFooterOk      String
+highlight default link PMFooterInfo    Identifier
+highlight default link PMFooterWarn    Todo
+highlight default link PMFooterFail    Error
 
-" Unicode symbol highlighting
-highlight default link PMSymbolSuccess String
-highlight default link PMSymbolError Error
-highlight default link PMSymbolWarning Todo
-highlight default link PMSymbolInfo Identifier
-highlight default link PMSymbolArrow Statement
-highlight default link PMSymbolBullet Identifier
+highlight default link PMNotifTitle    Title
+highlight default link PMNotifCount    WarningMsg
 
-" Plugin path highlighting
-highlight default link PMPluginPath Directory
+highlight default link PMCommand       Function
+highlight default link PMUsageCmd      Identifier
+
+highlight default link PMUrl           Underlined
+highlight default link PMPath          Directory
 
 let b:current_syntax = "pluginmanager"

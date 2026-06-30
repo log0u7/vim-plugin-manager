@@ -1,36 +1,37 @@
 " ftplugin/pluginmanager.vim - Buffers config for PluginManager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.5.0
+" Version: 1.6.0
 
 " Ensure it's loaded once
 if exists("b:did_ftplugin")
-    finish
-  endif
-  let b:did_ftplugin = 1
-  
-  " Buffer config
-  setlocal buftype=nofile
-  setlocal bufhidden=hide
-  setlocal noswapfile
-  setlocal nowrap
-  setlocal nobuflisted
-  setlocal nonumber
-  setlocal nofoldenable
-  setlocal updatetime=3000
-  
-  " Buffer mapping for PluginManager
-  nnoremap <buffer> q :hide<CR>
-  nnoremap <buffer> l :call <SID>List()<CR>
-  nnoremap <buffer> u :call <SID>Update()<CR>
-  nnoremap <buffer> h :call <SID>GenerateHelptags()<CR>
-  nnoremap <buffer> c :call <SID>Check()<CR>
-  nnoremap <buffer> s :call <SID>Status()<CR>
-  nnoremap <buffer> S :call <SID>Summary()<CR>
-  nnoremap <buffer> b :call <SID>Backup()<CR>
-  nnoremap <buffer> r :call <SID>Restore()<CR>
-  nnoremap <buffer> R :call <SID>Reload()<CR>
-  nnoremap <buffer> ? :call <SID>Usage()<CR>
-  
+  finish
+endif
+let b:did_ftplugin = 1
+
+" Buffer config
+setlocal buftype=nofile
+setlocal bufhidden=hide
+setlocal noswapfile
+setlocal nowrap
+setlocal nobuflisted
+setlocal nonumber
+setlocal nofoldenable
+setlocal updatetime=3000
+
+" Buffer mapping for PluginManager
+nnoremap <buffer> q :hide<CR>
+nnoremap <buffer> l :call <SID>List()<CR>
+nnoremap <buffer> u :call <SID>Update()<CR>
+nnoremap <buffer> h :call <SID>GenerateHelptags()<CR>
+nnoremap <buffer> c :call <SID>Check()<CR>
+nnoremap <buffer> s :call <SID>Status()<CR>
+nnoremap <buffer> S :call <SID>Summary()<CR>
+nnoremap <buffer> b :call <SID>Backup()<CR>
+nnoremap <buffer> r :call <SID>Restore()<CR>
+nnoremap <buffer> R :call <SID>Reload()<CR>
+nnoremap <buffer> ? :call <SID>Usage()<CR>
+
+
 " Local call function for main plugin
 function! s:Check()
     call plugin_manager#cmd#dispatch("check")

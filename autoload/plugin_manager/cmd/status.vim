@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/status.vim - Simplified status command
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.5.0
+" Version: 1.6.0
 
 " Show detailed status of all plugins
 function! plugin_manager#cmd#status#execute() abort
@@ -12,18 +12,13 @@ function! plugin_manager#cmd#status#execute() abort
     let l:modules = plugin_manager#git#parse_modules()
     
     if empty(l:modules)
-      let l:lines = [
-            \ 'Plugin status:',
-            \ plugin_manager#ui#get_symbol('separator'),
-            \ '',
-            \ plugin_manager#ui#info('No plugins found')
-            \ ]
-      call plugin_manager#ui#open_sidebar(l:lines)
+      call plugin_manager#ui#open_sidebar(
+            \ plugin_manager#ui#header('Plugin status:') +
+            \ [plugin_manager#ui#info('No plugins found')])
       return
     endif
-    
-    let l:lines = ['Plugin status:', plugin_manager#ui#get_symbol('separator'), '']
-    call plugin_manager#ui#open_sidebar(l:lines)
+
+    call plugin_manager#ui#open_header('Plugin status:')
     
     let l:ctx = s:create_status_context(l:modules)
     
@@ -64,9 +59,10 @@ function! s:create_status_context(modules) abort
         \ 'modules': a:modules,
         \ 'module_names': l:module_names,
         \ 'valid_modules': l:valid_modules,
-        \ 'ops': {}
+        \ 'ops': {},
+        \ 'pending': len(l:valid_modules)
         \ }
-  
+
   return l:ctx
 endfunction
 
@@ -76,15 +72,18 @@ endfunction
 
 function! s:fetch_status_sync(ctx) abort
   call plugin_manager#git#execute('git submodule foreach --recursive "git fetch -q origin 2>/dev/null || true"', '', 0, 0)
-  
+
   for l:module in a:ctx.valid_modules
     let l:info = s:get_module_status_info(l:module, 1)
     call s:complete_status_op(a:ctx, l:module, l:info)
+    let a:ctx.pending -= 1
   endfor
+
+  call s:maybe_finalize_status(a:ctx)
 endfunction
 
 " ------------------------------------------------------------------------------
-" ASYNCHRONOUS STATUS — fan-out all fetches at once
+" ASYNCHRONOUS STATUS - fan-out all fetches at once
 " ------------------------------------------------------------------------------
 
 function! s:fetch_status_async(ctx) abort
@@ -94,6 +93,8 @@ function! s:fetch_status_async(ctx) abort
     if !isdirectory(l:module.path)
       let l:info = s:get_module_status_info(l:module, 1)
       call s:complete_status_op(a:ctx, l:module, l:info)
+      let a:ctx.pending -= 1
+      call s:maybe_finalize_status(a:ctx)
     else
       call plugin_manager#async#git(
             \ 'git -C ' . shellescape(l:module.path) . ' fetch -q origin 2>/dev/null || true', {
@@ -106,6 +107,15 @@ endfunction
 function! s:on_status_fetched(ctx, module, result) abort
   let l:info = s:get_module_status_info(a:module, 1)
   call s:complete_status_op(a:ctx, a:module, l:info)
+  let a:ctx.pending -= 1
+  call s:maybe_finalize_status(a:ctx)
+endfunction
+
+function! s:maybe_finalize_status(ctx) abort
+  if a:ctx.pending == 0
+    call plugin_manager#ui#footer([
+          \ plugin_manager#ui#info(len(a:ctx.valid_modules) . ' plugins checked')])
+  endif
 endfunction
 
 " ------------------------------------------------------------------------------
@@ -123,18 +133,22 @@ function! s:complete_status_op(ctx, module, info) abort
         \ a:ctx.ops[a:info.name], l:symbol, l:status_text)
 endfunction
 
-" Map a status string to its rich glyph
+" Map a status string to its rich glyph.
+" Uses the centralized status-keyword table where possible so glyphs remain
+" consistent with complete_operation() calls across commands.
 function! s:status_symbol(status) abort
-  let l:map = {
-        \ 'Up-to-date': plugin_manager#ui#get_symbol('tick'),
-        \ 'OK':          plugin_manager#ui#get_symbol('tick'),
-        \ 'Behind':      plugin_manager#ui#get_symbol('warning'),
-        \ 'Ahead':       plugin_manager#ui#get_symbol('info'),
-        \ 'Modified':    plugin_manager#ui#get_symbol('warning'),
-        \ 'Custom branch': plugin_manager#ui#get_symbol('info'),
-        \ 'Missing':     plugin_manager#ui#get_symbol('cross'),
+  " Map business-level status labels to UI keyword keys
+  let l:keyword_map = {
+        \ 'Up-to-date':    'ok',
+        \ 'OK':            'ok',
+        \ 'Behind':        'warn',
+        \ 'Modified':      'warn',
+        \ 'Missing':       'fail',
+        \ 'Ahead':         'info',
+        \ 'Custom branch': 'info',
         \ }
-  return get(l:map, a:status, plugin_manager#ui#get_symbol('info'))
+  let l:key = get(l:keyword_map, a:status, 'info')
+  return plugin_manager#ui#get_status_glyph(l:key)
 endfunction
 
 " ------------------------------------------------------------------------------
@@ -165,7 +179,7 @@ function! s:get_module_status_info(module, ...) abort
         \ ? plugin_manager#git#collect_status_local(l:path)
         \ : plugin_manager#git#check_updates(l:path)
   
-  if l:update_status.different_branch && l:update_status.branch != 'detached'
+  if l:update_status.different_branch && l:update_status.branch !=# 'detached'
     let l:info.status = 'Custom branch'
     let l:info.details = l:update_status.branch
   elseif l:update_status.behind > 0
@@ -190,17 +204,3 @@ function! s:get_module_status_info(module, ...) abort
   return l:info
 endfunction
 
-" ------------------------------------------------------------------------------
-" FORMATTING
-" ------------------------------------------------------------------------------
-
-function! s:format_status_line(info) abort
-  let l:symbol = s:status_symbol(a:info.status)
-  let l:status_text = a:info.status
-  
-  if !empty(a:info.details)
-    let l:status_text .= ' (' . a:info.details . ')'
-  endif
-  
-  return plugin_manager#ui#format_plugin_line(l:symbol, a:info.name, l:status_text)
-endfunction

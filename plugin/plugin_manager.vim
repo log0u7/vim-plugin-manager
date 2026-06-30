@@ -1,6 +1,6 @@
 " plugin/plugin_manager.vim - Main entry point for Vim Plugin Manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.5.0
+" Version: 1.6.0
 
 " Prevent loading the plugin multiple times
 if exists('g:loaded_plugin_manager') || &cp

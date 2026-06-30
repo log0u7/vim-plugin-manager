@@ -465,6 +465,11 @@ let g:plugin_manager_job_timeout = 60
 let g:plugin_manager_check_on_startup = 0
 let g:plugin_manager_check_interval = 24
 let g:plugin_manager_auto_update = 0
+
+" Debugging and diagnostics (default off)
+let g:plugin_manager_debug_mode = 0
+let g:plugin_manager_trace_commands = 0
+let g:plugin_manager_show_deprecation_warnings = 1
 ```
 
 ## Tips & Tricks
@@ -538,4 +543,4 @@ Copyright (c) 2018 - 2026 G.K.E. <gke@6admin.io>
 
 - Maintained by: G.K.E. <gke@6admin.io>
 - Source: https://github.com/log0u7/vim-plugin-manager
-- Version: 1.5.0
+- Version: 1.6.0

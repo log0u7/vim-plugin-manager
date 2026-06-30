@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/check.vim - Update detection and notifications
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.5.0
+" Version: 1.6.0
 
 " ------------------------------------------------------------------------------
 " PUBLIC ENTRY POINTS
@@ -33,12 +33,9 @@ function! plugin_manager#cmd#check#execute(...) abort
 
     if empty(l:valid_modules)
       if !l:silent
-        call plugin_manager#ui#open_sidebar([
-              \ 'Checking for updates:',
-              \ plugin_manager#ui#get_symbol('separator'),
-              \ '',
-              \ plugin_manager#ui#info('No plugins installed')
-              \ ])
+        call plugin_manager#ui#open_sidebar(
+              \ plugin_manager#ui#header('Checking for updates:') +
+              \ [plugin_manager#ui#info('No plugins installed')])
       endif
       call s:finish([], l:opts)
       return []
@@ -56,11 +53,7 @@ function! plugin_manager#cmd#check#execute(...) abort
 
     " Block-instant: pre-render all plugin lines as pending operations
     if !l:silent
-      call plugin_manager#ui#open_sidebar([
-            \ 'Checking for updates:',
-            \ plugin_manager#ui#get_symbol('separator'),
-            \ ''
-            \ ])
+      call plugin_manager#ui#open_header('Checking for updates:')
       for l:module in l:valid_modules
         let l:ctx.ops[l:module.short_name] =
               \ plugin_manager#ui#start_operation(l:module.short_name, 'Checking')
@@ -79,13 +72,6 @@ function! plugin_manager#cmd#check#execute(...) abort
   endtry
 endfunction
 
-" Show the last cached check result without touching the network
-function! plugin_manager#cmd#check#show_cached() abort
-  let l:cache = plugin_manager#core#read_check_cache()
-  let l:plugins = get(l:cache, 'plugins', [])
-  call plugin_manager#ui#show_update_notification(l:plugins)
-  return l:plugins
-endfunction
 
 " Startup orchestration: runs on VimEnter and on the periodic timer.
 " Honors opt-in flags and the cache freshness to avoid needless network access.
@@ -150,9 +136,8 @@ function! s:check_sync(ctx) abort
         \ '', 0, 0)
 
   for l:module in a:ctx.valid_modules
-    if !a:ctx.silent
-      let l:op_id = a:ctx.ops[l:module.short_name]
-    endif
+    " Always define l:op_id; empty string is the safe sentinel for silent mode
+    let l:op_id = !a:ctx.silent ? a:ctx.ops[l:module.short_name] : ''
     let l:behind = s:check_and_complete(a:ctx, l:module, l:op_id)
     if l:behind > 0
       call add(a:ctx.behind, {'name': l:module.short_name, 'behind': l:behind})
@@ -215,29 +200,29 @@ function! s:check_and_complete(ctx, module, op_id) abort
 
   if !isdirectory(l:path)
     if !a:ctx.silent
-      call plugin_manager#ui#complete_operation(a:op_id, 1, 'Missing')
+      call plugin_manager#ui#complete_operation(a:op_id, 'warn', 'Missing')
     endif
     return 0
   endif
 
   let l:status = plugin_manager#git#collect_status_local(l:path)
 
-  if l:status.different_branch && l:status.branch != 'detached'
+  if l:status.different_branch && l:status.branch !=# 'detached'
     if !a:ctx.silent
-      call plugin_manager#ui#complete_operation(a:op_id, 1, 'On custom branch')
+      call plugin_manager#ui#complete_operation(a:op_id, 'skip', 'On custom branch')
     endif
     return 0
   endif
 
   if l:status.behind > 0
     if !a:ctx.silent
-      call plugin_manager#ui#complete_operation(a:op_id, 1, l:status.behind . ' commits behind')
+      call plugin_manager#ui#complete_operation(a:op_id, 'warn', l:status.behind . ' commits behind')
     endif
     return l:status.behind
   endif
 
   if !a:ctx.silent
-    call plugin_manager#ui#complete_operation(a:op_id, 1, 'Up-to-date')
+    call plugin_manager#ui#complete_operation(a:op_id, 'info', 'Up-to-date')
   endif
   return 0
 endfunction
