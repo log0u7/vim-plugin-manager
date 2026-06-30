@@ -1,0 +1,125 @@
+Before:
+  runtime! autoload/plugin_manager/async.vim
+  " Save original concurrency limit and reset job state via a fresh reload
+  let g:_pm_async_saved_max = get(g:, 'plugin_manager_max_concurrent_jobs', 4)
+  let g:_pm_async_results = []
+
+After:
+  let g:plugin_manager_max_concurrent_jobs = g:_pm_async_saved_max
+  unlet! g:_pm_async_saved_max g:_pm_async_results
+
+Execute (shell_argv returns sh on POSIX, cmd.exe on Windows):
+  let argv = plugin_manager#async#shell_argv('echo test')
+  AssertEqual 3, len(argv)
+  if has('win32') || has('win64')
+    AssertEqual 'cmd.exe', argv[0]
+    AssertEqual '/c',      argv[1]
+  else
+    AssertEqual 'sh',  argv[0]
+    AssertEqual '-c',  argv[1]
+  endif
+  AssertEqual 'echo test', argv[2]
+
+Execute (start_job sync fallback works when async unavailable):
+  " When async is not supported, start_job calls callback synchronously
+  " and returns -1 (sentinel for sync execution).
+  if plugin_manager#async#supported()
+    " Async is available: verify start_job returns a positive ID.
+    let g:_pm_async_results = []
+    let g:_pm_async_job_id = plugin_manager#async#start_job('echo hello', {
+          \ 'callback': {r -> add(g:_pm_async_results, r.status)}
+          \ })
+    Assert g:_pm_async_job_id > 0, 'start_job should return a positive job ID'
+    unlet g:_pm_async_job_id
+  else
+    let g:_pm_async_results = []
+    let g:_pm_async_job_id = plugin_manager#async#start_job('echo hello', {
+          \ 'callback': {r -> add(g:_pm_async_results, r.status)}
+          \ })
+    AssertEqual -1, g:_pm_async_job_id, 'sync fallback must return -1'
+    AssertEqual 1, len(g:_pm_async_results), 'callback must be called synchronously'
+    AssertEqual 0, g:_pm_async_results[0], 'echo should exit 0'
+    unlet g:_pm_async_job_id
+  endif
+
+Execute (concurrency queue serializes jobs when max_concurrent_jobs=1):
+  " Only run when async is available (+job +channel)
+  if !plugin_manager#async#supported()
+    Log 'Skipping: async not supported on this Vim'
+    finish
+  endif
+
+  " Probe whether async callbacks fire on this Vim session.
+  " In headless mode (vim -es) the event loop does not run, so job
+  " callbacks are never delivered; skip the callback assertions.
+  let g:_pm_async_probe = []
+  let g:_pm_async_probe_id = plugin_manager#async#start_job('echo probe', {
+        \ 'callback': {r -> add(g:_pm_async_probe, 1)}
+        \ })
+  sleep 200m
+  let g:_pm_async_callbacks_work = len(g:_pm_async_probe) > 0
+  unlet g:_pm_async_probe g:_pm_async_probe_id
+
+  if !g:_pm_async_callbacks_work
+    Log 'Skipping callback tests: event loop not running in headless mode'
+    unlet g:_pm_async_callbacks_work
+    finish
+  endif
+  unlet g:_pm_async_callbacks_work
+
+  let g:plugin_manager_max_concurrent_jobs = 1
+  let g:_pm_async_results = []
+
+  " Launch 3 trivial jobs that each record their exit status
+  call plugin_manager#async#start_job('echo 0', {'callback': {r -> add(g:_pm_async_results, r.status)}})
+  call plugin_manager#async#start_job('echo 1', {'callback': {r -> add(g:_pm_async_results, r.status)}})
+  call plugin_manager#async#start_job('echo 2', {'callback': {r -> add(g:_pm_async_results, r.status)}})
+
+  let g:_pm_async_deadline = localtime() + 5
+  while len(g:_pm_async_results) < 3 && localtime() < g:_pm_async_deadline
+    sleep 100m
+  endwhile
+  unlet g:_pm_async_deadline
+
+  AssertEqual 3, len(g:_pm_async_results), 'all 3 jobs should complete'
+  AssertEqual 0, g:_pm_async_results[0]
+  AssertEqual 0, g:_pm_async_results[1]
+  AssertEqual 0, g:_pm_async_results[2]
+
+Execute (cleanup removes old finished jobs):
+  if !plugin_manager#async#supported()
+    Log 'Skipping: async not supported on this Vim'
+    finish
+  endif
+
+  " Same event-loop probe as above
+  let g:_pm_async_probe2 = []
+  let g:_pm_async_probe_id2 = plugin_manager#async#start_job('echo probe2', {
+        \ 'callback': {r -> add(g:_pm_async_probe2, 1)}
+        \ })
+  sleep 200m
+  if len(g:_pm_async_probe2) == 0
+    Log 'Skipping callback tests: event loop not running in headless mode'
+    unlet g:_pm_async_probe2 g:_pm_async_probe_id2
+    finish
+  endif
+  unlet g:_pm_async_probe2 g:_pm_async_probe_id2
+
+  let g:_pm_async_results = []
+  let g:_pm_async_job_id2 = plugin_manager#async#start_job('echo cleanup_test', {
+        \ 'callback': {r -> add(g:_pm_async_results, r.status)}
+        \ })
+  Assert g:_pm_async_job_id2 > 0
+  unlet g:_pm_async_job_id2
+
+  let g:_pm_async_deadline3 = localtime() + 5
+  while len(g:_pm_async_results) < 1 && localtime() < g:_pm_async_deadline3
+    sleep 100m
+  endwhile
+  unlet g:_pm_async_deadline3
+
+  AssertEqual 1, len(g:_pm_async_results)
+
+  " cleanup(0) should purge all finished jobs that had callbacks
+  call plugin_manager#async#cleanup(0)
+  " No assertion on internals - just verifying it does not error

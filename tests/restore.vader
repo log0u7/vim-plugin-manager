@@ -1,0 +1,92 @@
+Before:
+  let g:_pm_rst_saved = {
+        \ 'vim_dir':     get(g:, 'plugin_manager_vim_dir', ''),
+        \ 'cwd':         getcwd(),
+        \ 'plugins_dir': get(g:, 'plugin_manager_plugins_dir', ''),
+        \ 'logging':     get(g:, 'plugin_manager_enable_logging', 0),
+        \ }
+
+  let g:_pm_rst_root = tempname()
+  let g:_pm_rst_vim  = g:_pm_rst_root . '/vim'
+  let g:_pm_rst_bare = g:_pm_rst_root . '/bare'
+  let g:_pm_rst_src  = g:_pm_rst_root . '/src'
+
+  call mkdir(g:_pm_rst_root, 'p')
+
+  " Bare repo for the plugin
+  call system('git init --bare ' . shellescape(g:_pm_rst_bare))
+  call mkdir(g:_pm_rst_src, 'p')
+  call system('git init ' . shellescape(g:_pm_rst_src))
+  call system('git -C ' . shellescape(g:_pm_rst_src) . ' config user.email "t@t.com"')
+  call system('git -C ' . shellescape(g:_pm_rst_src) . ' config user.name "T"')
+  call system('git -C ' . shellescape(g:_pm_rst_src) . ' remote add origin ' . shellescape(g:_pm_rst_bare))
+  call writefile(['x'], g:_pm_rst_src . '/f.txt')
+  call system('git -C ' . shellescape(g:_pm_rst_src) . ' add .')
+  call system('git -C ' . shellescape(g:_pm_rst_src) . ' commit -m "init"')
+  call system('git -C ' . shellescape(g:_pm_rst_src) . ' push -u origin HEAD:main')
+  call system('git -C ' . shellescape(g:_pm_rst_bare) . ' symbolic-ref HEAD refs/heads/main')
+
+  " Vim config repo with a submodule
+  call mkdir(g:_pm_rst_vim, 'p')
+  call system('git init ' . shellescape(g:_pm_rst_vim))
+  call system('git -C ' . shellescape(g:_pm_rst_vim) . ' config user.email "t@t.com"')
+  call system('git -C ' . shellescape(g:_pm_rst_vim) . ' config user.name "T"')
+  call writefile(['# vimrc'], g:_pm_rst_vim . '/vimrc')
+  call system('git -C ' . shellescape(g:_pm_rst_vim) . ' add .')
+  call system('git -C ' . shellescape(g:_pm_rst_vim) . ' commit -m "init"')
+  call mkdir(g:_pm_rst_vim . '/pack/plugins/start', 'p')
+  call system('git -C ' . shellescape(g:_pm_rst_vim) .
+        \ ' -c protocol.file.allow=always submodule add ' . shellescape(g:_pm_rst_bare) .
+        \ ' pack/plugins/start/myplugin')
+  call system('git -C ' . shellescape(g:_pm_rst_vim) . ' commit -m "add submodule"')
+
+  let g:plugin_manager_vim_dir     = g:_pm_rst_vim
+  let g:plugin_manager_plugins_dir = g:_pm_rst_vim . '/pack/plugins'
+  let g:plugin_manager_enable_logging = 0
+
+  execute 'cd ' . fnameescape(g:_pm_rst_vim)
+
+  let s:_pm_rst_sbuf = bufnr('PluginManager')
+  if s:_pm_rst_sbuf != -1
+    execute 'bwipeout! ' . s:_pm_rst_sbuf
+  endif
+
+  call plugin_manager#git#refresh_modules_cache()
+
+After:
+  execute 'cd ' . fnameescape(g:_pm_rst_saved.cwd)
+  if isdirectory(g:_pm_rst_root)
+    call delete(g:_pm_rst_root, 'rf')
+  endif
+  let g:plugin_manager_vim_dir     = g:_pm_rst_saved.vim_dir
+  let g:plugin_manager_plugins_dir = g:_pm_rst_saved.plugins_dir
+  let g:plugin_manager_enable_logging = g:_pm_rst_saved.logging
+  unlet g:_pm_rst_saved g:_pm_rst_root g:_pm_rst_vim g:_pm_rst_bare g:_pm_rst_src
+  let s:_pm_rst_sbuf2 = bufnr('PluginManager')
+  if s:_pm_rst_sbuf2 != -1
+    execute 'bwipeout! ' . s:_pm_rst_sbuf2
+  endif
+  call plugin_manager#git#refresh_modules_cache()
+
+Execute (restore initializes and clones missing submodule):
+  " Simulate a fresh clone: remove the submodule working tree but keep
+  " .gitmodules so restore has something to work from.
+  let g:_pm_rst_plug = g:_pm_rst_vim . '/pack/plugins/start/myplugin'
+  call delete(g:_pm_rst_plug, 'rf')
+  Assert !isdirectory(g:_pm_rst_plug), 'plugin dir should be absent before restore'
+
+  call plugin_manager#cmd#restore#execute()
+
+  " The plugin directory must exist and contain the expected file
+  Assert isdirectory(g:_pm_rst_plug),
+        \ 'restore should recreate the plugin directory'
+  Assert filereadable(g:_pm_rst_plug . '/f.txt'),
+        \ 'restore should populate the plugin directory from the remote'
+  unlet g:_pm_rst_plug
+
+Execute (restore with no .gitmodules fails gracefully):
+  " Remove .gitmodules to trigger the error path
+  call delete(g:_pm_rst_vim . '/.gitmodules')
+  " Should not crash (error is handled internally)
+  call plugin_manager#cmd#restore#execute()
+  Assert 1, 'restore without .gitmodules should not throw unhandled exception'
