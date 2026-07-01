@@ -62,7 +62,11 @@ function! plugin_manager#async#start_job(cmd, opts) abort
     let s:job_id_counter += 1
     let l:job_id = s:job_id_counter
     
-    " Initialize job state
+    " Initialize job state.
+    " Promote opts.callback to the top-level 'callback' key so that
+    " s:process_job_completion can find it without having to dig into opts.
+    " Callers that pass the callback via opts (start_job) and callers that
+    " register it later via on_complete() both land in the same place.
     let s:jobs[l:job_id] = {
         \ 'id': l:job_id,
         \ 'cmd': a:cmd,
@@ -76,6 +80,9 @@ function! plugin_manager#async#start_job(cmd, opts) abort
         \ 'job': v:null,
         \ 'timeout_timer': 0
         \ }
+    if has_key(a:opts, 'callback')
+        let s:jobs[l:job_id].callback = a:opts.callback
+    endif
     
     " Respect the maximum concurrent jobs limit: queue if at capacity
     let l:max = get(g:, 'plugin_manager_max_concurrent_jobs', 4)
