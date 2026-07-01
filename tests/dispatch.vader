@@ -100,3 +100,59 @@ Execute (dispatch add with missing arg shows usage, not MISSING_ARGS crash):
   " dispatch guards a:0 >= 2 for add, so missing arg shows usage silently
   call plugin_manager#cmd#dispatch('add')
   Assert 1
+
+Execute (complete position-1: empty arglead returns all 11 sub-commands):
+  let g:_pm_got = plugin_manager#cmd#complete('', 'PluginManager ', 14)
+  AssertEqual 11, len(g:_pm_got), 'expected 11 sub-commands, got: ' . string(g:_pm_got)
+  Assert index(g:_pm_got, 'add')    >= 0
+  Assert index(g:_pm_got, 'remove') >= 0
+  Assert index(g:_pm_got, 'update') >= 0
+  unlet g:_pm_got
+
+Execute (complete position-1: prefix filters correctly):
+  let g:_pm_got = plugin_manager#cmd#complete('re', 'PluginManager re', 16)
+  AssertEqual 3, len(g:_pm_got), 'expected [reload, remove, restore], got: ' . string(g:_pm_got)
+  Assert index(g:_pm_got, 'reload')  >= 0
+  Assert index(g:_pm_got, 'remove')  >= 0
+  Assert index(g:_pm_got, 'restore') >= 0
+  unlet g:_pm_got
+
+Execute (complete position-1: unmatched prefix returns empty list):
+  let g:_pm_got = plugin_manager#cmd#complete('xyz', 'PluginManager xyz', 17)
+  AssertEqual 0, len(g:_pm_got)
+  unlet g:_pm_got
+
+Execute (complete position-2: commands that take no plugin name return empty):
+  let g:_pm_got = plugin_manager#cmd#complete('', 'PluginManager list ', 19)
+  AssertEqual 0, len(g:_pm_got), 'list takes no plugin name: ' . string(g:_pm_got)
+  unlet g:_pm_got
+  let g:_pm_got = plugin_manager#cmd#complete('', 'PluginManager backup ', 21)
+  AssertEqual 0, len(g:_pm_got)
+  unlet g:_pm_got
+
+Execute (complete position-2: returns short_name of installed plugins):
+  " Write a .gitmodules with two valid entries so parse_modules() has data
+  call writefile([
+        \ '[submodule "vim-fugitive"]',
+        \ '  path = pack/plugins/start/vim-fugitive',
+        \ '  url = https://github.com/tpope/vim-fugitive.git',
+        \ '[submodule "vim-surround"]',
+        \ '  path = pack/plugins/start/vim-surround',
+        \ '  url = https://github.com/tpope/vim-surround.git',
+        \ ], g:_pm_disp_tmp . '/.gitmodules')
+  call plugin_manager#git#refresh_modules_cache()
+
+  let g:_pm_got = plugin_manager#cmd#complete('', 'PluginManager remove ', 21)
+  AssertEqual 2, len(g:_pm_got), 'expected 2 plugin names, got: ' . string(g:_pm_got)
+  Assert index(g:_pm_got, 'vim-fugitive') >= 0
+  Assert index(g:_pm_got, 'vim-surround') >= 0
+
+  " Prefix filter
+  let g:_pm_pre = plugin_manager#cmd#complete('vim-f', 'PluginManager update vim-f', 26)
+  AssertEqual 1, len(g:_pm_pre), 'prefix vim-f should match only vim-fugitive'
+  AssertEqual 'vim-fugitive', g:_pm_pre[0]
+
+  " Restore empty .gitmodules for subsequent tests
+  call writefile([], g:_pm_disp_tmp . '/.gitmodules')
+  call plugin_manager#git#refresh_modules_cache()
+  unlet g:_pm_got g:_pm_pre

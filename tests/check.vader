@@ -46,3 +46,17 @@ Execute (check silent mode does not open sidebar):
   call plugin_manager#cmd#check#execute({'silent': 1})
   let sbuf = bufnr('PluginManager')
   AssertEqual -1, sbuf, 'sidebar should not exist in silent mode'
+
+Execute (check silent mode still writes the update-check cache):
+  " Clear any existing cache so we start fresh
+  call delete(plugin_manager#core#get_check_cache_path())
+  let c_before = plugin_manager#core#read_check_cache()
+  AssertEqual 0, len(c_before), 'cache should be empty before silent check'
+
+  call plugin_manager#cmd#check#execute({'silent': 1})
+
+  " s:finish() -> write_check_cache() must have run even in silent mode
+  let c_after = plugin_manager#core#read_check_cache()
+  Assert !empty(c_after), 'cache should be populated after silent check'
+  Assert has_key(c_after, 'timestamp'), 'cache should carry a timestamp'
+  Assert has_key(c_after, 'plugins'),   'cache should carry a plugins list'
