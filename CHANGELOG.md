@@ -17,6 +17,10 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 - Fixed `cmd#complete()` calling the non-existent `git#get_modules()`;
   corrected to use `git#parse_modules()` and extract `short_name` from each
   valid module entry.
+- Fixed `git#find_module()` silently returning the wrong plugin on ambiguous
+  partial matches for `update` and `reload`. Both commands now pass `strict=1`
+  so an ambiguous query throws `AMBIGUOUS_MATCH` and is shown as an error in
+  the sidebar instead of silently operating on a random match.
 
 ### Changed
 - Sidebar `?` shortcut list now shows all 10 mapped keys (`q l s S u c b r h R ?`);
@@ -27,6 +31,13 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
   after `## Releases` instead of under `## Development Workflow`). Section
   order is now: Development Workflow (description + steps) -> Releases -> Pull
   Request Process.
+- `git#find_module()` now accepts an optional second argument `strict` (default
+  0). In strict mode (`1`) a partial query matching more than one module throws
+  `AMBIGUOUS_MATCH` instead of silently returning the first hit. Exact matches
+  (by `short_name`, path, or submodule key) are always unambiguous and
+  unaffected by the flag. The default of 0 preserves historical behaviour for
+  all callers that have not opted in (`helptags`, `remove`'s internal
+  `s:find_module` wrapper).
 
 ### Removed (dead code, YAGNI)
 - `plugin_manager#core#format_error()`: 0 callers in the entire codebase.
@@ -60,6 +71,14 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 
 ### CI
 - `release.yml` version header bumped from 1.5.0 to 1.6.0.
+
+### Tests
+- `tests/dispatch.vader`: 5 new cases covering `cmd#complete()` - position-1
+  sub-command listing, prefix filtering, unmatched prefix, position-2 plugin
+  name listing, and position-2 prefix filtering.
+- `tests/check.vader`: 1 new case verifying that `check` in silent mode still
+  writes the update-check cache (`write_check_cache` called via `s:finish()`
+  regardless of the `silent` flag).
 
 ## [1.6.0] - 2026-06-30
 
