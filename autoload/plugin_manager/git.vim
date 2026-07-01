@@ -80,16 +80,23 @@ function! plugin_manager#git#parse_modules() abort
     endif
   endfor
   
-  " Validate the modules: each should have both path and url
+  " Validate the modules: each should have both path and url.
+  " Also compute abs_path (vim_dir/path) so every consumer can use an
+  " absolute path without depending on the process cwd.
+  let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
   for [l:name, l:module] in items(s:gitmodules_cache)
     if !has_key(l:module, 'path') || !has_key(l:module, 'url')
       " Mark invalid modules but don't remove them
       let s:gitmodules_cache[l:name]['is_valid'] = 0
     else
       let s:gitmodules_cache[l:name]['is_valid'] = 1
-      
-      " Check if the plugin directory exists
-      let s:gitmodules_cache[l:name]['exists'] = isdirectory(l:module.path)
+      " abs_path is the absolute on-disk path to the submodule working tree.
+      " path (relative) is kept for git submodule config keys.
+      let s:gitmodules_cache[l:name]['abs_path'] =
+            \ empty(l:vim_dir) ? l:module.path : (l:vim_dir . '/' . l:module.path)
+      " Check if the plugin directory exists (use abs_path, cwd-independent)
+      let s:gitmodules_cache[l:name]['exists'] =
+            \ isdirectory(s:gitmodules_cache[l:name]['abs_path'])
     endif
   endfor
   

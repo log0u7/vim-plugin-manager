@@ -147,7 +147,8 @@ function! s:check_async(ctx) abort
   " Launch all fetches in parallel. The async engine's concurrency queue
   " (g:plugin_manager_max_concurrent_jobs, default 4) limits simultaneous jobs.
   for l:module in a:ctx.valid_modules
-    if !isdirectory(l:module.path)
+    let l:mpath = get(l:module, 'abs_path', l:module.path)
+    if !isdirectory(l:mpath)
       " Missing directory: resolve instantly without network
       let l:op_id = !a:ctx.silent ? a:ctx.ops[l:module.short_name] : ''
       let l:behind = s:check_and_complete(a:ctx, l:module, l:op_id)
@@ -160,7 +161,7 @@ function! s:check_async(ctx) abort
       endif
     else
       call plugin_manager#async#git(
-            \ 'git -C ' . shellescape(l:module.path) . ' fetch -q origin 2>/dev/null || true', {
+            \ 'git -C ' . shellescape(l:mpath) . ' fetch -q origin 2>/dev/null || true', {
             \ 'callback': function('s:on_fetched', [a:ctx, l:module])
             \ })
     endif
@@ -187,7 +188,7 @@ endfunction
 " Analyze a single module after fetch and update the sidebar line.
 " Returns the number of commits behind (0 if up-to-date or on a custom branch).
 function! s:check_and_complete(ctx, module, op_id) abort
-  let l:path = a:module.path
+  let l:path = get(a:module, 'abs_path', a:module.path)
 
   if !isdirectory(l:path)
     if !a:ctx.silent
