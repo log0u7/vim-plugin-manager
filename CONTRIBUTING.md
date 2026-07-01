@@ -396,13 +396,13 @@ The CI matrix runs the Vader suite and the vint lint step on:
 | Distribution | Vim version | Notes |
 |---|---|---|
 | AlmaLinux 9 | 8.2.2637 | RHEL 9 proxy - exercises the real 8.2 floor |
-| AlmaLinux 10 | >= 9.x | RHEL 10 proxy |
+| AlmaLinux 10 | 9.1.083 | RHEL 10 proxy |
 | Debian 12 Bookworm | 9.0.1378 | Debian oldstable |
 | Debian 13 Trixie | 9.1.1230 | Debian stable |
 | Ubuntu 24.04 LTS | 9.1.0016 | |
 | Ubuntu 26.04 LTS | 9.1.2141 | |
-| Arch Linux | 9.2.x | Rolling, the ceiling |
-| Gentoo | rolling | Non-blocking (`allow_failure: true`) |
+| Arch Linux | 9.2.0735 | Rolling, the ceiling |
+| Gentoo | 9.1.1652 | Non-blocking (`allow_failure: true`) |
 
 ### Linting (vim-vint)
 
