@@ -26,6 +26,9 @@ Before:
   call writefile(['# vimrc'], g:_pm_bkp_vim . '/vimrc')
   call system('git -C ' . shellescape(g:_pm_bkp_vim) . ' add .')
   call system('git -C ' . shellescape(g:_pm_bkp_vim) . ' commit -m "init"')
+  " Pin local branch to 'main' regardless of init.defaultBranch setting so
+  " the test is deterministic across environments (CI uses 'master' by default)
+  call system('git -C ' . shellescape(g:_pm_bkp_vim) . ' branch -M main')
   " Add the bare remote so backup can push
   call system('git -C ' . shellescape(g:_pm_bkp_vim) .
         \ ' -c protocol.file.allow=always remote add origin ' . shellescape(g:_pm_bkp_remote))
