@@ -185,9 +185,9 @@ The project is organized into several key components:
 ```mermaid
 graph TD
   subgraph User["User input"]
-    PM["`:PluginManager [cmd]`"]
-    PMR["`:PluginManagerRemote [url]`"]
-    DECL["`:Plugin` / `:PluginBegin` / `:PluginEnd`"]
+    PM[":PluginManager (cmd)"]
+    PMR[":PluginManagerRemote (url)"]
+    DECL[":Plugin / :PluginBegin / :PluginEnd"]
     SB["Sidebar keys (q l u s S c b r R ?)"]
   end
 
