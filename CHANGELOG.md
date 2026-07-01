@@ -26,6 +26,15 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
   - `doc/plugin_manager.txt`: "Windows-specific Issues" troubleshooting
     block and Windows permission notes removed; defaults updated.
 
+### Deferred
+- Real async path in CI: headless Vim (`vim -es`) does not run the event loop,
+  so job callbacks never fire and async tests skip their assertions. Two real
+  bugs (hardcoded `sh -c` argv and the `E121: l:cmd` crash in `s:spawn_job`)
+  shipped undetected because the async path was never truly exercised in CI.
+  Direction to evaluate later: run Vim inside a pseudo-terminal (`script -qec`)
+  or a pty wrapper so the event loop runs; add one non-skipping smoke test that
+  launches a real async job and asserts the callback fired with status 0.
+
 ### Changed
 - Replaced the hand-rolled regex parser in `parse_modules()` with native
   `git config -f <vim_dir>/.gitmodules --get-regexp` so git is the
