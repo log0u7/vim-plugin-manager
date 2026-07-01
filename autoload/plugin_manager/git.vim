@@ -13,7 +13,7 @@ let s:gitmodules_mtime = 0
 " Parse .gitmodules and return a dictionary of plugins
 function! plugin_manager#git#parse_modules() abort
   " Validate the vim directory without changing the process cwd.
-  " All file access below uses absolute paths derived from vim_dir.
+  " All file access uses absolute paths derived from vim_dir.
   let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
   if empty(l:vim_dir) || !isdirectory(l:vim_dir . '/.git')
     return {}
@@ -38,72 +38,68 @@ function! plugin_manager#git#parse_modules() abort
   let s:gitmodules_cache = {}
   let s:gitmodules_mtime = l:mtime
 
-  " Parse the file
-  let l:lines = readfile(l:gitmodules)
-  let l:current_module = ''
-  let l:in_module = 0
-  
-  for l:line in l:lines
-    " Strip trailing CR to handle CRLF line endings cleanly
-    let l:line = substitute(l:line, '\r$', '', '')
-    " Skip empty lines and comments
-    if l:line =~ '^\s*$' || l:line =~ '^\s*#'
+  " Parse via native git config (the authoritative .gitmodules reader).
+  " Output format: 'submodule.<subsection>.<varname> <value>'
+  " Using --get-regexp lets git handle quoting, whitespace, and encoding.
+  " throw_on_error=0: a missing/empty .gitmodules exits non-zero - not an error.
+  let l:res = plugin_manager#git#execute(
+        \ 'git config -f ' . shellescape(l:gitmodules) .
+        \ ' --get-regexp ''^submodule\.''',
+        \ '', 0, 0)
+
+  if !l:res.success
+    " .gitmodules is unreadable or contains no submodule entries
+    return s:gitmodules_cache
+  endif
+
+  " Regex capturing: submodule.<subsection>.<path|url|branch> <value>
+  " <subsection> may itself contain dots (e.g. 'org/repo' or 'foo.bar');
+  " the non-greedy .{-} before the final .<varname> handles this correctly.
+  let l:key_re = '^submodule\.\(.\{-}\)\.\(path\|url\|branch\)\s\+\(.*\)$'
+
+  for l:line in split(l:res.output, "\n")
+    let l:line = substitute(l:line, '\r$', '', '')  " strip trailing CR
+    if empty(l:line)
       continue
     endif
-    
-    " Start of module section
-    if l:line =~ '\[submodule "'
-      let l:in_module = 1
-      " Extract module name from [submodule "name"] format
-      let l:current_module = substitute(l:line, '\[submodule "\(.\{-}\)"\]', '\1', '')
-      let s:gitmodules_cache[l:current_module] = {'name': l:current_module}
-    " Inside module section
-    elseif l:in_module && !empty(l:current_module)
-      " Path property
-      if l:line =~ '\s*path\s*='
-        let l:path = substitute(l:line, '\s*path\s*=\s*', '', '')
-        let l:path = substitute(l:path, '^\s*\(.\{-}\)\s*$', '\1', '')  " Trim whitespace
-        let s:gitmodules_cache[l:current_module]['path'] = l:path
-        " Extract short name from path (last component)
-        let s:gitmodules_cache[l:current_module]['short_name'] = fnamemodify(l:path, ':t')
-      " URL property
-      elseif l:line =~ '\s*url\s*='
-        let l:url = substitute(l:line, '\s*url\s*=\s*', '', '')
-        let l:url = substitute(l:url, '^\s*\(.\{-}\)\s*$', '\1', '')  " Trim whitespace
-        let s:gitmodules_cache[l:current_module]['url'] = l:url
-      " Branch property
-      elseif l:line =~ '\s*branch\s*='
-        let l:branch = substitute(l:line, '\s*branch\s*=\s*', '', '')
-        let l:branch = substitute(l:branch, '^\s*\(.\{-}\)\s*$', '\1', '')  " Trim whitespace
-        let s:gitmodules_cache[l:current_module]['branch'] = l:branch
-      " New section starts - reset current module
-      elseif l:line =~ '\['
-        let l:in_module = 0
-        let l:current_module = ''
-      endif
+    let l:parts = matchlist(l:line, l:key_re)
+    if empty(l:parts)
+      continue
+    endif
+    let l:subsection = l:parts[1]
+    let l:varname    = l:parts[2]
+    let l:value      = l:parts[3]
+
+    " Initialise module entry if first key seen for this subsection
+    if !has_key(s:gitmodules_cache, l:subsection)
+      let s:gitmodules_cache[l:subsection] = {'name': l:subsection}
+    endif
+
+    if l:varname ==# 'path'
+      let s:gitmodules_cache[l:subsection]['path']       = l:value
+      let s:gitmodules_cache[l:subsection]['short_name'] = fnamemodify(l:value, ':t')
+    elseif l:varname ==# 'url'
+      let s:gitmodules_cache[l:subsection]['url']        = l:value
+    elseif l:varname ==# 'branch'
+      let s:gitmodules_cache[l:subsection]['branch']     = l:value
     endif
   endfor
-  
-  " Validate the modules: each should have both path and url.
-  " Also compute abs_path (vim_dir/path) so every consumer can use an
-  " absolute path without depending on the process cwd.
-  let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+
+  " Validate modules: each must have both path and url.
+  " Compute abs_path so every consumer works without depending on the cwd.
   for [l:name, l:module] in items(s:gitmodules_cache)
     if !has_key(l:module, 'path') || !has_key(l:module, 'url')
-      " Mark invalid modules but don't remove them
       let s:gitmodules_cache[l:name]['is_valid'] = 0
     else
-      let s:gitmodules_cache[l:name]['is_valid'] = 1
-      " abs_path is the absolute on-disk path to the submodule working tree.
-      " path (relative) is kept for git submodule config keys.
+      let s:gitmodules_cache[l:name]['is_valid']  = 1
+      " abs_path: absolute on-disk path; path (relative) kept for git config keys.
       let s:gitmodules_cache[l:name]['abs_path'] =
             \ empty(l:vim_dir) ? l:module.path : (l:vim_dir . '/' . l:module.path)
-      " Check if the plugin directory exists (use abs_path, cwd-independent)
       let s:gitmodules_cache[l:name]['exists'] =
             \ isdirectory(s:gitmodules_cache[l:name]['abs_path'])
     endif
   endfor
-  
+
   return s:gitmodules_cache
 endfunction
 

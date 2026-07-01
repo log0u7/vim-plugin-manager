@@ -105,3 +105,51 @@ Execute (collect_status_local returns empty status for a missing path):
   AssertEqual 0, st.behind
   AssertEqual 0, st.has_updates
   AssertEqual 'N/A', st.branch
+
+Execute (parse_modules handles submodule name containing a dot):
+  " git config -f uses the full subsection as the key; names with dots must
+  " be preserved intact as the dict key, not split on the dot.
+  let g:_pm_dotted_tmp = tempname()
+  call mkdir(g:_pm_dotted_tmp, 'p')
+  call mkdir(g:_pm_dotted_tmp . '/.git', 'p')
+  call writefile([
+        \ '[submodule "org/vim-foo.bar"]',
+        \ '  path = pack/plugins/start/vim-foo.bar',
+        \ '  url  = https://github.com/org/vim-foo.bar.git',
+        \ ], g:_pm_dotted_tmp . '/.gitmodules')
+  let g:_pm_dotted_saved = g:plugin_manager_vim_dir
+  let g:plugin_manager_vim_dir = g:_pm_dotted_tmp
+  call plugin_manager#git#refresh_modules_cache()
+  let g:_pm_dotted_mods = plugin_manager#git#parse_modules()
+  Assert has_key(g:_pm_dotted_mods, 'org/vim-foo.bar'),
+        \ 'submodule name with dot must be a single dict key'
+  AssertEqual 'vim-foo.bar', g:_pm_dotted_mods['org/vim-foo.bar'].short_name
+  let g:plugin_manager_vim_dir = g:_pm_dotted_saved
+  call delete(g:_pm_dotted_tmp, 'rf')
+  call plugin_manager#git#refresh_modules_cache()
+  unlet g:_pm_dotted_tmp g:_pm_dotted_saved g:_pm_dotted_mods
+
+Execute (parse_modules values are normalized by git - no trailing spaces):
+  " git config --get-regexp strips leading/trailing whitespace from values;
+  " no extra trimming is needed in parse_modules. This test documents that
+  " guarantee using a .gitmodules with indented values (ini format).
+  let g:_pm_space_tmp = tempname()
+  call mkdir(g:_pm_space_tmp, 'p')
+  call mkdir(g:_pm_space_tmp . '/.git', 'p')
+  call writefile([
+        \ '[submodule "myplugin"]',
+        \ '    path =   pack/plugins/start/myplugin',
+        \ '    url  =   https://github.com/user/myplugin.git',
+        \ ], g:_pm_space_tmp . '/.gitmodules')
+  let g:_pm_space_saved = g:plugin_manager_vim_dir
+  let g:plugin_manager_vim_dir = g:_pm_space_tmp
+  call plugin_manager#git#refresh_modules_cache()
+  let g:_pm_space_mods = plugin_manager#git#parse_modules()
+  AssertEqual 'pack/plugins/start/myplugin',
+        \ g:_pm_space_mods['myplugin'].path, 'path must have no leading/trailing spaces'
+  AssertEqual 'https://github.com/user/myplugin.git',
+        \ g:_pm_space_mods['myplugin'].url,  'url must have no leading/trailing spaces'
+  let g:plugin_manager_vim_dir = g:_pm_space_saved
+  call delete(g:_pm_space_tmp, 'rf')
+  call plugin_manager#git#refresh_modules_cache()
+  unlet g:_pm_space_tmp g:_pm_space_saved g:_pm_space_mods

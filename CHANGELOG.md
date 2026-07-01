@@ -26,6 +26,15 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
   - `doc/plugin_manager.txt`: "Windows-specific Issues" troubleshooting
     block and Windows permission notes removed; defaults updated.
 
+### Changed
+- Replaced the hand-rolled regex parser in `parse_modules()` with native
+  `git config -f <vim_dir>/.gitmodules --get-regexp` so git is the
+  authoritative reader for `.gitmodules` (quoting, whitespace, encoding).
+  The public contract is unchanged: same return dict shape (name, path, url,
+  short_name, optional branch, is_valid, abs_path, exists). The mtime cache
+  is preserved. Two new tests cover submodule names with dots and the
+  whitespace-normalization guarantee.
+
 ### Documentation
 - Documented the Vim 8.2 minimum version as an intentional, permanent floor
   set by RHEL 9 / AlmaLinux 9 / Rocky 9 (Vim 8.2.2637, supported until 2032).
