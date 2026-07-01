@@ -35,6 +35,13 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
   and doc/plugin_manager.txt explaining the platform and version rationale.
 
 ### CI
+- Expanded the test matrix to cover a full range of Linux distributions on
+  both GitHub Actions and GitLab CI. Each distribution runs the Vader suite in
+  a container with the Vim version it ships, proving compatibility:
+  AlmaLinux 9 (Vim 8.2.2637, the real 8.2 floor), AlmaLinux 10, Debian
+  Bookworm (9.0), Debian Trixie (9.1), Ubuntu 24.04 (9.1), Ubuntu 26.04,
+  Arch Linux (9.2, rolling). Gentoo runs as a non-blocking job
+  (`allow_failure: true` / `continue-on-error: true`).
 - Added `vim-vint` linting to both GitHub Actions and GitLab CI pipelines.
   A dedicated `lint` job runs `vint -e autoload/ plugin/ ftplugin/ ftdetect/
   syntax/` on every push and pull request. Configuration in `.vintrc.yaml`
