@@ -29,6 +29,7 @@ nnoremap <buffer> S :call <SID>Summary()<CR>
 nnoremap <buffer> b :call <SID>Backup()<CR>
 nnoremap <buffer> r :call <SID>Restore()<CR>
 nnoremap <buffer> R :call <SID>Reload()<CR>
+nnoremap <buffer> H :call <SID>Health()<CR>
 nnoremap <buffer> ? :call <SID>Usage()<CR>
 
 
@@ -67,6 +68,10 @@ endfunction
 
 function! s:Reload()
     call plugin_manager#cmd#dispatch("reload")
+endfunction
+
+function! s:Health()
+    call plugin_manager#cmd#dispatch('health')
 endfunction
 
 function! s:Usage()

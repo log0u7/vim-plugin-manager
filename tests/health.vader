@@ -1,0 +1,121 @@
+Before:
+  " Fixture: a minimal vim config git repo for health check tests.
+  let g:_pm_hlt_saved = {
+        \ 'vim_dir': get(g:, 'plugin_manager_vim_dir', ''),
+        \ 'cwd':     getcwd(),
+        \ 'logging': get(g:, 'plugin_manager_enable_logging', 0),
+        \ }
+
+  let g:_pm_hlt_root = tempname()
+  let g:_pm_hlt_vim  = g:_pm_hlt_root . '/vim'
+
+  call mkdir(g:_pm_hlt_root, 'p')
+  call mkdir(g:_pm_hlt_vim, 'p')
+
+  call system('git init ' . shellescape(g:_pm_hlt_vim))
+  call system('git -C ' . shellescape(g:_pm_hlt_vim) . ' config user.email "t@t.com"')
+  call system('git -C ' . shellescape(g:_pm_hlt_vim) . ' config user.name "T"')
+  call writefile(['# vimrc'], g:_pm_hlt_vim . '/vimrc')
+  call writefile([], g:_pm_hlt_vim . '/.gitmodules')
+  call system('git -C ' . shellescape(g:_pm_hlt_vim) . ' add .')
+  call system('git -C ' . shellescape(g:_pm_hlt_vim) . ' commit -m "init"')
+
+  let g:plugin_manager_vim_dir    = g:_pm_hlt_vim
+  let g:plugin_manager_enable_logging = 0
+
+  execute 'cd ' . fnameescape(g:_pm_hlt_vim)
+
+  let s:_pm_hlt_sbuf = bufnr('PluginManager')
+  if s:_pm_hlt_sbuf != -1
+    execute 'bwipeout! ' . s:_pm_hlt_sbuf
+  endif
+
+After:
+  execute 'cd ' . fnameescape(g:_pm_hlt_saved.cwd)
+  if isdirectory(g:_pm_hlt_root)
+    call delete(g:_pm_hlt_root, 'rf')
+  endif
+  let g:plugin_manager_vim_dir        = g:_pm_hlt_saved.vim_dir
+  let g:plugin_manager_enable_logging = g:_pm_hlt_saved.logging
+  unlet g:_pm_hlt_saved g:_pm_hlt_root g:_pm_hlt_vim
+  let s:_pm_hlt_sbuf2 = bufnr('PluginManager')
+  if s:_pm_hlt_sbuf2 != -1
+    execute 'bwipeout! ' . s:_pm_hlt_sbuf2
+  endif
+
+Execute (health renders without throwing on a healthy repo):
+  " health must complete without raising an exception.
+  let g:_pm_hlt_caught = ''
+  try
+    call plugin_manager#cmd#health#execute()
+  catch
+    let g:_pm_hlt_caught = v:exception
+  endtry
+  AssertEqual '', g:_pm_hlt_caught,
+        \ 'health must not throw on a healthy repo: ' . g:_pm_hlt_caught
+  unlet g:_pm_hlt_caught
+
+Execute (health sidebar contains expected check labels):
+  call plugin_manager#cmd#health#execute()
+  let g:_pm_hlt_sbuf3 = bufnr('PluginManager')
+  Assert g:_pm_hlt_sbuf3 != -1, 'PluginManager sidebar should be open'
+  let g:_pm_hlt_content = join(getbufline(g:_pm_hlt_sbuf3, 1, '$'), "\n")
+  " Each check label should appear in the sidebar
+  Assert g:_pm_hlt_content =~# 'git executable',
+        \ 'sidebar should contain git executable check'
+  Assert g:_pm_hlt_content =~# 'Vim version',
+        \ 'sidebar should contain Vim version check'
+  Assert g:_pm_hlt_content =~# 'encoding',
+        \ 'sidebar should contain encoding check'
+  Assert g:_pm_hlt_content =~# 'vim dir',
+        \ 'sidebar should contain vim dir check'
+  Assert g:_pm_hlt_content =~# 'submodules',
+        \ 'sidebar should contain submodules check'
+  unlet g:_pm_hlt_sbuf3 g:_pm_hlt_content
+
+Execute (health fails gracefully when vim_dir has no .git):
+  " Point vim_dir at a directory that exists but is not a git repo.
+  let g:_pm_hlt_nogit = g:_pm_hlt_root . '/nogit'
+  call mkdir(g:_pm_hlt_nogit, 'p')
+  let g:plugin_manager_vim_dir = g:_pm_hlt_nogit
+
+  let g:_pm_hlt_caught2 = ''
+  try
+    call plugin_manager#cmd#health#execute()
+  catch
+    let g:_pm_hlt_caught2 = v:exception
+  endtry
+  AssertEqual '', g:_pm_hlt_caught2,
+        \ 'health must not throw even when .git is missing: ' . g:_pm_hlt_caught2
+
+  let g:_pm_hlt_sbuf4 = bufnr('PluginManager')
+  if g:_pm_hlt_sbuf4 != -1
+    let g:_pm_hlt_content2 = join(getbufline(g:_pm_hlt_sbuf4, 1, '$'), "\n")
+    " The 'vim dir is git repo' check should show a failure indicator
+    Assert g:_pm_hlt_content2 =~# 'vim dir',
+          \ 'sidebar should still show vim dir check line'
+    unlet g:_pm_hlt_content2 g:_pm_hlt_sbuf4
+  endif
+
+  " Restore
+  let g:plugin_manager_vim_dir = g:_pm_hlt_vim
+  call delete(g:_pm_hlt_nogit, 'rf')
+  unlet g:_pm_hlt_nogit g:_pm_hlt_caught2
+
+Execute (health is reachable via dispatch):
+  " :PluginManager health must route to the health command without crashing.
+  let g:_pm_hlt_caught3 = ''
+  try
+    call plugin_manager#cmd#dispatch('health')
+  catch
+    let g:_pm_hlt_caught3 = v:exception
+  endtry
+  AssertEqual '', g:_pm_hlt_caught3,
+        \ 'dispatch health must not throw: ' . g:_pm_hlt_caught3
+  unlet g:_pm_hlt_caught3
+
+Execute (health appears in completion list):
+  let g:_pm_hlt_cmds = plugin_manager#cmd#complete('', 'PluginManager ', 14)
+  Assert index(g:_pm_hlt_cmds, 'health') >= 0,
+        \ 'health must appear in completion candidates'
+  unlet g:_pm_hlt_cmds
