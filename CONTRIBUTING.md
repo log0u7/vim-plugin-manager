@@ -411,46 +411,60 @@ Understanding the project's complete structure will help you contribute effectiv
 ```
 .
 ├── autoload/
-│   ├── plugin_manager/
-│   │   ├── api.vim                  # Public API façade
-│   │   ├── async.vim                # Asynchronous operations support
-│   │   ├── cmd.vim                  # Command dispatcher
-│   │   ├── core.vim                 # Core utilities and error handling
-│   │   ├── git.vim                  # Git operations abstraction
-│   │   ├── ui.vim                   # User interface components
-│   │   └── cmd/                     # Command implementations
-│   │       ├── add.vim              # Plugin installation
-│   │       ├── backup.vim           # Configuration backup
-│   │       ├── declare.vim          # Declarative plugin configuration
-│   │       ├── helptags.vim         # Help documentation generation
-│   │       ├── list.vim             # Plugin listing and status
-│   │       ├── reload.vim           # Plugin reloading
-│   │       ├── remote.vim           # Remote repository management
-│   │       ├── check.vim            # Update detection and notifications
-│   │       ├── remove.vim           # Plugin removal
-│   │       ├── restore.vim          # Plugin restoration
-│   │       ├── status.vim           # Plugin status reporting
-│   │       └── update.vim           # Plugin updating
-├── doc/                             # Documentation
-│   └── plugin_manager.txt           # Help documentation
+│   └── plugin_manager/
+│       ├── api.vim                  # Public API facade
+│       ├── async.vim                # Non-blocking job queue (Vim job/channel)
+│       ├── cmd.vim                  # Command dispatcher and completion
+│       ├── core.vim                 # Errors, logging, paths, config, URL parsing
+│       ├── git.vim                  # Git and submodule operations
+│       ├── ui.vim                   # Sidebar rendering, spinners, glyphs
+│       └── cmd/                     # Command implementations
+│           ├── add.vim              # Plugin installation
+│           ├── backup.vim           # Configuration backup
+│           ├── check.vim            # Update detection and notifications
+│           ├── declare.vim          # Declarative plugin configuration
+│           ├── helptags.vim         # Help tag generation
+│           ├── list.vim             # Plugin listing
+│           ├── reload.vim           # Plugin reload
+│           ├── remote.vim           # Remote repository management
+│           ├── remove.vim           # Plugin removal
+│           ├── restore.vim          # Plugin restoration from .gitmodules
+│           ├── status.vim           # Plugin status reporting
+│           └── update.vim           # Plugin update
+├── doc/                             # Vim help documentation
+│   └── plugin_manager.txt           # :help plugin-manager
 ├── ftdetect/                        # Filetype detection
-│   └── pluginmanager.vim            # Filetype detection for PluginManager
+│   └── pluginmanager.vim            # Registers the pluginmanager filetype
 ├── ftplugin/                        # Filetype plugin
-│   └── pluginmanager.vim            # Buffers config for PluginManager
-├── plugin/                          # Plugin initialization
-│   └── plugin_manager.vim           # Entry point and command definitions
+│   └── pluginmanager.vim            # Buffer settings and key mappings
+├── plugin/                          # Plugin entry point
+│   └── plugin_manager.vim           # Config defaults and command definitions
 ├── syntax/                          # Syntax highlighting
-│   └── pluginmanager.vim            # Syntax definitions for the UI
+│   └── pluginmanager.vim            # Sidebar syntax highlighting
 ├── tests/                           # Vader test suite
+│   ├── async.vader                  # Async jobs: shell_argv, queue, sync fallback
+│   ├── backup.vader                 # Backup: commit and push to remote
+│   ├── basic.vader                  # Plugin load, commands, default config
+│   ├── cache.vader                  # Update-check cache read/write/TTL
+│   ├── check.vader                  # Update detection and silent mode
+│   ├── core.vader                   # Core: URL parsing, options, errors
+│   ├── declare.vader                # Declarative Plugin/Begin/End blocks
+│   ├── dispatch.vader               # Command dispatch and tab completion
+│   ├── gitmodules.vader             # .gitmodules parsing and module lookup
+│   ├── remove.vader                 # Plugin removal and ambiguity guard
+│   ├── restore.vader                # Submodule restoration from .gitmodules
+│   ├── status.vader                 # Status block rendering
+│   ├── ui.vader                     # Sidebar rendering, operations, glyphs
+│   └── update.vader                 # Update flows and stash safety
 ├── .github/workflows/test.yml       # GitHub Actions CI
 ├── .gitlab-ci.yml                   # GitLab CI
 ├── AGENTS.md                        # Guidance for AI agents and tooling
 ├── CHANGELOG.md                     # History of changes and versions
 ├── CONTRIBUTING.md                  # Contribution guidelines (this file)
-├── LICENSE                          # License information
+├── LICENSE                          # MIT license
 ├── Makefile                         # Build and version management
 ├── Makefile.test                    # Vader test runner
-└── README.md                        # Project overview and usage information
+└── README.md                        # Project overview and usage
 ```
 
 ## License
