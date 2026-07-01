@@ -1,6 +1,6 @@
 " syntax/pluginmanager.vim - Syntax highlighting for the PluginManager sidebar
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.6.0
+" Version: 2.0.0
 
 if exists("b:current_syntax")
   finish

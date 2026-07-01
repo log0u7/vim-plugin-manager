@@ -1,6 +1,6 @@
 " autoload/plugin_manager/ui.vim - Modern, non-blocking sidebar UI for Vim
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.6.0
+" Version: 2.0.0
 
 " Terminal capability detection (Vim 8.2+, UTF-8 aware)
 let s:unicode_support = &encoding ==# 'utf-8'

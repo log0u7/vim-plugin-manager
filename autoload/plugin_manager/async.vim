@@ -1,6 +1,6 @@
 " autoload/plugin_manager/async.vim - Asynchronous operations for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.6.0
+" Version: 2.0.0
 
 " ------------------------------------------------------------------------------
 " PLATFORM DETECTION AND INITIALIZATION

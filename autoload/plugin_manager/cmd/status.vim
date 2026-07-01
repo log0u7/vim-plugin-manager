@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/status.vim - Simplified status command
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.6.0
+" Version: 2.0.0
 
 " Show detailed status of all plugins
 function! plugin_manager#cmd#status#execute() abort
