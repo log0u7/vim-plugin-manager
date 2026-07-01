@@ -1,23 +1,30 @@
-VIM ?= vim
-VADER ?= vader.vim
-VADER_TESTS ?= tests/*.vader
-VIMRC_TEST = .vaderrc.vim
+# Makefile.test - compatibility shim
+#
+# All test targets are now defined in the main Makefile.  This file exists
+# solely for backwards compatibility with existing scripts and CI pipelines
+# that invoke:
+#
+#   make -f Makefile.test [VADER=./vader.vim] [VIM=vim] test-ci
+#
+# The VADER variable (pointing to the vader.vim directory) is mapped to the
+# VADER_DIR variable expected by the main Makefile.  All other variables are
+# forwarded transparently.
+
+# Map the legacy VADER=./vader.vim argument to VADER_DIR used by the main
+# Makefile, falling back to the main Makefile's own default when unset.
+ifdef VADER
+  VADER_DIR_ARG := VADER_DIR=$(VADER)
+else
+  VADER_DIR_ARG :=
+endif
 
 .PHONY: test test-ci clean
 
-test: $(VIMRC_TEST)
-	@echo "==> Running Vader tests..."
-	$(VIM) -Nu $(VIMRC_TEST) -c 'Vader! $(VADER_TESTS)' #-c 'qa!'
+test:
+	$(MAKE) -f Makefile $(VADER_DIR_ARG) test
 
-test-ci: $(VIMRC_TEST)
-	@echo "==> Running Vader tests (headless)..."
-	$(VIM) -es -Nu $(VIMRC_TEST) -c 'Vader! $(VADER_TESTS)'
-
-$(VIMRC_TEST):
-	@echo "set rtp^=$(CURDIR)" > $(VIMRC_TEST)
-	@echo "set rtp+=$(CURDIR)/$(VADER)" >> $(VIMRC_TEST)
-	@echo "filetype off" >> $(VIMRC_TEST)
-	@echo "syntax off" >> $(VIMRC_TEST)
+test-ci:
+	$(MAKE) -f Makefile $(VADER_DIR_ARG) test-ci
 
 clean:
-	@rm -f $(VIMRC_TEST)
+	$(MAKE) -f Makefile clean
