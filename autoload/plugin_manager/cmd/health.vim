@@ -26,27 +26,26 @@ function! plugin_manager#cmd#health#execute() abort
     endif
 
     " ------------------------------------------------------------------
-    " 2. Git version (minimum documented in AGENTS.md: Git 2.40+)
-    "    Note: Debian Bookworm ships 2.39 and RHEL 9 ships 2.43; the
-    "    2.40 floor in AGENTS.md may flag Bookworm.  This inconsistency
-    "    is intentional here: the check reflects the documented value;
-    "    the maintainer should resolve the requirement separately.
+    " 2. Git version (minimum: 2.39, set by Debian Bookworm).
+    "    The codebase uses no feature newer than git 1.9 in practice;
+    "    2.39 is chosen to match the oldest fully-supported distribution
+    "    in the CI matrix (Debian Bookworm ships 2.39.2).
     " ------------------------------------------------------------------
     if executable('git')
       let l:git_ver_out = system('git --version 2>/dev/null')
-      " Output is 'git version X.Y.Z' (or 'git version X.Y.Z.windows.N')
+      " Output is 'git version X.Y.Z'
       let l:git_ver_parts = matchlist(l:git_ver_out,
             \ 'git version \(\d\+\)\.\(\d\+\)')
       if !empty(l:git_ver_parts)
         let l:git_major = str2nr(l:git_ver_parts[1])
         let l:git_minor = str2nr(l:git_ver_parts[2])
         let l:git_ver_str = l:git_ver_parts[1] . '.' . l:git_ver_parts[2]
-        if l:git_major > 2 || (l:git_major == 2 && l:git_minor >= 40)
-          call s:report('ok', 'git version', l:git_ver_str . ' (>= 2.40)')
+        if l:git_major > 2 || (l:git_major == 2 && l:git_minor >= 39)
+          call s:report('ok', 'git version', l:git_ver_str . ' (>= 2.39)')
           let l:ok += 1
         else
           call s:report('warn', 'git version',
-                \ l:git_ver_str . ' (< 2.40 documented minimum)')
+                \ l:git_ver_str . ' (< 2.39 documented minimum)')
           let l:warn += 1
         endif
       else

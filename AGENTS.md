@@ -46,7 +46,7 @@ There is no compilation step. The project is loaded directly by Vim.
   future pass: pty wrapper (`script -qec`) + one non-skipping smoke test that
   asserts a real async job completed with status 0.
 
-Requirements: Vim 8.2+ (with +job and +channel), Git 2.40+. Neovim is not
+Requirements: Vim 8.2+ (with +job and +channel), Git 2.39+. Neovim is not
 supported (it has lazy.nvim, packer.nvim and vim-plug). Windows and macOS are
 not supported: the project targets Linux only (Debian, Ubuntu, Arch, Gentoo,
 RHEL/AlmaLinux/Rocky).
