@@ -9,7 +9,8 @@ function! plugin_manager#cmd#restore#execute() abort
 
     call plugin_manager#ui#open_header('Restoring plugins:')
 
-    if !plugin_manager#core#file_exists('.gitmodules')
+    let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+    if !plugin_manager#core#file_exists(l:vim_dir . '/.gitmodules')
       call plugin_manager#core#throw('restore', 'GITMODULES_NOT_FOUND', '.gitmodules file not found')
     endif
 

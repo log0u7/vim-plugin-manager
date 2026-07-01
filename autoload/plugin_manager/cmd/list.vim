@@ -41,14 +41,15 @@ function! plugin_manager#cmd#list#summary() abort
       return
     endif
     
-    if !filereadable('.gitmodules')
+    let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+    if !filereadable(l:vim_dir . '/.gitmodules')
       call plugin_manager#ui#open_sidebar(
             \ plugin_manager#ui#header('Plugin summary:') +
             \ [plugin_manager#ui#info('No plugins found')])
       return
     endif
 
-    let l:result = plugin_manager#git#execute('git submodule summary', '', 0, 0)
+    let l:result = plugin_manager#git#execute('git submodule summary', l:vim_dir, 0, 0)
     let l:output = l:result.output
 
     let l:lines = plugin_manager#ui#header('Plugin summary:')

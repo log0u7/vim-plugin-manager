@@ -137,22 +137,30 @@ function! s:remove_module(module_name, module_path) abort
   call plugin_manager#ui#open_header('Removing plugin:')
 
   let l:op_id = plugin_manager#ui#start_operation(a:module_name, 'Removing')
-  
+
+  let l:vim_dir  = plugin_manager#core#get_config('vim_dir', '')
   let l:module_info = s:get_module_metadata(a:module_path)
-  
-  call plugin_manager#git#execute('git submodule deinit -f ' . shellescape(a:module_path), '', 0, 0)
-  let l:result = plugin_manager#git#execute('git rm -f ' . shellescape(a:module_path), '', 0, 0)
-  
+
+  " git submodule deinit and git rm take the repo-relative path as argument
+  " but must run inside the repo root (vim_dir).
+  call plugin_manager#git#execute(
+        \ 'git submodule deinit -f ' . shellescape(a:module_path), l:vim_dir, 0, 0)
+  let l:result = plugin_manager#git#execute(
+        \ 'git rm -f ' . shellescape(a:module_path), l:vim_dir, 0, 0)
+
   if !l:result.success
-    call plugin_manager#ui#log_detail('remove', 'git rm failed, removing path manually: ' . a:module_path)
-    call plugin_manager#core#remove_path(a:module_path)
+    " Fallback: delete the working tree directory directly using absolute path
+    let l:abs_path = empty(l:vim_dir) ? a:module_path : (l:vim_dir . '/' . a:module_path)
+    call plugin_manager#ui#log_detail('remove', 'git rm failed, removing path manually: ' . l:abs_path)
+    call plugin_manager#core#remove_path(l:abs_path)
   endif
-  
-  let l:git_modules_path = '.git/modules/' . a:module_path
+
+  " Remove the cached git metadata for this submodule (absolute path)
+  let l:git_modules_path = l:vim_dir . '/.git/modules/' . a:module_path
   if plugin_manager#core#dir_exists(l:git_modules_path)
     call plugin_manager#core#remove_path(l:git_modules_path)
   endif
-  
+
   call s:commit_removal(a:module_name, l:module_info)
   
   call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Removed')

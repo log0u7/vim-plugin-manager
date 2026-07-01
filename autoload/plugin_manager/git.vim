@@ -12,30 +12,34 @@ let s:gitmodules_mtime = 0
 
 " Parse .gitmodules and return a dictionary of plugins
 function! plugin_manager#git#parse_modules() abort
-  " Check if we're in the right directory
-  if !plugin_manager#core#ensure_vim_directory()
+  " Validate the vim directory without changing the process cwd.
+  " All file access below uses absolute paths derived from vim_dir.
+  let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+  if empty(l:vim_dir) || !isdirectory(l:vim_dir . '/.git')
     return {}
   endif
-  
+
+  let l:gitmodules = l:vim_dir . '/.gitmodules'
+
   " Check if .gitmodules exists
-  if !filereadable('.gitmodules')
+  if !filereadable(l:gitmodules)
     let s:gitmodules_cache = {}
     let s:gitmodules_mtime = 0
     return s:gitmodules_cache
   endif
-  
+
   " Check if file has been modified since last parse
-  let l:mtime = getftime('.gitmodules')
+  let l:mtime = getftime(l:gitmodules)
   if !empty(s:gitmodules_cache) && l:mtime == s:gitmodules_mtime
     return s:gitmodules_cache
   endif
-  
+
   " Reset cache
   let s:gitmodules_cache = {}
   let s:gitmodules_mtime = l:mtime
-  
+
   " Parse the file
-  let l:lines = readfile('.gitmodules')
+  let l:lines = readfile(l:gitmodules)
   let l:current_module = ''
   let l:in_module = 0
   
