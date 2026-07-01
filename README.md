@@ -45,6 +45,30 @@ A lightweight Vim plugin manager that uses Git submodules and Vim 8's native pac
 - **Linux** (Debian, Ubuntu, Arch, Gentoo, RHEL/AlmaLinux/Rocky); Windows and
   macOS are not supported
 
+### Supported platforms and minimum Vim version
+
+The minimum Vim version is **8.2** and will not be raised without a concrete
+reason. The floor is set by RHEL 9 and its binary-compatible clones
+(AlmaLinux 9, Rocky Linux 9), which ship **Vim 8.2.2637**. RHEL 9 is
+supported by Red Hat until 2032 and is the dominant enterprise release in the
+project's target environment.
+
+Vim versions shipped by the targeted distributions:
+
+| Distribution | Vim version |
+|---|---|
+| RHEL 9 / AlmaLinux 9 / Rocky 9 | 8.2.2637 (the floor) |
+| Debian 12 Bookworm | 9.0.1378 |
+| Debian 13 Trixie | 9.1.1230 |
+| Ubuntu 24.04 LTS | 9.1.0016 |
+| Arch Linux (rolling) | 9.2.x (the ceiling) |
+
+The codebase uses only legacy VimScript and no Vim 9.0+ features. A
+vim9script migration is explicitly deferred: the dominant cost of this plugin
+is git and network I/O, not script execution, so the rewrite would have no
+measurable benefit (YAGNI). The `if v:version < 802` guard in
+`plugin/plugin_manager.vim` is therefore correct and intentional.
+
 ## Installation
 
 ### Prerequisites
