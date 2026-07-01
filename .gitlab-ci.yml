@@ -66,7 +66,7 @@ test_gentoo:
   allow_failure: true
   before_script:
     - emerge-webrsync
-    - emerge --getbinpkg --quiet-build app-editors/vim dev-vcs/git sys-devel/make
+    - emerge --getbinpkg --quiet-build app-editors/vim dev-vcs/git dev-build/make
     - vim -es -c 'if v:version < 802 | cq | endif' -c q
         && echo "Vim >= 8.2 OK" || { echo "Vim >= 8.2 required"; exit 1; }
     - git clone https://github.com/junegunn/vader.vim.git
