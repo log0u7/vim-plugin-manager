@@ -125,6 +125,16 @@ function! s:update_specific_plugin_sync(ctx) abort
     call plugin_manager#ui#complete_operation(l:op_id, 'ok', l:result.message)
     if l:result.changed
       call plugin_manager#cmd#helptags#execute(0, l:module_name, 1)
+      " Commit the updated submodule pointer, mirroring the async single-plugin
+      " path (s:commit_update_async).  Only stage if there is actually something
+      " pending (git status -s non-empty) so we never create an empty commit.
+      if plugin_manager#core#should_auto_commit()
+        let l:st = plugin_manager#git#execute('git status -s', '', 0, 0)
+        if !empty(trim(l:st.output))
+          call plugin_manager#git#execute(
+                \ 'git commit -am "Update Module: ' . l:module_name . '"', '', 0, 0)
+        endif
+      endif
     endif
   else
     call plugin_manager#ui#complete_operation(l:op_id, 'fail', 'Update failed')

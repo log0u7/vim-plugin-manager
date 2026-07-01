@@ -24,13 +24,22 @@ Execute (start_job sync fallback works when async unavailable):
   " When async is not supported, start_job calls callback synchronously
   " and returns -1 (sentinel for sync execution).
   if plugin_manager#async#supported()
-    " Async is available: verify start_job returns a positive ID.
+    " Async is available: verify start_job returns a positive ID without
+    " throwing.  Wrap in try/catch so that any exception (e.g. E121 from a
+    " bug in s:spawn_job) is captured and surfaced as an Assert failure
+    " rather than being silently swallowed by Vader.
     let g:_pm_async_results = []
-    let g:_pm_async_job_id = plugin_manager#async#start_job('echo hello', {
-          \ 'callback': {r -> add(g:_pm_async_results, r.status)}
-          \ })
+    let g:_pm_async_caught  = ''
+    try
+      let g:_pm_async_job_id = plugin_manager#async#start_job('echo hello', {
+            \ 'callback': {r -> add(g:_pm_async_results, r.status)}
+            \ })
+    catch
+      let g:_pm_async_caught = v:exception
+    endtry
+    AssertEqual '', g:_pm_async_caught, 'start_job must not throw (got: ' . g:_pm_async_caught . ')'
     Assert g:_pm_async_job_id > 0, 'start_job should return a positive job ID'
-    unlet g:_pm_async_job_id
+    unlet g:_pm_async_job_id g:_pm_async_caught
   else
     let g:_pm_async_results = []
     let g:_pm_async_job_id = plugin_manager#async#start_job('echo hello', {
