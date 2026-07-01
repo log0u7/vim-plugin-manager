@@ -101,9 +101,9 @@ Execute (dispatch add with missing arg shows usage, not MISSING_ARGS crash):
   call plugin_manager#cmd#dispatch('add')
   Assert 1
 
-Execute (complete position-1: empty arglead returns all 11 sub-commands):
+Execute (complete position-1: empty arglead returns all 12 sub-commands):
   let g:_pm_got = plugin_manager#cmd#complete('', 'PluginManager ', 14)
-  AssertEqual 11, len(g:_pm_got), 'expected 11 sub-commands, got: ' . string(g:_pm_got)
+  AssertEqual 12, len(g:_pm_got), 'expected 12 sub-commands, got: ' . string(g:_pm_got)
   Assert index(g:_pm_got, 'add')    >= 0
   Assert index(g:_pm_got, 'remove') >= 0
   Assert index(g:_pm_got, 'update') >= 0
