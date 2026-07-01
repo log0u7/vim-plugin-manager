@@ -306,7 +306,9 @@ function! plugin_manager#core#view_log() abort
       if len(l:log_contents) > l:max_entries
         call add(l:lines, '(Showing last ' . l:max_entries . ' entries of ' . len(l:log_contents) . ' total)')
         call add(l:lines, '')
+        " vint: -ProhibitUsingUndeclaredVariable
         call extend(l:lines, l:log_contents[-l:max_entries:])
+        " vint: +ProhibitUsingUndeclaredVariable
       else
         call extend(l:lines, l:log_contents)
       endif

@@ -1,11 +1,25 @@
 stages:
+  - lint
   - test
 
+# --------------------------------------------------------------------------
+# Lint: VimScript static analysis via vim-vint
+# --------------------------------------------------------------------------
+lint_vimscript:
+  image: python:3-slim
+  stage: lint
+  script:
+    - pip install --quiet vim-vint
+    - vint -e autoload/ plugin/ ftplugin/ ftdetect/ syntax/
+
+# --------------------------------------------------------------------------
+# Tests: Vader suite on Debian Bookworm
+# --------------------------------------------------------------------------
 test_vim_plugin_manager:
   image: debian:bookworm
   stage: test
   before_script:
-    - apt update && apt install -y git make vim
+    - apt update && apt install -y git make vim python3-pip
     - git clone https://github.com/junegunn/vader.vim.git
     - git -C vader.vim checkout 429b669e6158be3a9fc110799607c232e6ed8e29
   script:
