@@ -62,6 +62,11 @@ function! plugin_manager#api#reload(module_name) abort
   return plugin_manager#cmd#reload#execute(a:module_name)
 endfunction
 
+" Run the health diagnostic
+function! plugin_manager#api#health() abort
+  return plugin_manager#cmd#health#execute()
+endfunction
+
 " Add a remote repository
 function! plugin_manager#api#add_remote(url) abort
   return plugin_manager#cmd#remote#add(a:url)

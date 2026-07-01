@@ -328,6 +328,9 @@ When Vim loads your vimrc, all these plugins will be installed automatically if 
 
 " Reload all Vim configuration
 :PluginManager reload
+
+" Run a health diagnostic (checks git, Vim version, async, encoding, etc.)
+:PluginManager health
 ```
 
 ### Backup and Restore
@@ -429,6 +432,7 @@ the check completes.
 - `l` - List installed plugins
 - `u` - Update all plugins
 - `h` - Generate helptags for all plugins
+- `H` - Run health diagnostic
 - `s` - Show status of submodules
 - `S` - Show summary of changes
 - `b` - Backup configuration

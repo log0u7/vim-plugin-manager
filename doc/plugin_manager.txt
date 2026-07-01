@@ -306,6 +306,18 @@ The plugin provides the following commands:
                                  them. Reports plugins that are behind their
                                  remote branch in the sidebar.
 
+:PluginManager health            Run a read-only diagnostic and report results
+                                 in the sidebar. Checks:
+                                   - git executable present and version >= 2.40
+                                   - Async support (+job and +channel)
+                                   - Vim version >= 8.2
+                                   - Encoding is utf-8
+                                   - vim dir exists and is a git repository
+                                   - Log directory is writable
+                                   - Submodules are initialized and in sync
+                                   - At least one remote is configured
+                                 Sidebar shortcut: H
+
 :PluginManager backup            Backup configuration to git remotes
                                 1. Copies your main configuration file (.vimrc)
                                    into your .vim directory
@@ -431,6 +443,7 @@ c       Check for available updates (async)
 l       List installed plugins
 u       Update all plugins
 h       Generate helptags for all plugins
+H       Run health diagnostic
 s       Show status of submodules
 S       Show summary of changes
 b       Backup configuration

@@ -59,6 +59,14 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
   existing conventions.
 
 ### Features
+- Added `:PluginManager health` diagnostic command. Runs 9 read-only checks
+  in the sidebar: git executable present, git version (>= 2.40 documented
+  minimum), async support (+job/+channel), Vim version (>= 8.2), encoding
+  (utf-8), vim dir is a git repo, log dir writable, submodules initialized
+  and in sync, remotes configured. Each check renders an ok/warn/fail line
+  via the standard UI API. Sidebar shortcut `H`. Wired into dispatch,
+  completion, api.vim, ftplugin, and ui.vim usage(). Documented in README
+  and doc/plugin_manager.txt.
 - Tab completion for `:PluginManager`: sub-command names complete at position 1;
   installed plugin names (from `.gitmodules`) complete at position 2 for
   `remove`, `update`, `helptags`, and `reload`.
