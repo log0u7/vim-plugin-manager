@@ -48,7 +48,7 @@ For VimScript:
   ```vim
   " path/to/file.vim - Short description
   " Maintainer: G.K.E. <gke@6admin.io>
-  " Version: 1.5.0
+  " Version: 1.6.0
   ```
 - Document functions with a short comment above them.
 - Prefer Vim script native idioms over shelling out when feasible.
