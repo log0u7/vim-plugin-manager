@@ -58,12 +58,12 @@ Vim versions shipped by the targeted distributions:
 | Distribution | Vim version |
 |---|---|
 | RHEL 9 / AlmaLinux 9 / Rocky 9 | 8.2.2637 (the floor) |
-| AlmaLinux 10 (RHEL 10 proxy) | >= 9.x |
+| AlmaLinux 10 (RHEL 10 proxy) | 9.1.083 |
 | Debian 12 Bookworm | 9.0.1378 |
 | Debian 13 Trixie | 9.1.1230 |
 | Ubuntu 24.04 LTS | 9.1.0016 |
 | Ubuntu 26.04 LTS | 9.1.2141 |
-| Arch Linux (rolling) | 9.2.x (the ceiling) |
+| Arch Linux (rolling) | 9.2.0735 (the ceiling) |
 
 The codebase uses only legacy VimScript and no Vim 9.0+ features. A
 vim9script migration is explicitly deferred: the dominant cost of this plugin
