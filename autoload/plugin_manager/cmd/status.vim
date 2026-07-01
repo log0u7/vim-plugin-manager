@@ -50,25 +50,13 @@ endfunction
 " ------------------------------------------------------------------------------
 
 function! s:create_status_context(modules) abort
-  let l:module_names = sort(keys(a:modules))
-  let l:valid_modules = []
-  
-  for l:name in l:module_names
-    let l:module = a:modules[l:name]
-    if has_key(l:module, 'is_valid') && l:module.is_valid
-      call add(l:valid_modules, l:module)
-    endif
-  endfor
-  
-  let l:ctx = {
-        \ 'modules': a:modules,
-        \ 'module_names': l:module_names,
+  let l:valid_modules = plugin_manager#git#valid_modules()
+  return {
+        \ 'modules':       a:modules,
         \ 'valid_modules': l:valid_modules,
-        \ 'ops': {},
-        \ 'pending': len(l:valid_modules)
+        \ 'ops':           {},
+        \ 'pending':       len(l:valid_modules)
         \ }
-
-  return l:ctx
 endfunction
 
 " ------------------------------------------------------------------------------
