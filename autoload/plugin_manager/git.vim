@@ -528,32 +528,36 @@ function! plugin_manager#git#add_submodule(url, install_dir, options) abort
   " Add URL and path
   let l:cmd .= ' ' . shellescape(a:url) . ' ' . shellescape(l:relative_path)
   
-  " Execute the command
-  let l:result = plugin_manager#git#execute(l:cmd, '', 1, 1)
-  
+  let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+
+  " Execute the command (must run at the repo root so git knows the repo)
+  let l:result = plugin_manager#git#execute(l:cmd, l:vim_dir, 1, 1)
+
   " Process version options (branch or tag) if needed
   if !empty(a:options.tag) && empty(a:options.branch)
-    call s:checkout_version(l:relative_path, a:options.tag)
+    " abs_path for checkout: vim_dir/relative_path
+    let l:abs_path = empty(l:vim_dir) ? l:relative_path : (l:vim_dir . '/' . l:relative_path)
+    call s:checkout_version(l:abs_path, a:options.tag)
   endif
-  
-  " Execute post-install command if provided
+
+  " Execute post-install command if provided (run inside the submodule dir)
   if !empty(a:options.exec)
-    let l:exec_result = plugin_manager#git#execute(a:options.exec, l:relative_path, 1, 0)
+    let l:abs_path = empty(l:vim_dir) ? l:relative_path : (l:vim_dir . '/' . l:relative_path)
+    let l:exec_result = plugin_manager#git#execute(a:options.exec, l:abs_path, 1, 0)
     if !l:exec_result.success
-      " Standardized error handling 
       call plugin_manager#core#throw('git', 'COMMAND_FAILED', 'Post-install command failed: ' . a:options.exec)
     endif
   endif
-  
-  " Commit changes
+
+  " Commit changes (must run at repo root)
   let l:commit_msg = 'Add ' . a:url . ' plugin'
   if !empty(a:options.branch)
     let l:commit_msg .= ' (branch: ' . a:options.branch . ')'
   elseif !empty(a:options.tag)
     let l:commit_msg .= ' (tag: ' . a:options.tag . ')'
   endif
-  
-  call plugin_manager#git#execute('git commit -m ' . shellescape(l:commit_msg), '', 1, 0)
+
+  call plugin_manager#git#execute('git commit -m ' . shellescape(l:commit_msg), l:vim_dir, 1, 0)
   
   return l:result.success
 endfunction

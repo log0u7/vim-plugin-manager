@@ -187,14 +187,15 @@ endfunction
 
 function! s:commit_removal(module_name, module_info) abort
   let l:commit_msg = "Remove " . a:module_name . " plugin"
+  let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
 
   if !empty(a:module_info) && has_key(a:module_info, 'url')
     let l:commit_msg .= " (" . a:module_info.url . ")"
   endif
 
-  " Stage only .gitmodules (updated by git rm) rather than 'git add -A' which
-  " would stage all unrelated pending changes in the worktree.
-  call plugin_manager#git#execute('git add .gitmodules', '', 0, 0)
+  " Stage only .gitmodules (updated by git rm); pass vim_dir so the command
+  " runs in the repo root regardless of the process cwd.
+  call plugin_manager#git#execute('git add .gitmodules', l:vim_dir, 0, 0)
   call plugin_manager#git#execute('git commit -m ' . shellescape(l:commit_msg) .
-        \ ' || git commit --allow-empty -m ' . shellescape(l:commit_msg), '', 0, 0)
+        \ ' || git commit --allow-empty -m ' . shellescape(l:commit_msg), l:vim_dir, 0, 0)
 endfunction
