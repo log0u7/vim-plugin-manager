@@ -17,12 +17,12 @@ lint_vimscript:
 #
 # Distribution matrix and the Vim version each ships:
 #   almalinux:9       Vim 8.2.2637  (RHEL 9 proxy - the real 8.2 floor)
-#   almalinux:10      Vim >= 9.x    (RHEL 10 proxy)
+#   almalinux:10      Vim 9.1.083   (RHEL 10 proxy)
 #   debian:bookworm   Vim 9.0.1378  (Debian oldstable)
 #   debian:trixie     Vim 9.1.1230  (Debian stable)
 #   ubuntu:24.04      Vim 9.1.0016
-#   ubuntu:26.04      Vim >= 9.1
-#   archlinux:latest  Vim 9.2.x     (rolling, the ceiling)
+#   ubuntu:26.04      Vim 9.1.2141
+#   archlinux:latest  Vim 9.2.0735  (rolling, the ceiling)
 #
 # Keep VADER_SHA in sync with Makefile and .github/workflows/test.yml.
 # --------------------------------------------------------------------------
