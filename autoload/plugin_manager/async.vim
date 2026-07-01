@@ -107,7 +107,7 @@ function! s:spawn_job(job_id) abort
             \ 'mode': 'raw',
             \ }
     
-    let l:vim_job = job_start(plugin_manager#async#shell_argv(l:cmd), l:job_opts)
+    let l:vim_job = job_start(plugin_manager#async#shell_argv(l:job.cmd), l:job_opts)
     
     if job_status(l:vim_job) !=# 'fail'
         let s:jobs[a:job_id].job = l:vim_job

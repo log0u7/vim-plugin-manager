@@ -10,6 +10,20 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
   `remove`, `update`, `helptags`, and `reload`.
 
 ### Bug Fixes
+- Fixed `async.vim` crash (`E121: Undefined variable: l:cmd`) in `s:spawn_job`:
+  the job command was stored in `l:job.cmd` but referenced as the undefined
+  `l:cmd`, crashing every real async job launch (update, check, status) in
+  interactive Vim with `+job`. The test suite did not catch this because Vader
+  silently ignores non-Assert exceptions; the test has been rewritten with an
+  explicit `try/catch + Assert` so any future regression is detected.
+- Fixed `restore` reporting success even when `git submodule init/update/sync`
+  failed: each `git#execute` call now uses `throw_on_error=1` so a Git failure
+  surfaces as a structured error in the sidebar instead of silently completing
+  as `'ok'`.
+- Fixed `update` (single-plugin, sync path) never committing the updated
+  submodule pointer: the sync single-plugin path now runs `git commit` after a
+  successful pull when `g:plugin_manager_auto_commit_on_update` is set,
+  mirroring the behaviour of the async single-plugin and "update all" paths.
 - Fixed `:help plugin-manager` (hyphen form): the help tag `*plugin-manager*`
   was absent from `doc/plugin_manager.txt`; only `*plugin_manager.txt*`
   (underscore) existed, so `:help plugin-manager` silently failed after
