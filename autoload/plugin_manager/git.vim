@@ -414,7 +414,7 @@ function! plugin_manager#git#collect_status_local(module_path) abort
         \ l:result.current_commit != l:result.remote_commit
     
     " Count commits ahead/behind
-    let l:res = plugin_manager#git#execute('git rev-list --count HEAD..' . l:result.remote_branch, 
+    let l:res = plugin_manager#git#execute('git rev-list --count HEAD..' . shellescape(l:result.remote_branch),
           \ a:module_path, 0, 0)
     if l:res.success
       let l:behind = substitute(l:res.output, '\n', '', 'g')
@@ -423,7 +423,7 @@ function! plugin_manager#git#collect_status_local(module_path) abort
       endif
     endif
     
-    let l:res = plugin_manager#git#execute('git rev-list --count ' . l:result.remote_branch . '..HEAD', 
+    let l:res = plugin_manager#git#execute('git rev-list --count ' . shellescape(l:result.remote_branch) . '..HEAD',
           \ a:module_path, 0, 0)
     if l:res.success
       let l:ahead = substitute(l:res.output, '\n', '', 'g')
@@ -542,7 +542,7 @@ function! plugin_manager#git#update_submodule(module_path) abort
   " Build pull command with stripped branch name (remove origin/ prefix)
   let l:branch = plugin_manager#git#remote_branch_name(l:update_status.remote_branch)
   let l:pull_flag = plugin_manager#core#get_pull_flag()
-  let l:result = plugin_manager#git#execute('git pull origin ' . l:branch . ' ' . l:pull_flag, 
+  let l:result = plugin_manager#git#execute('git pull origin ' . shellescape(l:branch) . ' ' . l:pull_flag,
         \ a:module_path, 1, 1)
   
   " Handle error
