@@ -128,10 +128,11 @@ function! s:update_specific_plugin_sync(ctx) abort
       " path (s:commit_update_async).  Only stage if there is actually something
       " pending (git status -s non-empty) so we never create an empty commit.
       if plugin_manager#core#should_auto_commit()
-        let l:st = plugin_manager#git#execute('git status -s', '', 0, 0)
+        let l:vd = plugin_manager#core#get_config('vim_dir', '')
+        let l:st = plugin_manager#git#execute('git status -s', l:vd, 0, 0)
         if !empty(trim(l:st.output))
           call plugin_manager#git#execute(
-                \ 'git commit -am "Update Module: ' . l:module_name . '"', '', 0, 0)
+                \ 'git commit -am "Update Module: ' . l:module_name . '"', l:vd, 0, 0)
         endif
       endif
     endif
@@ -242,7 +243,9 @@ endfunction
 " Sync update all plugins
 function! s:update_all_plugins_sync(ctx) abort
   " Fetch all modules first (no stash yet - only stash if a pull is needed)
-  call plugin_manager#git#execute('git submodule foreach --recursive "git fetch origin"', '', 0, 0)
+  call plugin_manager#git#execute(
+        \ 'git submodule foreach --recursive "git fetch origin"',
+        \ plugin_manager#core#get_config('vim_dir', ''), 0, 0)
 
   let l:modules_to_update = []
   let l:pending_ops = []
@@ -306,7 +309,9 @@ function! s:update_all_plugins_sync(ctx) abort
   endfor
 
   if !empty(l:updated_modules) && plugin_manager#core#should_auto_commit()
-    call plugin_manager#git#execute('git commit -am "Update Modules"', '', 0, 0)
+    call plugin_manager#git#execute(
+          \ 'git commit -am "Update Modules"',
+          \ plugin_manager#core#get_config('vim_dir', ''), 0, 0)
   endif
 
   for l:module in l:updated_modules
@@ -432,7 +437,9 @@ endfunction
 function! s:finalize_update_all(ctx) abort
   if !empty(a:ctx.updated_modules)
     if plugin_manager#core#should_auto_commit()
-      call plugin_manager#git#execute('git commit -am "Update Modules"', '', 0, 0)
+      call plugin_manager#git#execute(
+            \ 'git commit -am "Update Modules"',
+            \ plugin_manager#core#get_config('vim_dir', ''), 0, 0)
     endif
     for l:module in a:ctx.updated_modules
       call plugin_manager#cmd#helptags#execute(0, l:module.short_name, 1)
@@ -481,15 +488,19 @@ function! s:commit_update_async(module_name) abort
   if !plugin_manager#core#should_auto_commit()
     return
   endif
-  let l:status_cmd = 'git status -s'
+  let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+  " Use 'git -C vim_dir ...' so the async job runs in the repo root without
+  " depending on the process cwd (which is no longer changed by ensure_vim_directory).
+  let l:status_cmd = 'git -C ' . shellescape(l:vim_dir) . ' status -s'
   call plugin_manager#async#git(l:status_cmd, {
-        \ 'callback': function('s:on_status_check_complete', [a:module_name])
+        \ 'callback': function('s:on_status_check_complete', [a:module_name, l:vim_dir])
         \ })
 endfunction
 
-function! s:on_status_check_complete(module_name, result) abort
+function! s:on_status_check_complete(module_name, vim_dir, result) abort
   if !empty(a:result.output)
-    let l:commit_cmd = 'git commit -am "Update Module: ' . a:module_name . '"'
+    let l:commit_cmd = 'git -C ' . shellescape(a:vim_dir) .
+          \ ' commit -am "Update Module: ' . a:module_name . '"'
     call plugin_manager#async#git(l:commit_cmd, {})
   endif
 endfunction

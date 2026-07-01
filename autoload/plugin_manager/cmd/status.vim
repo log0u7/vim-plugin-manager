@@ -64,7 +64,10 @@ endfunction
 " ------------------------------------------------------------------------------
 
 function! s:fetch_status_sync(ctx) abort
-  call plugin_manager#git#execute('git submodule foreach --recursive "git fetch -q origin 2>/dev/null || true"', '', 0, 0)
+  let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+  call plugin_manager#git#execute(
+        \ 'git submodule foreach --recursive "git fetch -q origin 2>/dev/null || true"',
+        \ l:vim_dir, 0, 0)
 
   for l:module in a:ctx.valid_modules
     let l:info = s:get_module_status_info(l:module, 1)

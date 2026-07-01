@@ -124,7 +124,7 @@ function! s:check_sync(ctx) abort
   " Fetch all remotes at once, then analyze each module locally
   call plugin_manager#git#execute(
         \ 'git submodule foreach --recursive "git fetch -q origin 2>/dev/null || true"',
-        \ '', 0, 0)
+        \ plugin_manager#core#get_config('vim_dir', ''), 0, 0)
 
   for l:module in a:ctx.valid_modules
     " Always define l:op_id; empty string is the safe sentinel for silent mode
