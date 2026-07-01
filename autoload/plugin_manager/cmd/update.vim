@@ -180,7 +180,7 @@ function! s:on_fetch_complete(ctx, result) abort
   call plugin_manager#ui#update_operation(l:op_id, 'Pulling changes')
   let l:pull_flag = plugin_manager#core#get_pull_flag()
   let l:branch = plugin_manager#git#remote_branch_name(l:update_status.remote_branch)
-  call plugin_manager#async#git('git -C ' . shellescape(l:module_path) . ' pull origin ' . l:branch . ' ' . l:pull_flag, {
+  call plugin_manager#async#git('git -C ' . shellescape(l:module_path) . ' pull origin ' . shellescape(l:branch) . ' ' . l:pull_flag, {
         \ 'callback': function('s:on_update_complete', [a:ctx])
         \ })
 endfunction
@@ -282,7 +282,7 @@ function! s:update_all_plugins_sync(ctx) abort
     let l:had_stash = s:stash_if_needed(l:module.path)
 
     call plugin_manager#ui#update_operation(l:op_id, 'Updating')
-    let l:result = plugin_manager#git#execute('git pull origin ' . l:branch . ' ' . l:pull_flag, l:module.path, 0, 0)
+    let l:result = plugin_manager#git#execute('git pull origin ' . shellescape(l:branch) . ' ' . l:pull_flag, l:module.path, 0, 0)
 
     " Restore stashed changes regardless of pull outcome
     if l:had_stash
