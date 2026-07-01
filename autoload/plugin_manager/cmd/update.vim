@@ -340,8 +340,13 @@ function! s:update_all_plugins_async(ctx) abort
     let a:ctx.ops[l:module.short_name] = l:op_id
   endfor
   
-  " Fetch all at once first - stash will happen per-module only if a pull is needed
-  call plugin_manager#async#git('git submodule foreach --recursive "git fetch origin"', {
+  " Fetch all at once first - stash will happen per-module only if a pull is needed.
+  " Use 'git -C vim_dir ...' so the async job runs at the repo root without
+  " depending on the process cwd (no longer mutated by ensure_vim_directory).
+  let a:ctx.vim_dir = plugin_manager#core#get_config('vim_dir', '')
+  call plugin_manager#async#git(
+        \ 'git -C ' . shellescape(a:ctx.vim_dir) .
+        \ ' submodule foreach --recursive "git fetch origin"', {
         \ 'callback': function('s:on_batch_fetched', [a:ctx])
         \ })
 endfunction
