@@ -49,7 +49,7 @@ function! s:create_update_context(module_name, modules) abort
   let l:valid = []
   if !l:is_specific
     for l:mod in plugin_manager#git#valid_modules()
-      if plugin_manager#core#dir_exists(get(l:mod, 'path', ''))
+      if plugin_manager#core#dir_exists(get(l:mod, 'abs_path', get(l:mod, 'path', '')))
         call add(l:valid, l:mod)
       endif
     endfor
@@ -74,7 +74,7 @@ function! s:update_specific_plugin(ctx, use_async) abort
   
   let l:module = l:module_info.module
   let a:ctx.current_module = l:module
-  let a:ctx.module_path = l:module.path
+  let a:ctx.module_path = get(l:module, 'abs_path', l:module.path)
   let a:ctx.module_short_name = l:module.short_name
   
   if !plugin_manager#core#dir_exists(a:ctx.module_path)
@@ -128,10 +128,11 @@ function! s:update_specific_plugin_sync(ctx) abort
       " path (s:commit_update_async).  Only stage if there is actually something
       " pending (git status -s non-empty) so we never create an empty commit.
       if plugin_manager#core#should_auto_commit()
-        let l:st = plugin_manager#git#execute('git status -s', '', 0, 0)
+        let l:vd = plugin_manager#core#get_config('vim_dir', '')
+        let l:st = plugin_manager#git#execute('git status -s', l:vd, 0, 0)
         if !empty(trim(l:st.output))
           call plugin_manager#git#execute(
-                \ 'git commit -am "Update Module: ' . l:module_name . '"', '', 0, 0)
+                \ 'git commit -am "Update Module: ' . l:module_name . '"', l:vd, 0, 0)
         endif
       endif
     endif
@@ -242,13 +243,16 @@ endfunction
 " Sync update all plugins
 function! s:update_all_plugins_sync(ctx) abort
   " Fetch all modules first (no stash yet - only stash if a pull is needed)
-  call plugin_manager#git#execute('git submodule foreach --recursive "git fetch origin"', '', 0, 0)
+  call plugin_manager#git#execute(
+        \ 'git submodule foreach --recursive "git fetch origin"',
+        \ plugin_manager#core#get_config('vim_dir', ''), 0, 0)
 
   let l:modules_to_update = []
   let l:pending_ops = []
 
   for l:module in a:ctx.valid_modules
-    let l:update_status = plugin_manager#git#collect_status_local(l:module.path)
+    let l:mpath = get(l:module, 'abs_path', l:module.path)
+    let l:update_status = plugin_manager#git#collect_status_local(l:mpath)
 
     if !l:update_status.different_branch && l:update_status.has_updates
       let l:op_id = plugin_manager#ui#start_operation(l:module.short_name, 'Updating')
@@ -272,24 +276,25 @@ function! s:update_all_plugins_sync(ctx) abort
   for l:i in range(len(l:modules_to_update))
     let l:module = l:modules_to_update[l:i]
     let l:op_id = l:pending_ops[l:i]
-    let l:update_status = plugin_manager#git#collect_status_local(l:module.path)
+    let l:mpath = get(l:module, 'abs_path', l:module.path)
+    let l:update_status = plugin_manager#git#collect_status_local(l:mpath)
     let l:before_commit = l:update_status.current_commit
     let l:branch = plugin_manager#git#remote_branch_name(l:update_status.remote_branch)
     let l:pull_flag = plugin_manager#core#get_pull_flag()
 
     " Stash per-module, only for modules that will actually be pulled
-    let l:had_stash = s:stash_if_needed(l:module.path)
+    let l:had_stash = s:stash_if_needed(l:mpath)
 
     call plugin_manager#ui#update_operation(l:op_id, 'Updating')
-    let l:result = plugin_manager#git#execute('git pull origin ' . shellescape(l:branch) . ' ' . l:pull_flag, l:module.path, 0, 0)
+    let l:result = plugin_manager#git#execute('git pull origin ' . shellescape(l:branch) . ' ' . l:pull_flag, l:mpath, 0, 0)
 
     " Restore stashed changes regardless of pull outcome
     if l:had_stash
-      call s:stash_pop(l:module.path, l:op_id)
+      call s:stash_pop(l:mpath, l:op_id)
     endif
 
     if l:result.success
-      let l:changed = plugin_manager#git#head_changed(l:module.path, l:before_commit)
+      let l:changed = plugin_manager#git#head_changed(l:mpath, l:before_commit)
 
       if l:changed
         call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Updated')
@@ -304,7 +309,9 @@ function! s:update_all_plugins_sync(ctx) abort
   endfor
 
   if !empty(l:updated_modules) && plugin_manager#core#should_auto_commit()
-    call plugin_manager#git#execute('git commit -am "Update Modules"', '', 0, 0)
+    call plugin_manager#git#execute(
+          \ 'git commit -am "Update Modules"',
+          \ plugin_manager#core#get_config('vim_dir', ''), 0, 0)
   endif
 
   for l:module in l:updated_modules
@@ -333,8 +340,13 @@ function! s:update_all_plugins_async(ctx) abort
     let a:ctx.ops[l:module.short_name] = l:op_id
   endfor
   
-  " Fetch all at once first - stash will happen per-module only if a pull is needed
-  call plugin_manager#async#git('git submodule foreach --recursive "git fetch origin"', {
+  " Fetch all at once first - stash will happen per-module only if a pull is needed.
+  " Use 'git -C vim_dir ...' so the async job runs at the repo root without
+  " depending on the process cwd (no longer mutated by ensure_vim_directory).
+  let a:ctx.vim_dir = plugin_manager#core#get_config('vim_dir', '')
+  call plugin_manager#async#git(
+        \ 'git -C ' . shellescape(a:ctx.vim_dir) .
+        \ ' submodule foreach --recursive "git fetch origin"', {
         \ 'callback': function('s:on_batch_fetched', [a:ctx])
         \ })
 endfunction
@@ -355,7 +367,7 @@ endfunction
 
 function! s:analyze_and_update(ctx, module) abort
   let l:op_id = a:ctx.ops[a:module.short_name]
-  let l:module_path = a:module.path
+  let l:module_path = get(a:module, 'abs_path', a:module.path)
 
   call plugin_manager#ui#update_operation(l:op_id, 'Analyzing')
 
@@ -382,11 +394,11 @@ function! s:analyze_and_update(ctx, module) abort
   endif
   let a:ctx.stashed[a:module.short_name] = s:stash_if_needed(l:module_path)
 
-  " Pull with the correct remote branch
+  " Pull with the correct remote branch (use -C with absolute path)
   call plugin_manager#ui#update_operation(l:op_id, 'Updating')
   let l:branch = plugin_manager#git#remote_branch_name(l:update_status.remote_branch)
   let l:pull_flag = plugin_manager#core#get_pull_flag()
-  let l:update_cmd = 'git -C ' . shellescape(l:module_path) . ' pull origin ' . l:branch . ' ' . l:pull_flag
+  let l:update_cmd = 'git -C ' . shellescape(l:module_path) . ' pull origin ' . shellescape(l:branch) . ' ' . l:pull_flag
   call plugin_manager#async#git(l:update_cmd, {
         \ 'callback': function('s:on_module_updated', [a:ctx, a:module])
         \ })
@@ -394,7 +406,7 @@ endfunction
 
 function! s:on_module_updated(ctx, module, result) abort
   let l:op_id = a:ctx.ops[a:module.short_name]
-  let l:module_path = a:module.path
+  let l:module_path = get(a:module, 'abs_path', a:module.path)
   let l:success = a:result.status == 0
 
   " Restore stashed local changes regardless of pull outcome
@@ -430,7 +442,9 @@ endfunction
 function! s:finalize_update_all(ctx) abort
   if !empty(a:ctx.updated_modules)
     if plugin_manager#core#should_auto_commit()
-      call plugin_manager#git#execute('git commit -am "Update Modules"', '', 0, 0)
+      call plugin_manager#git#execute(
+            \ 'git commit -am "Update Modules"',
+            \ plugin_manager#core#get_config('vim_dir', ''), 0, 0)
     endif
     for l:module in a:ctx.updated_modules
       call plugin_manager#cmd#helptags#execute(0, l:module.short_name, 1)
@@ -479,15 +493,19 @@ function! s:commit_update_async(module_name) abort
   if !plugin_manager#core#should_auto_commit()
     return
   endif
-  let l:status_cmd = 'git status -s'
+  let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+  " Use 'git -C vim_dir ...' so the async job runs in the repo root without
+  " depending on the process cwd (which is no longer changed by ensure_vim_directory).
+  let l:status_cmd = 'git -C ' . shellescape(l:vim_dir) . ' status -s'
   call plugin_manager#async#git(l:status_cmd, {
-        \ 'callback': function('s:on_status_check_complete', [a:module_name])
+        \ 'callback': function('s:on_status_check_complete', [a:module_name, l:vim_dir])
         \ })
 endfunction
 
-function! s:on_status_check_complete(module_name, result) abort
+function! s:on_status_check_complete(module_name, vim_dir, result) abort
   if !empty(a:result.output)
-    let l:commit_cmd = 'git commit -am "Update Module: ' . a:module_name . '"'
+    let l:commit_cmd = 'git -C ' . shellescape(a:vim_dir) .
+          \ ' commit -am "Update Module: ' . a:module_name . '"'
     call plugin_manager#async#git(l:commit_cmd, {})
   endif
 endfunction

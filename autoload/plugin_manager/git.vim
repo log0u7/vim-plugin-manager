@@ -12,30 +12,34 @@ let s:gitmodules_mtime = 0
 
 " Parse .gitmodules and return a dictionary of plugins
 function! plugin_manager#git#parse_modules() abort
-  " Check if we're in the right directory
-  if !plugin_manager#core#ensure_vim_directory()
+  " Validate the vim directory without changing the process cwd.
+  " All file access below uses absolute paths derived from vim_dir.
+  let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+  if empty(l:vim_dir) || !isdirectory(l:vim_dir . '/.git')
     return {}
   endif
-  
+
+  let l:gitmodules = l:vim_dir . '/.gitmodules'
+
   " Check if .gitmodules exists
-  if !filereadable('.gitmodules')
+  if !filereadable(l:gitmodules)
     let s:gitmodules_cache = {}
     let s:gitmodules_mtime = 0
     return s:gitmodules_cache
   endif
-  
+
   " Check if file has been modified since last parse
-  let l:mtime = getftime('.gitmodules')
+  let l:mtime = getftime(l:gitmodules)
   if !empty(s:gitmodules_cache) && l:mtime == s:gitmodules_mtime
     return s:gitmodules_cache
   endif
-  
+
   " Reset cache
   let s:gitmodules_cache = {}
   let s:gitmodules_mtime = l:mtime
-  
+
   " Parse the file
-  let l:lines = readfile('.gitmodules')
+  let l:lines = readfile(l:gitmodules)
   let l:current_module = ''
   let l:in_module = 0
   
@@ -80,16 +84,23 @@ function! plugin_manager#git#parse_modules() abort
     endif
   endfor
   
-  " Validate the modules: each should have both path and url
+  " Validate the modules: each should have both path and url.
+  " Also compute abs_path (vim_dir/path) so every consumer can use an
+  " absolute path without depending on the process cwd.
+  let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
   for [l:name, l:module] in items(s:gitmodules_cache)
     if !has_key(l:module, 'path') || !has_key(l:module, 'url')
       " Mark invalid modules but don't remove them
       let s:gitmodules_cache[l:name]['is_valid'] = 0
     else
       let s:gitmodules_cache[l:name]['is_valid'] = 1
-      
-      " Check if the plugin directory exists
-      let s:gitmodules_cache[l:name]['exists'] = isdirectory(l:module.path)
+      " abs_path is the absolute on-disk path to the submodule working tree.
+      " path (relative) is kept for git submodule config keys.
+      let s:gitmodules_cache[l:name]['abs_path'] =
+            \ empty(l:vim_dir) ? l:module.path : (l:vim_dir . '/' . l:module.path)
+      " Check if the plugin directory exists (use abs_path, cwd-independent)
+      let s:gitmodules_cache[l:name]['exists'] =
+            \ isdirectory(s:gitmodules_cache[l:name]['abs_path'])
     endif
   endfor
   
@@ -517,32 +528,36 @@ function! plugin_manager#git#add_submodule(url, install_dir, options) abort
   " Add URL and path
   let l:cmd .= ' ' . shellescape(a:url) . ' ' . shellescape(l:relative_path)
   
-  " Execute the command
-  let l:result = plugin_manager#git#execute(l:cmd, '', 1, 1)
-  
+  let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+
+  " Execute the command (must run at the repo root so git knows the repo)
+  let l:result = plugin_manager#git#execute(l:cmd, l:vim_dir, 1, 1)
+
   " Process version options (branch or tag) if needed
   if !empty(a:options.tag) && empty(a:options.branch)
-    call s:checkout_version(l:relative_path, a:options.tag)
+    " abs_path for checkout: vim_dir/relative_path
+    let l:abs_path = empty(l:vim_dir) ? l:relative_path : (l:vim_dir . '/' . l:relative_path)
+    call s:checkout_version(l:abs_path, a:options.tag)
   endif
-  
-  " Execute post-install command if provided
+
+  " Execute post-install command if provided (run inside the submodule dir)
   if !empty(a:options.exec)
-    let l:exec_result = plugin_manager#git#execute(a:options.exec, l:relative_path, 1, 0)
+    let l:abs_path = empty(l:vim_dir) ? l:relative_path : (l:vim_dir . '/' . l:relative_path)
+    let l:exec_result = plugin_manager#git#execute(a:options.exec, l:abs_path, 1, 0)
     if !l:exec_result.success
-      " Standardized error handling 
       call plugin_manager#core#throw('git', 'COMMAND_FAILED', 'Post-install command failed: ' . a:options.exec)
     endif
   endif
-  
-  " Commit changes
+
+  " Commit changes (must run at repo root)
   let l:commit_msg = 'Add ' . a:url . ' plugin'
   if !empty(a:options.branch)
     let l:commit_msg .= ' (branch: ' . a:options.branch . ')'
   elseif !empty(a:options.tag)
     let l:commit_msg .= ' (tag: ' . a:options.tag . ')'
   endif
-  
-  call plugin_manager#git#execute('git commit -m ' . shellescape(l:commit_msg), '', 1, 0)
+
+  call plugin_manager#git#execute('git commit -m ' . shellescape(l:commit_msg), l:vim_dir, 1, 0)
   
   return l:result.success
 endfunction

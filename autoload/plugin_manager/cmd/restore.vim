@@ -9,7 +9,8 @@ function! plugin_manager#cmd#restore#execute() abort
 
     call plugin_manager#ui#open_header('Restoring plugins:')
 
-    if !plugin_manager#core#file_exists('.gitmodules')
+    let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+    if !plugin_manager#core#file_exists(l:vim_dir . '/.gitmodules')
       call plugin_manager#core#throw('restore', 'GITMODULES_NOT_FOUND', '.gitmodules file not found')
     endif
 
@@ -17,16 +18,16 @@ function! plugin_manager#cmd#restore#execute() abort
     " a failing git command surfaces as a structured PM_ERROR caught below,
     " rather than silently reporting 'ok' to the user.
     let l:op_id = plugin_manager#ui#start_operation('submodules', 'Initializing')
-    call plugin_manager#git#execute('git submodule init', '', 0, 1)
+    call plugin_manager#git#execute('git submodule init', l:vim_dir, 0, 1)
     call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Initialized')
 
     let l:op_id = plugin_manager#ui#start_operation('plugins', 'Restoring')
-    call plugin_manager#git#execute('git submodule update --init --recursive', '', 0, 1)
+    call plugin_manager#git#execute('git submodule update --init --recursive', l:vim_dir, 0, 1)
     call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Restored')
 
     let l:op_id = plugin_manager#ui#start_operation('sync', 'Syncing')
-    call plugin_manager#git#execute('git submodule sync', '', 0, 1)
-    call plugin_manager#git#execute('git submodule update --init --recursive --force', '', 0, 1)
+    call plugin_manager#git#execute('git submodule sync', l:vim_dir, 0, 1)
+    call plugin_manager#git#execute('git submodule update --init --recursive --force', l:vim_dir, 0, 1)
     call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Synced')
 
     call plugin_manager#ui#footer([plugin_manager#ui#info('Generating helptags')])

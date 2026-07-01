@@ -31,8 +31,8 @@ function! s:reload_specific_plugin(module_name) abort
     call plugin_manager#core#throw('reload', 'MODULE_NOT_FOUND', 'Module not found: ' . a:module_name)
   endif
   
-  let l:module_path = l:module_info.module.path
-  
+  let l:module_path = get(l:module_info.module, 'abs_path', l:module_info.module.path)
+
   if !isdirectory(l:module_path)
     call plugin_manager#core#throw('reload', 'MODULE_NOT_FOUND', 'Module directory not found: ' . l:module_path)
   endif

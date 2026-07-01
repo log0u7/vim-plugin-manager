@@ -64,7 +64,10 @@ endfunction
 " ------------------------------------------------------------------------------
 
 function! s:fetch_status_sync(ctx) abort
-  call plugin_manager#git#execute('git submodule foreach --recursive "git fetch -q origin 2>/dev/null || true"', '', 0, 0)
+  let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+  call plugin_manager#git#execute(
+        \ 'git submodule foreach --recursive "git fetch -q origin 2>/dev/null || true"',
+        \ l:vim_dir, 0, 0)
 
   for l:module in a:ctx.valid_modules
     let l:info = s:get_module_status_info(l:module, 1)
@@ -83,14 +86,15 @@ function! s:fetch_status_async(ctx) abort
   " Launch all fetches in parallel. The async engine's concurrency queue
   " (g:plugin_manager_max_concurrent_jobs, default 4) limits simultaneous jobs.
   for l:module in a:ctx.valid_modules
-    if !isdirectory(l:module.path)
+    let l:mpath = get(l:module, 'abs_path', l:module.path)
+    if !isdirectory(l:mpath)
       let l:info = s:get_module_status_info(l:module, 1)
       call s:complete_status_op(a:ctx, l:module, l:info)
       let a:ctx.pending -= 1
       call s:maybe_finalize_status(a:ctx)
     else
       call plugin_manager#async#git(
-            \ 'git -C ' . shellescape(l:module.path) . ' fetch -q origin 2>/dev/null || true', {
+            \ 'git -C ' . shellescape(l:mpath) . ' fetch -q origin 2>/dev/null || true', {
             \ 'callback': function('s:on_status_fetched', [a:ctx, l:module])
             \ })
     endif
@@ -153,25 +157,25 @@ endfunction
 function! s:get_module_status_info(module, ...) abort
   let l:local_only = a:0 > 0 ? a:1 : 0
   let l:short_name = a:module.short_name
-  let l:path = a:module.path
-  
+  let l:path = get(a:module, 'abs_path', a:module.path)
+
   let l:info = {
         \ 'module': a:module,
         \ 'name': l:short_name,
         \ 'status': 'OK',
         \ 'details': ''
         \ }
-  
+
   if !isdirectory(l:path)
     let l:info.status = 'Missing'
     let l:info.details = 'Directory not found'
     return l:info
   endif
-  
+
   let l:update_status = l:local_only
         \ ? plugin_manager#git#collect_status_local(l:path)
         \ : plugin_manager#git#check_updates(l:path)
-  
+
   if l:update_status.different_branch && l:update_status.branch !=# 'detached'
     let l:info.status = 'Custom branch'
     let l:info.details = l:update_status.branch
@@ -186,7 +190,7 @@ function! s:get_module_status_info(module, ...) abort
     let l:info.details = 'Local changes'
   else
     let l:info.status = 'Up-to-date'
-    
+
     " Get last commit info
     let l:result = plugin_manager#git#execute('git log -1 --format="%h %ar"', l:path, 0, 0)
     if l:result.success
