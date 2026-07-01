@@ -19,19 +19,13 @@ function! plugin_manager#cmd#list#all() abort
     endif
 
     let l:lines = plugin_manager#ui#header('Installed plugins:')
-    let l:module_names = sort(keys(l:modules))
-    
-    for l:name in l:module_names
-      let l:module = l:modules[l:name]
-      if has_key(l:module, 'is_valid') && l:module.is_valid
-        let l:short_name = l:module.short_name
-        let l:status = has_key(l:module, 'exists') && l:module.exists ? 'Installed' : 'Missing'
-        let l:symbol = has_key(l:module, 'exists') && l:module.exists ? 
-              \ plugin_manager#ui#get_symbol('tick') : plugin_manager#ui#get_symbol('cross')
-        
-        let l:formatted = plugin_manager#ui#format_plugin_line(l:symbol, l:short_name, l:status)
-        call add(l:lines, l:formatted)
-      endif
+
+    for l:module in plugin_manager#git#valid_modules()
+      let l:short_name = l:module.short_name
+      let l:status = has_key(l:module, 'exists') && l:module.exists ? 'Installed' : 'Missing'
+      let l:symbol  = has_key(l:module, 'exists') && l:module.exists ?
+            \ plugin_manager#ui#get_symbol('tick') : plugin_manager#ui#get_symbol('cross')
+      call add(l:lines, plugin_manager#ui#format_plugin_line(l:symbol, l:short_name, l:status))
     endfor
     
     call plugin_manager#ui#open_sidebar(l:lines)
