@@ -60,7 +60,10 @@ function! plugin_manager#cmd#check#execute(...) abort
 
     if plugin_manager#async#supported()
       call s:check_async(l:ctx)
-      return get(plugin_manager#core#read_check_cache(), 'plugins', [])
+      " In async mode the result is not yet available; callers that need it
+      " must use the on_done callback passed in opts.  Return an empty list
+      " rather than stale cache data to make the contract explicit.
+      return []
     else
       return s:check_sync(l:ctx)
     endif

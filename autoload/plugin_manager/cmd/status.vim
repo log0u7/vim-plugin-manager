@@ -16,18 +16,25 @@ function! plugin_manager#cmd#status#execute() abort
       return
     endif
 
-    call plugin_manager#ui#open_header('Plugin status:')
-    
     let l:ctx = s:create_status_context(l:modules)
-    
+
+    if empty(l:ctx.valid_modules)
+      call plugin_manager#ui#open_sidebar(
+            \ plugin_manager#ui#header('Plugin status:') +
+            \ [plugin_manager#ui#info('No valid plugins found')])
+      return
+    endif
+
+    call plugin_manager#ui#open_header('Plugin status:')
+
     " Render all plugin lines as a block with pending spinners (instantly, like list)
     for l:module in l:ctx.valid_modules
       let l:op_id = plugin_manager#ui#start_operation(l:module.short_name, 'Checking')
       let l:ctx.ops[l:module.short_name] = l:op_id
     endfor
-    
+
     let l:use_async = plugin_manager#async#supported()
-    
+
     if l:use_async
       call s:fetch_status_async(l:ctx)
     else
