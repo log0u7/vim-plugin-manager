@@ -489,8 +489,8 @@ function! plugin_manager#core#is_local_path(path) abort
     return 1
   endif
 
-  " Absolute path (starts with '/' on Unix or drive letter on Windows)
-  if a:path =~ '^\/\|^[A-Za-z]:[\\\/]'
+  " Absolute path (starts with '/')
+  if a:path =~ '^\/'
     return 1
   endif
 
@@ -505,11 +505,7 @@ endfunction
 
 " Clean and normalize a path
 function! plugin_manager#core#normalize_path(path) abort
-  " Convert backslashes to forward slashes on Windows
   let l:path = a:path
-  if has('win32') || has('win64')
-    let l:path = substitute(l:path, '\\', '/', 'g')
-  endif
 
   " Expand ~ in paths
   if l:path =~ '^\~\/'
@@ -662,19 +658,18 @@ function! plugin_manager#core#dir_exists(path) abort
   return isdirectory(expand(a:path))
 endfunction
 
-" Platform-independent file or directory removal.
-" Uses Vim's native delete() to avoid shell dependencies.
+" File or directory removal using Vim's native delete().
 "
 " Safety contract: refuses to delete if the resolved path is:
-"   - empty or filesystem roots (/, C:\)
+"   - empty or the filesystem root (/)
 "   - the user home directory (expand('~'))
 "   - equal to or a parent of the configured vim_dir
 "   - contains traversal components (..)
 function! plugin_manager#core#remove_path(path) abort
   let l:path = expand(a:path)
 
-  " Reject empty or filesystem roots
-  if empty(l:path) || l:path ==# '/' || l:path =~# '^[A-Za-z]:[\\/]*$'
+  " Reject empty or filesystem root
+  if empty(l:path) || l:path ==# '/'
     return 0
   endif
 

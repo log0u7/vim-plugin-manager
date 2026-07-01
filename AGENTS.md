@@ -40,7 +40,9 @@ There is no compilation step. The project is loaded directly by Vim.
   and `.gitlab-ci.yml` (GitLab). Keep both green.
 
 Requirements: Vim 8.2+ (with +job and +channel), Git 2.40+. Neovim is not
-supported (it has lazy.nvim, packer.nvim and vim-plug).
+supported (it has lazy.nvim, packer.nvim and vim-plug). Windows and macOS are
+not supported: the project targets Linux only (Debian, Ubuntu, Arch, Gentoo,
+RHEL/AlmaLinux/Rocky).
 
 ## Coding conventions
 

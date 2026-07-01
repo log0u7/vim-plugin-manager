@@ -32,13 +32,9 @@ endif
 " CONFIGURATION VARIABLES
 " ------------------------------------------------------------------------------
 
-" Detect Vim configuration directory (Vim only)
+" Vim configuration directory (Linux/Unix only)
 if !exists('g:plugin_manager_vim_dir')
-    if has('win32') || has('win64')
-        let g:plugin_manager_vim_dir = expand('~/vimfiles')
-    else
-        let g:plugin_manager_vim_dir = expand('~/.vim')
-    endif
+    let g:plugin_manager_vim_dir = expand('~/.vim')
 endif
 
 " Plugin directory configuration
@@ -66,9 +62,9 @@ if !exists('g:plugin_manager_sidebar_width')
     let g:plugin_manager_sidebar_width = 80
 endif
 
-" Use fancy UI elements if possible
+" Use fancy UI elements when UTF-8 encoding is available
 if !exists('g:plugin_manager_fancy_ui')
-    let g:plugin_manager_fancy_ui = has('multi_byte') && &encoding ==# 'utf-8'
+    let g:plugin_manager_fancy_ui = &encoding ==# 'utf-8'
 endif
 
 " Default git host for short plugin names
