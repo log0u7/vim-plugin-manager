@@ -400,7 +400,7 @@ The CI matrix runs the Vader suite and the vint lint step on:
 | Debian 12 Bookworm | 9.0.1378 | Debian oldstable |
 | Debian 13 Trixie | 9.1.1230 | Debian stable |
 | Ubuntu 24.04 LTS | 9.1.0016 | |
-| Ubuntu 26.04 LTS | >= 9.1 | |
+| Ubuntu 26.04 LTS | 9.1.2141 | |
 | Arch Linux | 9.2.x | Rolling, the ceiling |
 | Gentoo | rolling | Non-blocking (`allow_failure: true`) |
 
