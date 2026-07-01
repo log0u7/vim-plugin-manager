@@ -41,7 +41,7 @@ A lightweight Vim plugin manager that uses Git submodules and Vim 8's native pac
 
 - **Vim 8.2+** (with `+job` and `+channel`; falls back to synchronous
   execution otherwise)
-- **Git 2.40+**
+- **Git 2.39+**
 - **Linux** (Debian, Ubuntu, Arch, Gentoo, RHEL/AlmaLinux/Rocky); Windows and
   macOS are not supported
 
@@ -74,7 +74,7 @@ measurable benefit (YAGNI). The `if v:version < 802` guard in
 ### Prerequisites
 
 - Vim 8.2+
-- Git 2.40 or higher
+- Git 2.39 or higher
 
 ### Simple Installation
 

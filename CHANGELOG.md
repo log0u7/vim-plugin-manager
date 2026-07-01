@@ -26,6 +26,12 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
   - `doc/plugin_manager.txt`: "Windows-specific Issues" troubleshooting
     block and Windows permission notes removed; defaults updated.
 
+### Changed
+- Lowered the documented minimum Git version from 2.40 to **2.39**, matching
+  Debian Bookworm (the oldest fully-supported distribution in the CI matrix).
+  The codebase uses no git feature newer than 1.9 in practice; 2.39 was chosen
+  to eliminate a spurious `warn` in `:PluginManager health` on Bookworm.
+
 ### Deferred
 - Real async path in CI: headless Vim (`vim -es`) does not run the event loop,
   so job callbacks never fire and async tests skip their assertions. Two real

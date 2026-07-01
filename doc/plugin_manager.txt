@@ -49,7 +49,7 @@ Features:
 
 Prerequisites:
 - Vim 8.2+ (with +job and +channel for async; falls back to synchronous)
-- Git 2.40+
+- Git 2.39+
 
 The plugin manager uses Git submodules and Vim 8's native package system. Installation is straightforward:
 
@@ -308,7 +308,7 @@ The plugin provides the following commands:
 
 :PluginManager health            Run a read-only diagnostic and report results
                                  in the sidebar. Checks:
-                                   - git executable present and version >= 2.40
+                                   - git executable present and version >= 2.39
                                    - Async support (+job and +channel)
                                    - Vim version >= 8.2
                                    - Encoding is utf-8
