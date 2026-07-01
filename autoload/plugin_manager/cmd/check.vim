@@ -18,16 +18,7 @@ function! plugin_manager#cmd#check#execute(...) abort
     let l:opts = a:0 > 0 ? a:1 : {}
     let l:silent = get(l:opts, 'silent', 0)
 
-    let l:modules = plugin_manager#git#parse_modules()
-    let l:module_names = sort(keys(l:modules))
-    let l:valid_modules = []
-
-    for l:name in l:module_names
-      let l:module = l:modules[l:name]
-      if has_key(l:module, 'is_valid') && l:module.is_valid
-        call add(l:valid_modules, l:module)
-      endif
-    endfor
+    let l:valid_modules = plugin_manager#git#valid_modules()
 
     if empty(l:valid_modules)
       if !l:silent
@@ -40,13 +31,12 @@ function! plugin_manager#cmd#check#execute(...) abort
     endif
 
     let l:ctx = {
-          \ 'modules': l:modules,
           \ 'valid_modules': l:valid_modules,
-          \ 'behind': [],
-          \ 'opts': l:opts,
-          \ 'silent': l:silent,
-          \ 'pending': len(l:valid_modules),
-          \ 'ops': {}
+          \ 'behind':        [],
+          \ 'opts':          l:opts,
+          \ 'silent':        l:silent,
+          \ 'pending':       len(l:valid_modules),
+          \ 'ops':           {}
           \ }
 
     " Block-instant: pre-render all plugin lines as pending operations

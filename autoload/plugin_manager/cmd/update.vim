@@ -43,24 +43,23 @@ endfunction
 " ------------------------------------------------------------------------------
 
 function! s:create_update_context(module_name, modules) abort
-  let l:ctx = {
-        \ 'module_name': a:module_name,
-        \ 'modules': a:modules,
-        \ 'is_specific_plugin': a:module_name !=# 'all',
-        \ 'valid_modules': [],
-        \ 'module_names': sort(keys(a:modules)),
-        \ }
-  
-  if !l:ctx.is_specific_plugin
-    for l:name in l:ctx.module_names
-      let l:module = l:ctx.modules[l:name]
-      if has_key(l:module, 'is_valid') && l:module.is_valid && plugin_manager#core#dir_exists(l:module.path)
-        call add(l:ctx.valid_modules, l:module)
+  let l:is_specific = a:module_name !=# 'all'
+  " For 'update all', collect only modules whose directory exists on disk;
+  " there is nothing to pull for a module with a missing working tree.
+  let l:valid = []
+  if !l:is_specific
+    for l:mod in plugin_manager#git#valid_modules()
+      if plugin_manager#core#dir_exists(get(l:mod, 'path', ''))
+        call add(l:valid, l:mod)
       endif
     endfor
   endif
-  
-  return l:ctx
+  return {
+        \ 'module_name':        a:module_name,
+        \ 'modules':            a:modules,
+        \ 'is_specific_plugin': l:is_specific,
+        \ 'valid_modules':      l:valid,
+        \ }
 endfunction
 
 " ------------------------------------------------------------------------------

@@ -102,6 +102,24 @@ function! plugin_manager#git#refresh_modules_cache() abort
   return plugin_manager#git#parse_modules()
 endfunction
 
+" Return the list of valid modules sorted alphabetically by name.
+" A module is 'valid' when its is_valid flag is set (declared in .gitmodules
+" with a resolvable URL and short_name). Whether the directory actually exists
+" on disk is intentionally NOT checked here so that check/status/list can
+" report missing-directory modules as 'Missing'. Callers that must skip
+" missing directories (e.g. update) should filter with dir_exists() themselves.
+function! plugin_manager#git#valid_modules() abort
+  let l:modules = plugin_manager#git#parse_modules()
+  let l:result  = []
+  for l:name in sort(keys(l:modules))
+    let l:mod = l:modules[l:name]
+    if get(l:mod, 'is_valid', 0)
+      call add(l:result, l:mod)
+    endif
+  endfor
+  return l:result
+endfunction
+
 " Find a module by name, path, or short name.
 "
 " @param query   String to match against module name, path, or short_name.
