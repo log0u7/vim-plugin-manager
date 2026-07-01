@@ -594,44 +594,49 @@ endfunction
 " Add a remote repository
 function! plugin_manager#git#add_remote(url, name) abort
   call plugin_manager#core#require_vim_directory('git')
-  
+
+  " Capture vim_dir before any UI call that might switch buffers and alter
+  " the process cwd (e.g. autochdir).  All git commands are issued with an
+  " explicit dir so they are never affected by cwd drift.
+  let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+
   " Check if the repository exists
   if !plugin_manager#git#repository_exists(a:url)
-    " Standardized error handling
     call plugin_manager#core#throw('remote', 'REPO_NOT_FOUND', 'Repository not found: ' . a:url)
   endif
-  
+
   " Generate remote name if not provided
   let l:remote_name = empty(a:name) ? 'origin' : a:name
-  
-  " Check if remote already exists
-  let l:remotes = plugin_manager#git#execute('git remote', '', 0, 0)
+
+  " Check if remote already exists (run in vim_dir, not process cwd)
+  let l:remotes = plugin_manager#git#execute('git remote', l:vim_dir, 0, 0)
   let l:remote_exists = 0
-  
+
   for l:remote in split(l:remotes.output, "\n")
     if l:remote ==# l:remote_name
       let l:remote_exists = 1
       break
     endif
   endfor
-  
+
   if l:remote_exists
-    " Set URL for existing remote
-    let l:result = plugin_manager#git#execute('git remote set-url ' . l:remote_name . ' ' . shellescape(a:url), '', 1, 1)
-    
-    " Add push URL
-    call plugin_manager#git#execute('git remote set-url --add --push ' . l:remote_name . ' ' . shellescape(a:url), '', 0, 0)
+    let l:result = plugin_manager#git#execute(
+          \ 'git remote set-url ' . l:remote_name . ' ' . shellescape(a:url),
+          \ l:vim_dir, 0, 1)
+    call plugin_manager#git#execute(
+          \ 'git remote set-url --add --push ' . l:remote_name . ' ' . shellescape(a:url),
+          \ l:vim_dir, 0, 0)
   else
-    " Add new remote
-    let l:result = plugin_manager#git#execute('git remote add ' . l:remote_name . ' ' . shellescape(a:url), '', 1, 1)
+    let l:result = plugin_manager#git#execute(
+          \ 'git remote add ' . l:remote_name . ' ' . shellescape(a:url),
+          \ l:vim_dir, 0, 1)
   endif
-  
-  " Handle error
+
   if !l:result.success
-    " Standardized error handling
-    call plugin_manager#core#throw('remote', 'ADD_FAILED', 'Failed to add remote repository: ' . l:result.output)
+    call plugin_manager#core#throw('remote', 'ADD_FAILED',
+          \ 'Failed to add remote repository: ' . l:result.output)
   endif
-  
+
   return l:result.success
 endfunction
 
