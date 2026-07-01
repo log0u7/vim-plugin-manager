@@ -100,7 +100,7 @@ jobs:
       - name: Bootstrap Portage and install packages
         run: |
           emerge-webrsync
-          emerge --getbinpkg --quiet-build app-editors/vim dev-vcs/git sys-devel/make
+          emerge --getbinpkg --quiet-build app-editors/vim dev-vcs/git dev-build/make
 
       - uses: actions/checkout@v6
 
