@@ -348,6 +348,7 @@ function! plugin_manager#ui#usage() abort
         \ 'remove <plugin> [-f]    - Remove plugin',
         \ 'update [plugin|all]     - Update plugins',
         \ 'check                   - Check for available updates',
+        \ 'health                  - Run diagnostics',
         \ 'list                    - List installed plugins',
         \ 'status                  - Show plugin status',
         \ 'helptags [plugin]       - Generate helptags',
@@ -357,7 +358,7 @@ function! plugin_manager#ui#usage() abort
         \ 'Shortcuts:',
         \ 'q - Close   l - List      s - Status   S - Summary',
         \ 'u - Update  c - Check     b - Backup   r - Restore',
-        \ 'h - Helptags   R - Reload   ? - Help',
+        \ 'h - Helptags   H - Health   R - Reload   ? - Help',
         \ ]
   call plugin_manager#ui#open_sidebar(l:lines)
 endfunction
