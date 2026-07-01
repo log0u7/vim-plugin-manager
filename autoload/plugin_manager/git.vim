@@ -166,16 +166,28 @@ function! plugin_manager#git#submodule_exists(plugin_path_or_name) abort
 
   let l:search = plugin_manager#core#normalize_path(a:plugin_path_or_name)
   let l:short = fnamemodify(l:search, ':t')
+  " Determine whether the caller supplied a bare name (no separators) or a
+  " fuller identifier (org/repo, URL, path). Bare names may match by
+  " short_name; fuller identifiers must also match the URL or full path to
+  " avoid cross-organisation collisions (e.g. orgA/vim-foo vs orgB/vim-foo).
+  let l:is_bare_name = (l:search ==# l:short)
 
   for [l:name, l:mod] in items(l:modules)
-    let l:mod_path = get(l:mod, 'path', '')
+    let l:mod_path  = get(l:mod, 'path', '')
     let l:mod_short = get(l:mod, 'short_name', '')
+    let l:mod_url   = get(l:mod, 'url', '')
 
-    " Match by short_name (last path component)
-    if !empty(l:mod_short) && l:mod_short ==# l:short
+    " Exact URL match - always unambiguous
+    if !empty(l:mod_url) && l:mod_url ==# a:plugin_path_or_name
       return 1
     endif
-    if !empty(l:mod_short) && l:mod_short ==# l:search
+
+    " Match by short_name only when the search is a bare name (no org/path
+    " component), to prevent orgA/vim-foo matching orgB/vim-foo.
+    if l:is_bare_name && !empty(l:mod_short) && l:mod_short ==# l:short
+      return 1
+    endif
+    if l:is_bare_name && !empty(l:mod_short) && l:mod_short ==# l:search
       return 1
     endif
 
