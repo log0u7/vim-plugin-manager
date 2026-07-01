@@ -47,10 +47,14 @@ function! plugin_manager#async#start_job(cmd, opts) abort
         let l:status = v:shell_error
         
         if has_key(a:opts, 'callback')
+            " Match the async callback dict shape (errors, cmd) so callers
+            " work identically regardless of whether +job is available.
             call a:opts.callback({
-                \ 'id': -1,
+                \ 'id':     -1,
                 \ 'status': l:status,
-                \ 'output': l:output
+                \ 'output': l:output,
+                \ 'errors': '',
+                \ 'cmd':    a:cmd
                 \ })
         endif
         
@@ -155,19 +159,27 @@ endfunction
 " Stop a running job
 function! plugin_manager#async#stop_job(job_id) abort
     if !has_key(s:jobs, a:job_id)
-        " Standardized error handling
         call plugin_manager#core#throw('async', 'INVALID_JOB_ID', 'Invalid job ID: ' . a:job_id)
     endif
-    
-    let l:job = s:jobs[a:job_id].job
-    
-    if job_stop(l:job)
-        let s:jobs[a:job_id].status = -2  " Manually stopped
+
+    let l:job_handle = s:jobs[a:job_id].job
+
+    " A queued job has job = v:null (never spawned); mark it finished without
+    " calling job_stop, which would error on v:null.
+    if l:job_handle is v:null
+        let s:jobs[a:job_id].status   = -2
         let s:jobs[a:job_id].finished = localtime()
         call s:process_job_completion(a:job_id)
         return 1
     endif
-    
+
+    if job_stop(l:job_handle)
+        let s:jobs[a:job_id].status   = -2  " Manually stopped
+        let s:jobs[a:job_id].finished = localtime()
+        call s:process_job_completion(a:job_id)
+        return 1
+    endif
+
     return 0
 endfunction
 
@@ -192,17 +204,19 @@ function! plugin_manager#async#on_complete(job_id, callback) abort
     return 1
 endfunction
 
-" Clean up finished jobs older than a certain age
+" Clean up finished jobs older than a certain age.
+" Previously only jobs that had fired a callback were removed, leaking
+" finished callback-less jobs indefinitely.  All finished jobs are now
+" removed once they exceed max_age_seconds.
 function! plugin_manager#async#cleanup(max_age_seconds) abort
     let l:now = localtime()
     let l:job_ids = keys(s:jobs)
-    
+
     for l:id in l:job_ids
         let l:job = s:jobs[l:id]
         if l:job.finished && (l:now - l:job.finished) > a:max_age_seconds
-            " Only remove jobs that have completed callbacks
+            unlet s:jobs[l:id]
             if has_key(s:exited_with_callback, l:id)
-                unlet s:jobs[l:id]
                 unlet s:exited_with_callback[l:id]
             endif
         endif
