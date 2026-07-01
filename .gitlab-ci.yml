@@ -76,12 +76,10 @@ test_gentoo:
 
 # --------------------------------------------------------------------------
 # Async smoke: exercise the real async job path under a pty.
-# allow_failure: true while validating pty stability across distros.
 # --------------------------------------------------------------------------
 test_async_smoke:
   stage: test
   image: $IMAGE
-  allow_failure: true
   parallel:
     matrix:
       - IMAGE: "almalinux:9"
