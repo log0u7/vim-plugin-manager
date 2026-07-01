@@ -62,7 +62,7 @@ Vim versions shipped by the targeted distributions:
 | Debian 12 Bookworm | 9.0.1378 |
 | Debian 13 Trixie | 9.1.1230 |
 | Ubuntu 24.04 LTS | 9.1.0016 |
-| Ubuntu 26.04 LTS | >= 9.1 |
+| Ubuntu 26.04 LTS | 9.1.2141 |
 | Arch Linux (rolling) | 9.2.x (the ceiling) |
 
 The codebase uses only legacy VimScript and no Vim 9.0+ features. A
