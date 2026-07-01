@@ -102,7 +102,7 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 - Real async smoke test (`make test-async`) under a pty (`script -qec`): Vim's
   event loop runs, job callbacks fire, three async code paths are exercised
   end-to-end: `start_job` with opts callback, `async#git`, and the concurrency
-  queue. Runs on the same 7-distro matrix (non-blocking during validation).
+  queue. Runs on the same 7-distro matrix. Blocking on both CI systems.
 - `vim-vint` linting: dedicated lint job in both CI systems; `.vintrc.yaml`
   enables correctness policies as errors.
 

@@ -46,8 +46,7 @@ There is no compilation step. The project is loaded directly by Vim.
   `script -qec "vim -N -u tests/async_smoke.vim"` (util-linux pty) so Vim's
   event loop runs and real job callbacks fire. The smoke test exercises
   `start_job` with opts.callback, `async#git`, and the concurrency queue.
-  Currently `continue-on-error: true` / `allow_failure: true` during
-  cross-distro validation.
+  Blocking on both CI systems.
 
 Requirements: Vim 8.2+ (with +job and +channel), Git 2.39+. Neovim is not
 supported (it has lazy.nvim, packer.nvim and vim-plug). Windows and macOS are
