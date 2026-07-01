@@ -31,13 +31,14 @@ VADER_SHA   := 429b669e6158be3a9fc110799607c232e6ed8e29
 VADER_TESTS ?= tests/*.vader
 VIMRC_TEST  := .vaderrc.vim
 
-.PHONY: help update-version archive test test-ci clean
+.PHONY: help update-version archive test test-ci test-async clean
 
 help:
 	@echo ""
 	@echo "Test:"
 	@echo "  make test                                    # Run Vader tests (interactive TUI)"
 	@echo "  make test-ci                                 # Run Vader tests (headless, same as CI)"
+	@echo "  make test-async                              # Run async smoke test under a pty (requires util-linux script)"
 	@echo "  make clean                                   # Remove generated test artifacts"
 	@echo ""
 	@echo "Release:"
@@ -74,6 +75,17 @@ test: $(VADER_DIR) $(VIMRC_TEST)
 test-ci: $(VADER_DIR) $(VIMRC_TEST)
 	@echo "==> Running Vader tests (headless)..."
 	$(VIM) -es -Nu $(VIMRC_TEST) -c 'Vader! $(VADER_TESTS)'
+
+# Run the real async smoke test under a pty so Vim's event loop is active.
+# Requires util-linux 'script' (available on all targeted Linux distributions).
+# Exit code: 0 = all assertions passed, 1 = one or more failures.
+test-async:
+	@echo "==> Running async smoke test (pty mode)..."
+	@rm -f /tmp/pm_async_smoke.log
+	@script -qec "$(VIM) -N -u tests/async_smoke.vim" /dev/null ; \
+	  EXIT=$$? ; \
+	  cat /tmp/pm_async_smoke.log 2>/dev/null || true ; \
+	  exit $$EXIT
 
 clean:
 	@rm -f $(VIMRC_TEST)

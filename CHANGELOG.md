@@ -26,20 +26,31 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
   - `doc/plugin_manager.txt`: "Windows-specific Issues" troubleshooting
     block and Windows permission notes removed; defaults updated.
 
+### Bug Fixes
+- Fixed `async#git()` incorrectly passing `{}` (empty opts) to `start_job`
+  instead of the caller's opts dict, causing callbacks registered via
+  `async#git` to go through the redundant `on_complete()` path. Simplified to
+  `start_job(cmd, a:opts)` directly, relying on the LOT 3 fix.
+- Fixed `plugin_manager#async#start_job(cmd, {'callback': X})` never calling
+  the callback: the callback was stored in `s:jobs[id].opts.callback` but
+  `s:process_job_completion` looked for it at `s:jobs[id].callback` (top-level).
+  The callback in opts is now promoted to the top-level key during initialization.
+  Both `start_job` and `async#git` now share the same callback dispatch path.
+
 ### Changed
 - Lowered the documented minimum Git version from 2.40 to **2.39**, matching
   Debian Bookworm (the oldest fully-supported distribution in the CI matrix).
   The codebase uses no git feature newer than 1.9 in practice; 2.39 was chosen
   to eliminate a spurious `warn` in `:PluginManager health` on Bookworm.
 
-### Deferred
-- Real async path in CI: headless Vim (`vim -es`) does not run the event loop,
-  so job callbacks never fire and async tests skip their assertions. Two real
-  bugs (hardcoded `sh -c` argv and the `E121: l:cmd` crash in `s:spawn_job`)
-  shipped undetected because the async path was never truly exercised in CI.
-  Direction to evaluate later: run Vim inside a pseudo-terminal (`script -qec`)
-  or a pty wrapper so the event loop runs; add one non-skipping smoke test that
-  launches a real async job and asserts the callback fired with status 0.
+### CI
+- Added `make test-async`: a real async smoke test that runs Vim under a pty
+  (`script -qec`) so the event loop is active and job callbacks are actually
+  delivered. The test exercises three code paths end-to-end: `start_job` with
+  an opts callback, `async#git`, and the concurrency queue (max_concurrent=1
+  with 3 jobs). Runs on the same 7-distro matrix as the main test job in both
+  GitHub Actions and GitLab CI (non-blocking, `continue-on-error: true` /
+  `allow_failure: true` during initial validation; remove once known-stable).
 
 ### Changed
 - Replaced the hand-rolled regex parser in `parse_modules()` with native

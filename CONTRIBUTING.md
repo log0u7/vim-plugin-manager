@@ -376,6 +376,13 @@ make test
 make test-ci
 ```
 
+vader.vim is cloned automatically at the pinned SHA on first run. There is also
+a real async smoke test that runs Vim under a pty:
+
+```bash
+make test-async   # Requires util-linux 'script' (standard on Linux)
+```
+
 vader.vim is cloned automatically at the pinned SHA on first run. To use an
 existing clone at a custom path: `make test-ci VADER_DIR=./vader.vim`. Clean
 artifacts with `make clean`.
