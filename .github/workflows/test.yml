@@ -124,14 +124,11 @@ jobs:
   # event loop runs and job callbacks are actually delivered.
   # Runs on the same distribution matrix as the main test job.
   # Uses util-linux 'script' to allocate a pty.
-  # continue-on-error: true while the pty approach is validated across distros;
-  # remove it once the job is known-stable everywhere.
   # --------------------------------------------------------------------------
   test-async:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     container: ${{ matrix.image }}
-    continue-on-error: true
 
     strategy:
       fail-fast: false
