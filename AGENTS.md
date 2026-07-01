@@ -41,6 +41,10 @@ There is no compilation step. The project is loaded directly by Vim.
 - CI matrix covers AlmaLinux 9/10, Debian Bookworm/Trixie, Ubuntu 24.04/26.04,
   Arch Linux. Gentoo runs non-blocking (`allow_failure: true`). The AlmaLinux 9
   job runs on Vim 8.2 and proves the 8.2 floor is respected.
+- Real async CI is **deferred**: headless `vim -es` does not run the event loop
+  so async callbacks never fire and those tests are skipped. Direction for a
+  future pass: pty wrapper (`script -qec`) + one non-skipping smoke test that
+  asserts a real async job completed with status 0.
 
 Requirements: Vim 8.2+ (with +job and +channel), Git 2.40+. Neovim is not
 supported (it has lazy.nvim, packer.nvim and vim-plug). Windows and macOS are
