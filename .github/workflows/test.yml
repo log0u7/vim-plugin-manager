@@ -19,17 +19,49 @@ jobs:
         run: vint -e autoload/ plugin/ ftplugin/ ftdetect/ syntax/
 
   # --------------------------------------------------------------------------
-  # Tests: Vader suite on a single up-to-date Ubuntu image
+  # Tests: Vader suite across a matrix of Linux distributions.
+  #
+  # Distribution matrix and the Vim version each ships:
+  #   almalinux:9       Vim 8.2.2637  (RHEL 9 proxy - the real 8.2 floor)
+  #   almalinux:10      Vim >= 9.x    (RHEL 10 proxy)
+  #   debian:bookworm   Vim 9.0.1378  (Debian oldstable)
+  #   debian:trixie     Vim 9.1.1230  (Debian stable)
+  #   ubuntu:24.04      Vim 9.1.0016
+  #   ubuntu:26.04      Vim >= 9.1
+  #   archlinux:latest  Vim 9.2.x     (rolling, the ceiling)
+  #
+  # The AlmaLinux 9 job runs on Vim 8.2 and proves the floor is respected.
+  # Keep VADER_SHA in sync with Makefile and .gitlab-ci.yml.
   # --------------------------------------------------------------------------
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
+    container: ${{ matrix.image }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: "almalinux:9"
+            install: "dnf install -y git make vim-enhanced python3-pip"
+          - image: "almalinux:10"
+            install: "dnf install -y git make vim-enhanced python3-pip"
+          - image: "debian:bookworm"
+            install: "apt-get update && apt-get install -y git make vim python3-pip"
+          - image: "debian:trixie"
+            install: "apt-get update && apt-get install -y git make vim python3-pip"
+          - image: "ubuntu:24.04"
+            install: "apt-get update && apt-get install -y git make vim python3-pip"
+          - image: "ubuntu:26.04"
+            install: "apt-get update && apt-get install -y git make vim python3-pip"
+          - image: "archlinux:latest"
+            install: "pacman -Syu --noconfirm git make vim python-pip"
 
     steps:
-      - uses: actions/checkout@v6
+      - name: Install system packages
+        run: ${{ matrix.install }}
 
-      - name: Install Vim + Make
-        run: sudo apt-get update && sudo apt-get install -y git vim make
+      - uses: actions/checkout@v6
 
       - name: Verify Vim version and features
         run: |
@@ -47,6 +79,39 @@ jobs:
 
       - name: Clone Vader.vim
         if: steps.cache-vader.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/junegunn/vader.vim.git
+          git -C vader.vim checkout 429b669e6158be3a9fc110799607c232e6ed8e29
+
+      - name: Run Tests
+        run: make test-ci
+
+  # --------------------------------------------------------------------------
+  # Gentoo: non-blocking job (slow build, USE-flag dependent).
+  # A failure here does not block the pipeline.
+  # --------------------------------------------------------------------------
+  test-gentoo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container: gentoo/stage3:latest
+    continue-on-error: true
+
+    steps:
+      - name: Bootstrap Portage and install packages
+        run: |
+          emerge-webrsync
+          emerge --getbinpkg --quiet-build app-editors/vim dev-vcs/git sys-devel/make
+
+      - uses: actions/checkout@v6
+
+      - name: Verify Vim version and features
+        run: |
+          vim -es -c 'if v:version < 802 | cq | endif' -c q \
+            && echo "Vim >= 8.2 OK" || { echo "Vim >= 8.2 required"; exit 1; }
+          vim -es -c 'if !has("job") || !has("channel") | cq | endif' -c q \
+            && echo "+job +channel OK" || { echo "+job and +channel required"; exit 1; }
+
+      - name: Clone Vader.vim
         run: |
           git clone https://github.com/junegunn/vader.vim.git
           git -C vader.vim checkout 429b669e6158be3a9fc110799607c232e6ed8e29

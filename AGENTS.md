@@ -38,6 +38,9 @@ There is no compilation step. The project is loaded directly by Vim.
   Configuration: `.vintrc.yaml` (correctness=error, style=off).
 - CI runs `test-ci` AND `vint`: `.github/workflows/test.yml` (GitHub Actions)
   and `.gitlab-ci.yml` (GitLab). Keep both green.
+- CI matrix covers AlmaLinux 9/10, Debian Bookworm/Trixie, Ubuntu 24.04/26.04,
+  Arch Linux. Gentoo runs non-blocking (`allow_failure: true`). The AlmaLinux 9
+  job runs on Vim 8.2 and proves the 8.2 floor is respected.
 
 Requirements: Vim 8.2+ (with +job and +channel), Git 2.40+. Neovim is not
 supported (it has lazy.nvim, packer.nvim and vim-plug). Windows and macOS are

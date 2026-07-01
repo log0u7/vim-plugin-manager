@@ -13,13 +13,62 @@ lint_vimscript:
     - vint -e autoload/ plugin/ ftplugin/ ftdetect/ syntax/
 
 # --------------------------------------------------------------------------
-# Tests: Vader suite on Debian Bookworm
+# Tests: Vader suite across a matrix of Linux distributions.
+#
+# Distribution matrix and the Vim version each ships:
+#   almalinux:9       Vim 8.2.2637  (RHEL 9 proxy - the real 8.2 floor)
+#   almalinux:10      Vim >= 9.x    (RHEL 10 proxy)
+#   debian:bookworm   Vim 9.0.1378  (Debian oldstable)
+#   debian:trixie     Vim 9.1.1230  (Debian stable)
+#   ubuntu:24.04      Vim 9.1.0016
+#   ubuntu:26.04      Vim >= 9.1
+#   archlinux:latest  Vim 9.2.x     (rolling, the ceiling)
+#
+# Keep VADER_SHA in sync with Makefile and .github/workflows/test.yml.
 # --------------------------------------------------------------------------
 test_vim_plugin_manager:
-  image: debian:bookworm
   stage: test
+  image: $IMAGE
+  parallel:
+    matrix:
+      - IMAGE: "almalinux:9"
+        INSTALL: "dnf install -y git make vim-enhanced"
+      - IMAGE: "almalinux:10"
+        INSTALL: "dnf install -y git make vim-enhanced"
+      - IMAGE: "debian:bookworm"
+        INSTALL: "apt-get update && apt-get install -y git make vim"
+      - IMAGE: "debian:trixie"
+        INSTALL: "apt-get update && apt-get install -y git make vim"
+      - IMAGE: "ubuntu:24.04"
+        INSTALL: "apt-get update && apt-get install -y git make vim"
+      - IMAGE: "ubuntu:26.04"
+        INSTALL: "apt-get update && apt-get install -y git make vim"
+      - IMAGE: "archlinux:latest"
+        INSTALL: "pacman -Syu --noconfirm git make vim"
   before_script:
-    - apt update && apt install -y git make vim python3-pip
+    - eval "$INSTALL"
+    - vim -es -c 'if v:version < 802 | cq | endif' -c q
+        && echo "Vim >= 8.2 OK" || { echo "Vim >= 8.2 required"; exit 1; }
+    - vim -es -c 'if !has("job") || !has("channel") | cq | endif' -c q
+        && echo "+job +channel OK" || { echo "+job and +channel required"; exit 1; }
+    - git clone https://github.com/junegunn/vader.vim.git
+    - git -C vader.vim checkout 429b669e6158be3a9fc110799607c232e6ed8e29
+  script:
+    - make test-ci
+
+# --------------------------------------------------------------------------
+# Gentoo: non-blocking job (slow build, USE-flag dependent).
+# A failure here does not block the pipeline.
+# --------------------------------------------------------------------------
+test_gentoo:
+  stage: test
+  image: gentoo/stage3:latest
+  allow_failure: true
+  before_script:
+    - emerge-webrsync
+    - emerge --getbinpkg --quiet-build app-editors/vim dev-vcs/git sys-devel/make
+    - vim -es -c 'if v:version < 802 | cq | endif' -c q
+        && echo "Vim >= 8.2 OK" || { echo "Vim >= 8.2 required"; exit 1; }
     - git clone https://github.com/junegunn/vader.vim.git
     - git -C vader.vim checkout 429b669e6158be3a9fc110799607c232e6ed8e29
   script:
