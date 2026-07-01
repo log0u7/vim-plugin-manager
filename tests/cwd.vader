@@ -1,0 +1,93 @@
+Before:
+  " Fixture: a fake vim config git repo (vim_dir) + a DIFFERENT working
+  " directory (user_dir) that simulates where the user actually is.
+  " Each test stays in user_dir and asserts it is still there after the
+  " command runs, proving ensure_vim_directory() no longer mutates cwd.
+
+  let g:_pm_cwd_saved = {
+        \ 'vim_dir': get(g:, 'plugin_manager_vim_dir', ''),
+        \ 'cwd':     getcwd(),
+        \ 'plugins_dir': get(g:, 'plugin_manager_plugins_dir', ''),
+        \ 'logging': get(g:, 'plugin_manager_enable_logging', 0),
+        \ 'jobs':    get(g:, 'plugin_manager_max_concurrent_jobs', 4),
+        \ }
+
+  let g:_pm_cwd_root    = tempname()
+  let g:_pm_cwd_vim     = g:_pm_cwd_root . '/vim'
+  let g:_pm_cwd_user    = g:_pm_cwd_root . '/user'
+
+  call mkdir(g:_pm_cwd_root, 'p')
+  call mkdir(g:_pm_cwd_user, 'p')
+
+  " Initialise a minimal vim config git repo
+  call mkdir(g:_pm_cwd_vim, 'p')
+  call system('git init ' . shellescape(g:_pm_cwd_vim))
+  call system('git -C ' . shellescape(g:_pm_cwd_vim) . ' config user.email "t@t.com"')
+  call system('git -C ' . shellescape(g:_pm_cwd_vim) . ' config user.name "T"')
+  call writefile(['# vimrc'], g:_pm_cwd_vim . '/vimrc')
+  call writefile([], g:_pm_cwd_vim . '/.gitmodules')
+  call system('git -C ' . shellescape(g:_pm_cwd_vim) . ' add .')
+  call system('git -C ' . shellescape(g:_pm_cwd_vim) . ' commit -m "init"')
+
+  let g:plugin_manager_vim_dir           = g:_pm_cwd_vim
+  let g:plugin_manager_plugins_dir       = g:_pm_cwd_vim . '/pack/plugins'
+  let g:plugin_manager_enable_logging    = 0
+  let g:plugin_manager_max_concurrent_jobs = 0
+
+  " Start each test from user_dir (NOT vim_dir) so any unwanted cd is visible
+  execute 'cd ' . fnameescape(g:_pm_cwd_user)
+
+  let s:_pm_cwd_sbuf = bufnr('PluginManager')
+  if s:_pm_cwd_sbuf != -1
+    execute 'bwipeout! ' . s:_pm_cwd_sbuf
+  endif
+
+After:
+  execute 'cd ' . fnameescape(g:_pm_cwd_saved.cwd)
+  if isdirectory(g:_pm_cwd_root)
+    call delete(g:_pm_cwd_root, 'rf')
+  endif
+  let g:plugin_manager_vim_dir             = g:_pm_cwd_saved.vim_dir
+  let g:plugin_manager_plugins_dir         = g:_pm_cwd_saved.plugins_dir
+  let g:plugin_manager_enable_logging      = g:_pm_cwd_saved.logging
+  let g:plugin_manager_max_concurrent_jobs = g:_pm_cwd_saved.jobs
+  unlet g:_pm_cwd_saved g:_pm_cwd_root g:_pm_cwd_vim g:_pm_cwd_user
+  let s:_pm_cwd_sbuf2 = bufnr('PluginManager')
+  if s:_pm_cwd_sbuf2 != -1
+    execute 'bwipeout! ' . s:_pm_cwd_sbuf2
+  endif
+
+Execute (list does not change the working directory):
+  let g:_pm_cwd_before = getcwd()
+  call plugin_manager#cmd#list#all()
+  AssertEqual g:_pm_cwd_before, getcwd(),
+        \ 'list must not mutate cwd: was ' . g:_pm_cwd_before . ', now ' . getcwd()
+  unlet g:_pm_cwd_before
+
+Execute (status does not change the working directory):
+  let g:_pm_cwd_before = getcwd()
+  call plugin_manager#cmd#status#execute()
+  AssertEqual g:_pm_cwd_before, getcwd(),
+        \ 'status must not mutate cwd: was ' . g:_pm_cwd_before . ', now ' . getcwd()
+  unlet g:_pm_cwd_before
+
+Execute (check does not change the working directory):
+  let g:_pm_cwd_before = getcwd()
+  call plugin_manager#cmd#check#execute({'silent': 1})
+  AssertEqual g:_pm_cwd_before, getcwd(),
+        \ 'check must not mutate cwd: was ' . g:_pm_cwd_before . ', now ' . getcwd()
+  unlet g:_pm_cwd_before
+
+Execute (update with no plugins does not change the working directory):
+  let g:_pm_cwd_before = getcwd()
+  call plugin_manager#cmd#update#execute('all')
+  AssertEqual g:_pm_cwd_before, getcwd(),
+        \ 'update must not mutate cwd: was ' . g:_pm_cwd_before . ', now ' . getcwd()
+  unlet g:_pm_cwd_before
+
+Execute (helptags does not change the working directory):
+  let g:_pm_cwd_before = getcwd()
+  call plugin_manager#cmd#helptags#execute(0)
+  AssertEqual g:_pm_cwd_before, getcwd(),
+        \ 'helptags must not mutate cwd: was ' . g:_pm_cwd_before . ', now ' . getcwd()
+  unlet g:_pm_cwd_before

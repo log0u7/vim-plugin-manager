@@ -426,20 +426,15 @@ endfunction
 " ------------------------------------------------------------------------------
 
 " Ensure we're in the Vim config directory
+" Pure validation: check that vim_dir exists and is a git repo, WITHOUT
+" changing the process cwd. This removes the permanent side effect that
+" previously mutated the user's working directory as a by-product of any
+" :PluginManager command.
 function! plugin_manager#core#ensure_vim_directory() abort
-  " Get current directory
-  let l:current_dir = getcwd()
-
-  " Get configured vim directory
   let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
 
-  " Check if we're already in the vim directory
-  if l:current_dir ==# l:vim_dir
-    return 1
-  endif
-
   " Check if the vim directory exists
-  if !isdirectory(l:vim_dir)
+  if empty(l:vim_dir) || !isdirectory(l:vim_dir)
     let l:error_lines = ['Error:', '------', '', 'Vim directory not found: ' . l:vim_dir,
     \ 'Please set g:plugin_manager_vim_dir to your Vim configuration directory.']
 
@@ -455,27 +450,8 @@ function! plugin_manager#core#ensure_vim_directory() abort
     return 0
   endif
 
-  " Change to vim directory
-  try
-    execute 'cd ' . fnameescape(l:vim_dir)
-  catch
-    let l:error_lines = ['Error:', '------', '', 'Could not change to Vim directory: ' . l:vim_dir,
-    \ 'Error: ' . v:exception]
-
-    if exists('*plugin_manager#ui#open_sidebar')
-      call plugin_manager#ui#open_sidebar(l:error_lines)
-    else
-      echohl ErrorMsg
-      for l:line in l:error_lines
-        echomsg l:line
-      endfor
-      echohl None
-    endif
-    return 0
-  endtry
-
-  " Check if it's a git repository
-  if !isdirectory('.git')
+  " Check if it's a git repository (absolute path, no cwd dependency)
+  if !isdirectory(l:vim_dir . '/.git')
     let l:error_lines = ['Error:', '------', '', 'The Vim directory is not a git repository.',
     \ 'Please initialize it with: git init ' . l:vim_dir]
 
