@@ -68,7 +68,7 @@ endfunction
 " ------------------------------------------------------------------------------
 
 function! s:update_specific_plugin(ctx, use_async) abort
-  let l:module_info = plugin_manager#git#find_module(a:ctx.module_name)
+  let l:module_info = plugin_manager#git#find_module(a:ctx.module_name, 1)
   if empty(l:module_info)
     call plugin_manager#core#throw('update', 'MODULE_NOT_FOUND', 'Module "' . a:ctx.module_name . '" not found')
   endif

@@ -102,42 +102,56 @@ function! plugin_manager#git#refresh_modules_cache() abort
   return plugin_manager#git#parse_modules()
 endfunction
 
-" Find a module by name, path, or short name - optimized version
-function! plugin_manager#git#find_module(query) abort
+" Find a module by name, path, or short name.
+"
+" @param query   String to match against module name, path, or short_name.
+" @param ...     Optional flag: pass 1 as the second argument to enable strict
+"                mode. In strict mode a partial match that resolves to more than
+"                one module throws AMBIGUOUS_MATCH instead of silently returning
+"                the first hit. Exact matches always succeed regardless of the
+"                flag. Default (0) preserves the historical first-hit behaviour.
+function! plugin_manager#git#find_module(query, ...) abort
+  let l:strict  = a:0 > 0 ? a:1 : 0
   let l:modules = plugin_manager#git#parse_modules()
-  
+
   " Direct module name lookup - O(1) operation, keep this first
   if has_key(l:modules, a:query)
     return {'name': a:query, 'module': l:modules[a:query]}
   endif
-  
-  " Single-pass search with match priority tracking
-  let l:exact_match = {}
-  let l:partial_match = {}
-  
+
+  let l:exact_match  = {}
+  let l:partials     = []   " list of {name, module} dicts for partial hits
+
   for [l:name, l:module] in items(l:modules)
-    " Check for exact matches first (higher priority)
+    " Exact path match - unambiguous, return immediately
     if has_key(l:module, 'path') && l:module.path ==# a:query
-      " Exact path match - return immediately as this is high confidence
       return {'name': l:name, 'module': l:module}
     endif
-    
+
+    " Exact short_name match - unambiguous, return immediately
     if has_key(l:module, 'short_name') && l:module.short_name ==# a:query
-      " Exact short name match - return immediately as this is high confidence
       return {'name': l:name, 'module': l:module}
     endif
-    
-    " Track partial matches but continue looking for exact matches
-    if empty(l:partial_match) && (
-          \ l:name =~? a:query || 
-          \ (has_key(l:module, 'path') && l:module.path =~? a:query) ||
-          \ (has_key(l:module, 'short_name') && l:module.short_name =~? a:query))
-      let l:partial_match = {'name': l:name, 'module': l:module}
+
+    " Collect partial matches for post-loop analysis
+    if l:name =~? a:query ||
+          \ (has_key(l:module, 'path')       && l:module.path       =~? a:query) ||
+          \ (has_key(l:module, 'short_name') && l:module.short_name =~? a:query)
+      call add(l:partials, {'name': l:name, 'module': l:module})
     endif
   endfor
-  
-  " Return partial match if found, otherwise empty dict
-  return l:partial_match
+
+  " Strict mode: refuse ambiguous partial matches
+  if l:strict && len(l:partials) > 1
+    let l:names = join(map(copy(l:partials),
+          \ {_, e -> get(e.module, 'short_name', e.name)}), ', ')
+    call plugin_manager#core#throw('git', 'AMBIGUOUS_MATCH',
+          \ 'Ambiguous name "' . a:query . '" matches multiple plugins: ' .
+          \ l:names . '. Use the exact plugin name.')
+  endif
+
+  " Return first (or only) partial match; empty dict when nothing found
+  return empty(l:partials) ? {} : l:partials[0]
 endfunction
 
 " Canonical: check if a plugin path or short_name is already managed as a
