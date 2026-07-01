@@ -3,6 +3,24 @@ name: vader tests
 on: [push, pull_request]
 
 jobs:
+  # --------------------------------------------------------------------------
+  # Lint: VimScript static analysis via vim-vint
+  # --------------------------------------------------------------------------
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install vim-vint
+        run: pip install vim-vint
+
+      - name: Run vint
+        run: vint -e autoload/ plugin/ ftplugin/ ftdetect/ syntax/
+
+  # --------------------------------------------------------------------------
+  # Tests: Vader suite on a single up-to-date Ubuntu image
+  # --------------------------------------------------------------------------
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 5

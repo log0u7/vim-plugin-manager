@@ -30,8 +30,14 @@ There is no compilation step. The project is loaded directly by Vim.
   ```bash
   make clean
   ```
-- CI runs `test-ci`: `.github/workflows/test.yml` (GitHub Actions) and
-  `.gitlab-ci.yml` (GitLab). Keep both green.
+- Run VimScript linting (vim-vint):
+  ```bash
+  pip install vim-vint
+  vint -e autoload/ plugin/ ftplugin/ ftdetect/ syntax/
+  ```
+  Configuration: `.vintrc.yaml` (correctness=error, style=off).
+- CI runs `test-ci` AND `vint`: `.github/workflows/test.yml` (GitHub Actions)
+  and `.gitlab-ci.yml` (GitLab). Keep both green.
 
 Requirements: Vim 8.2+ (with +job and +channel), Git 2.40+. Neovim is not
 supported (it has lazy.nvim, packer.nvim and vim-plug).
