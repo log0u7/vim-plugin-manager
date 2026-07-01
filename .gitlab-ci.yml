@@ -73,3 +73,34 @@ test_gentoo:
     - git -C vader.vim checkout 429b669e6158be3a9fc110799607c232e6ed8e29
   script:
     - make test-ci
+
+# --------------------------------------------------------------------------
+# Async smoke: exercise the real async job path under a pty.
+# allow_failure: true while validating pty stability across distros.
+# --------------------------------------------------------------------------
+test_async_smoke:
+  stage: test
+  image: $IMAGE
+  allow_failure: true
+  parallel:
+    matrix:
+      - IMAGE: "almalinux:9"
+        INSTALL: "dnf install -y git make vim-enhanced util-linux"
+      - IMAGE: "almalinux:10"
+        INSTALL: "dnf install -y git make vim-enhanced util-linux"
+      - IMAGE: "debian:bookworm"
+        INSTALL: "apt-get update && apt-get install -y git make vim bsdutils"
+      - IMAGE: "debian:trixie"
+        INSTALL: "apt-get update && apt-get install -y git make vim bsdutils"
+      - IMAGE: "ubuntu:24.04"
+        INSTALL: "apt-get update && apt-get install -y git make vim bsdutils"
+      - IMAGE: "ubuntu:26.04"
+        INSTALL: "apt-get update && apt-get install -y git make vim bsdutils"
+      - IMAGE: "archlinux:latest"
+        INSTALL: "pacman -Syu --noconfirm git make vim util-linux"
+  before_script:
+    - eval "$INSTALL"
+    - vim -es -c 'if !has("job") || !has("channel") | cq | endif' -c q
+        && echo "+job +channel OK" || { echo "+job and +channel required"; exit 1; }
+  script:
+    - make test-async

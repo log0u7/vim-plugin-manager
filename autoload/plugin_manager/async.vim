@@ -234,13 +234,7 @@ endfunction
 " Execute a git command asynchronously.
 " opts: dict with optional 'callback' key (Funcref called on completion).
 function! plugin_manager#async#git(cmd, opts) abort
-    let l:callback = get(a:opts, 'callback', v:null)
-    let l:job_id = plugin_manager#async#start_job(a:cmd, {})
-
-    if l:job_id > 0 && !empty(l:callback)
-        call plugin_manager#async#on_complete(l:job_id, l:callback)
-    endif
-
+    let l:job_id = plugin_manager#async#start_job(a:cmd, a:opts)
     return l:job_id
 endfunction
 
