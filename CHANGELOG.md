@@ -26,6 +26,14 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
   - `doc/plugin_manager.txt`: "Windows-specific Issues" troubleshooting
     block and Windows permission notes removed; defaults updated.
 
+### Documentation
+- Documented the Vim 8.2 minimum version as an intentional, permanent floor
+  set by RHEL 9 / AlmaLinux 9 / Rocky 9 (Vim 8.2.2637, supported until 2032).
+  A vim9script migration is explicitly deferred: the dominant cost is git and
+  network I/O, not script execution, so there is no measured benefit.
+  Added a "Supported platforms" section to README.md, AGENTS.md, CONTRIBUTING.md,
+  and doc/plugin_manager.txt explaining the platform and version rationale.
+
 ### CI
 - Added `vim-vint` linting to both GitHub Actions and GitLab CI pipelines.
   A dedicated `lint` job runs `vint -e autoload/ plugin/ ftplugin/ ftdetect/

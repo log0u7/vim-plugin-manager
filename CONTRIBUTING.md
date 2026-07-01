@@ -18,6 +18,18 @@ Thank you for considering contributing to the Vim Plugin Manager project! This d
 
 This project adheres to a code of conduct that expects all participants to be respectful, inclusive, and considerate. By participating, you are expected to uphold this code. Please report unacceptable behavior to [gke@6admin.io](mailto:gke@6admin.io).
 
+## Supported platforms and Vim version floor
+
+The project targets **Linux only** (Debian, Ubuntu, Arch, Gentoo,
+RHEL/AlmaLinux/Rocky). Windows and macOS are not supported.
+
+The minimum Vim version is **8.2** (with `+job` and `+channel`). This floor
+is set by RHEL 9 / AlmaLinux 9 / Rocky 9, which ship Vim 8.2.2637, and will
+not be raised without a concrete reason. The codebase uses no Vim 9.0+
+features; a vim9script migration is explicitly deferred (dominant cost is
+git/network I/O, not script execution). Do not change the guard
+`if v:version < 802` in `plugin/plugin_manager.vim`.
+
 ## Getting Started
 
 1. **Fork the repository** on GitHub.
