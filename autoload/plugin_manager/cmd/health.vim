@@ -1,6 +1,6 @@
 " autoload/plugin_manager/cmd/health.vim - Health diagnostic command
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 1.6.0
+" Version: 2.0.0
 
 " Run a set of read-only precondition checks and report results in the sidebar.
 " Each check renders one line with an ok/warn/fail glyph.  A failed check is a
