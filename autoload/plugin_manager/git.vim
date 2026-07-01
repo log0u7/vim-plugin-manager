@@ -133,10 +133,13 @@ function! plugin_manager#git#find_module(query, ...) abort
       return {'name': l:name, 'module': l:module}
     endif
 
-    " Collect partial matches for post-loop analysis
-    if l:name =~? a:query ||
-          \ (has_key(l:module, 'path')       && l:module.path       =~? a:query) ||
-          \ (has_key(l:module, 'short_name') && l:module.short_name =~? a:query)
+    " Collect partial matches using literal substring search (stridx) so that
+    " user input is never interpreted as a regex.  Comparison is
+    " case-insensitive via tolower(), matching the previous =~? behaviour.
+    let l:q = tolower(a:query)
+    if stridx(tolower(l:name), l:q) >= 0 ||
+          \ (has_key(l:module, 'path')       && stridx(tolower(l:module.path),       l:q) >= 0) ||
+          \ (has_key(l:module, 'short_name') && stridx(tolower(l:module.short_name), l:q) >= 0)
       call add(l:partials, {'name': l:name, 'module': l:module})
     endif
   endfor
