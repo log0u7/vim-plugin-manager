@@ -357,19 +357,20 @@ GitLab CI (`.gitlab-ci.yml`).
 Run the suite locally:
 
 ```bash
-git clone https://github.com/junegunn/vader.vim.git
-
 # Interactive (local, with TUI)
-make -f Makefile.test VADER=./vader.vim test
+make test
 
 # Headless (same output as CI, clean plain text)
-make -f Makefile.test VADER=./vader.vim test-ci
+make test-ci
 ```
+
+vader.vim is cloned automatically at the pinned SHA on first run. To use an
+existing clone at a custom path: `make test-ci VADER_DIR=./vader.vim`. Clean
+artifacts with `make clean`.
 
 The `test` target runs `vim -Nu .vaderrc.vim -c 'Vader! tests/*.vader'`
 (interactive terminal). The `test-ci` target runs the same via `vim -es`
-(headless/ex mode) and produces clean plain-text output. Clean artifacts with
-`make -f Makefile.test clean`.
+(headless/ex mode) and produces clean plain-text output.
 
 When adding new features or fixing bugs:
 
@@ -377,7 +378,7 @@ When adding new features or fixing bugs:
    network access (mock with local fixtures).
 2. Verify your changes work correctly in Vim 8.2+ (Neovim is not supported).
 3. Test all related functionality to ensure no regressions.
-4. Ensure the suite passes (`make -f Makefile.test test-ci`) before opening a PR.
+4. Ensure the suite passes (`make test-ci`) before opening a PR.
 
 ## Documentation
 
@@ -462,8 +463,8 @@ Understanding the project's complete structure will help you contribute effectiv
 ├── CHANGELOG.md                     # History of changes and versions
 ├── CONTRIBUTING.md                  # Contribution guidelines (this file)
 ├── LICENSE                          # MIT license
-├── Makefile                         # Build and version management
-├── Makefile.test                    # Vader test runner
+├── Makefile                         # Build, test, and version management
+├── Makefile.test                    # Compatibility shim (delegates to Makefile)
 └── README.md                        # Project overview and usage
 ```
 

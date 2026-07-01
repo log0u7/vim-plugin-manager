@@ -17,17 +17,18 @@ There is no compilation step. The project is loaded directly by Vim.
 
 - Run the test suite (Vader):
   ```bash
-  git clone https://github.com/junegunn/vader.vim.git
-  make -f Makefile.test VADER=./vader.vim test
-  make -f Makefile.test VADER=./vader.vim test-ci  # Headless (same output as CI)
+  make test      # Interactive TUI
+  make test-ci   # Headless (same output as CI)
   ```
+  vader.vim is cloned automatically at the pinned SHA on first run.
+  To use an existing clone: `make test-ci VADER_DIR=./vader.vim`.
 - The `test` target generates a throwaway `.vaderrc.vim` and runs
   `vim -Nu .vaderrc.vim -c 'Vader! tests/*.vader'` (interactive TUI).
 - The `test-ci` target runs the same suite via `vim -es` (headless/ex mode)
   producing clean plain-text output with no ANSI sequences.
 - Clean test artifacts:
   ```bash
-  make -f Makefile.test clean
+  make clean
   ```
 - CI runs `test-ci`: `.github/workflows/test.yml` (GitHub Actions) and
   `.gitlab-ci.yml` (GitLab). Keep both green.
