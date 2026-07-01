@@ -15,9 +15,12 @@ endfunction
 " Add a plugin declaration
 function! plugin_manager#cmd#declare#plugin(url, ...) abort
   if !s:plugin_block_active
-    echohl WarningMsg
-    echomsg "Plugin called outside PluginBegin/PluginEnd block"
-    echohl None
+    try
+      call plugin_manager#core#throw('declare', 'BLOCK_ERROR',
+            \ 'Plugin called outside PluginBegin/PluginEnd block')
+    catch
+      call plugin_manager#core#handle_error(v:exception, 'declare')
+    endtry
     return
   endif
 
@@ -28,9 +31,12 @@ endfunction
 " End declaration block and process
 function! plugin_manager#cmd#declare#end() abort
   if !s:plugin_block_active
-    echohl WarningMsg
-    echomsg "PluginEnd called without matching PluginBegin"
-    echohl None
+    try
+      call plugin_manager#core#throw('declare', 'BLOCK_ERROR',
+            \ 'PluginEnd called without matching PluginBegin')
+    catch
+      call plugin_manager#core#handle_error(v:exception, 'declare')
+    endtry
     return
   endif
   

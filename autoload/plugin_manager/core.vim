@@ -583,8 +583,7 @@ endfunction
 
 " Get a configuration value with fallback
 function! plugin_manager#core#get_config(name, default) abort
-let l:var_name = 'g:plugin_manager_' . a:name
-return exists(l:var_name) ? eval(l:var_name) : a:default
+  return get(g:, 'plugin_manager_' . a:name, a:default)
 endfunction
 
 
