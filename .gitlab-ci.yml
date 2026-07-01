@@ -9,4 +9,4 @@ test_vim_plugin_manager:
     - git clone https://github.com/junegunn/vader.vim.git
     - git -C vader.vim checkout 429b669e6158be3a9fc110799607c232e6ed8e29
   script:
-    - make -f Makefile.test VADER=./vader.vim test-ci
+    - make test-ci
