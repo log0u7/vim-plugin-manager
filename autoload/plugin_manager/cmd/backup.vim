@@ -78,7 +78,7 @@ function! s:push_to_remotes(op_id) abort
     call plugin_manager#core#throw('backup', 'NO_REMOTES', 'No remote repositories configured')
   endif
 
-  let l:result = plugin_manager#git#execute('git push --all', '', 0, 0)
+  let l:result = plugin_manager#git#execute('git push origin HEAD', '', 0, 0)
 
   if l:result.success
     call plugin_manager#ui#complete_operation(a:op_id, 'ok', 'Pushed')
