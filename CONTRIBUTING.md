@@ -393,7 +393,8 @@ When adding new features or fixing bugs:
    network access (mock with local fixtures).
 2. Run `vint -e autoload/ plugin/ ftplugin/ ftdetect/ syntax/` and ensure it
    reports no errors.
-3. Verify your changes work correctly in Vim 8.2+ (Neovim is not supported).
+3. Verify your changes work correctly in Vim 8.2+ on Linux (Neovim and
+   Windows are not supported).
 4. Test all related functionality to ensure no regressions.
 5. Ensure the suite passes (`make test-ci`) before opening a PR.
 

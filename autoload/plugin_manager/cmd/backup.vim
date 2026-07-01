@@ -40,7 +40,7 @@ function! s:backup_vimrc_file() abort
   
   " Check if needs copying
   if plugin_manager#core#file_exists(l:local_vimrc)
-    if !has('win32') && !has('win64') && getftype(l:local_vimrc) ==# 'link'
+    if getftype(l:local_vimrc) ==# 'link'
       return
     endif
   endif

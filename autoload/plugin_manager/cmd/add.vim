@@ -170,41 +170,16 @@ function! s:copy_local_files(src_path, dest_path) abort
     endif
   endif
   
-  " Platform-specific fallbacks
-  if has('win32') || has('win64')
-    let l:copy_success = s:copy_files_windows(a:src_path, a:dest_path)
-  else
-    let l:copy_success = s:copy_files_unix(a:src_path, a:dest_path)
-  endif
-  
+  " Fallback: cp -R (portable across GNU and BSD)
+  let l:copy_success = s:copy_files_unix(a:src_path, a:dest_path)
+
   if !l:copy_success
     call plugin_manager#core#throw('add', 'COPY_FAILED', 'Failed to copy files to destination')
   endif
 endfunction
 
-function! s:copy_files_windows(src_path, dest_path) abort
-  if executable('robocopy')
-    " robocopy exit codes 0-7 are success (8+ are errors)
-    let l:result = plugin_manager#git#execute('robocopy ' . shellescape(a:src_path) . ' ' .
-          \ shellescape(a:dest_path) . ' /E /XD .git', '', 0, 0)
-    return v:shell_error < 8
-  endif
-
-  if executable('xcopy')
-    " xcopy /EXCLUDE requires a file listing patterns, one per line
-    let l:excl_file = tempname()
-    call writefile(['.git'], l:excl_file)
-    let l:result = plugin_manager#git#execute('xcopy ' . shellescape(a:src_path) . '\* ' .
-          \ shellescape(a:dest_path) . ' /E /I /Y /EXCLUDE:' . l:excl_file, '', 0, 0)
-    call delete(l:excl_file)
-    return l:result.success
-  endif
-
-  return 0
-endfunction
-
 function! s:copy_files_unix(src_path, dest_path) abort
-  " cp -R is portable across BSD and GNU; exclude .git with Vim's delete()
+  " cp -R is portable across GNU and BSD; remove any nested .git afterwards.
   let l:result = plugin_manager#git#execute(
         \ 'cp -R ' . shellescape(a:src_path) . '/. ' . shellescape(a:dest_path),
         \ '', 0, 0)
