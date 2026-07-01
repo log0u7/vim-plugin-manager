@@ -37,16 +37,10 @@ Execute (Async support is detected via Vim job/channel):
 Execute (shell_argv returns a 3-element list with cmd as last item):
   runtime! autoload/plugin_manager/async.vim
   let argv = plugin_manager#async#shell_argv('echo hello')
-  AssertEqual 3, len(argv), 'shell_argv must return exactly 3 elements'
-  AssertEqual 'echo hello', argv[2], 'command must be the last element'
-  " The interpreter must be either sh or cmd.exe depending on platform
-  if has('win32') || has('win64')
-    AssertEqual 'cmd.exe', argv[0]
-    AssertEqual '/c', argv[1]
-  else
-    AssertEqual 'sh', argv[0]
-    AssertEqual '-c', argv[1]
-  endif
+  AssertEqual 3,           len(argv),   'shell_argv must return exactly 3 elements'
+  AssertEqual 'echo hello', argv[2],    'command must be the last element'
+  AssertEqual 'sh',         argv[0],    'interpreter must be sh'
+  AssertEqual '-c',         argv[1],    'flag must be -c'
 
 Execute (Spinner interval default is set):
   runtime! plugin/plugin_manager.vim

@@ -2,9 +2,12 @@
 
 A lightweight Vim plugin manager that uses Git submodules and Vim 8's native package system.
 
-> Note: PluginManager targets Vim only. Neovim already has mature, Lua-based
-> managers (lazy.nvim, packer.nvim) as well as vim-plug, so it is not supported
-> here. Neovim users should use one of those instead.
+> **Platform:** Linux only (Debian, Ubuntu, Arch, Gentoo, RHEL family). Windows
+> and macOS are not supported.
+>
+> **Editor:** Vim 8.2+ (with `+job` and `+channel`). Neovim already has mature,
+> Lua-based managers (lazy.nvim, packer.nvim) as well as vim-plug, so it is not
+> supported here.
 
 [![CI vader tests](https://github.com/log0u7/vim-plugin-manager/actions/workflows/test.yml/badge.svg)](https://github.com/log0u7/vim-plugin-manager/actions/workflows/test.yml)
 [![Version](https://img.shields.io/github/v/tag/log0u7/vim-plugin-manager?style=flat&label=version&sort=semver)](https://github.com/log0u7/vim-plugin-manager/tags)
@@ -36,9 +39,11 @@ A lightweight Vim plugin manager that uses Git submodules and Vim 8's native pac
 
 ## Requirements
 
-- Vim 8.2+ (built with `+job` and `+channel` for async; falls back to
-  synchronous execution otherwise)
-- Git 2.40 or higher
+- **Vim 8.2+** (with `+job` and `+channel`; falls back to synchronous
+  execution otherwise)
+- **Git 2.40+**
+- **Linux** (Debian, Ubuntu, Arch, Gentoo, RHEL/AlmaLinux/Rocky); Windows and
+  macOS are not supported
 
 ## Installation
 

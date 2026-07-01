@@ -68,7 +68,7 @@ PluginManager works with minimal configuration, but you can customize its
 behavior with the following global variables:
 
 *g:plugin_manager_vim_dir*       The directory of your Vim configuration.
-                               Default: '~/.vim' (or '~/vimfiles' on Windows)
+                               Default: '~/.vim'
 
 *g:plugin_manager_plugins_dir*   The directory where plugins are installed.
                                Default: '~/.vim/pack/plugins'
@@ -89,7 +89,7 @@ behavior with the following global variables:
                                   Default: 'github.com'
 
 *g:plugin_manager_fancy_ui*      Whether to use Unicode symbols in UI.
-                               Default: has('multi_byte') && &encoding ==# 'utf-8'
+                               Default: &encoding ==# 'utf-8'
 
 *g:plugin_manager_enable_logging* Enable/disable error logging.
                                 Default: 1
@@ -523,21 +523,14 @@ Git-related Errors:
 - Run `:PluginManager status` to check the status of all modules
 - Try running `:PluginManager restore` to reinitialize all modules
 
-Windows-specific Issues:
-- Ensure Git is correctly installed and in your PATH
-- Consider using forward slashes in paths, even on Windows
-- For local plugin installation issues, try using a plugin option with explicit path:
-  :PluginManager add C:/path/to/plugin {'dir': 'plugin_name'}
-
 Problems with Error Messages:
 - Check the error log with ':PluginManagerViewLog'
 - Increase verbosity with ':set verbose=1' before running commands
 - For async operations, set 'g:plugin_manager_debug_mode = 1' to see more details
 
 Permission Issues:
-- On Unix systems, check directory permissions with 'ls -la'
-- On Windows, ensure you have write access to the plugin directories
-- Try restarting Vim with administrator privileges if needed
+- Check directory permissions with 'ls -la'
+- Ensure you have write access to the plugin directories
 
 ===============================================================================
 10. LICENSE                                             *plugin-manager-license*
