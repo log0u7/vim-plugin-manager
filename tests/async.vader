@@ -8,16 +8,11 @@ After:
   let g:plugin_manager_max_concurrent_jobs = g:_pm_async_saved_max
   unlet! g:_pm_async_saved_max g:_pm_async_results
 
-Execute (shell_argv returns sh on POSIX, cmd.exe on Windows):
+Execute (shell_argv returns sh -c on Linux):
   let argv = plugin_manager#async#shell_argv('echo test')
-  AssertEqual 3, len(argv)
-  if has('win32') || has('win64')
-    AssertEqual 'cmd.exe', argv[0]
-    AssertEqual '/c',      argv[1]
-  else
-    AssertEqual 'sh',  argv[0]
-    AssertEqual '-c',  argv[1]
-  endif
+  AssertEqual 3,           len(argv)
+  AssertEqual 'sh',        argv[0]
+  AssertEqual '-c',        argv[1]
   AssertEqual 'echo test', argv[2]
 
 Execute (start_job sync fallback works when async unavailable):

@@ -44,7 +44,7 @@ function! plugin_manager#git#parse_modules() abort
   let l:in_module = 0
   
   for l:line in l:lines
-    " Strip CR so CRLF line endings (files edited on Windows) are handled cleanly
+    " Strip trailing CR to handle CRLF line endings cleanly
     let l:line = substitute(l:line, '\r$', '', '')
     " Skip empty lines and comments
     if l:line =~ '^\s*$' || l:line =~ '^\s*#'

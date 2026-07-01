@@ -4,6 +4,28 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 
 ## [Unreleased]
 
+### Removed
+- Dropped Windows support entirely. The project now targets Linux only
+  (Debian, Ubuntu, Arch, Gentoo, RHEL/AlmaLinux/Rocky). Removed:
+  - `async.vim`: `has('win32')` branch in `shell_argv()` (was returning
+    `['cmd.exe', '/c', ...]`); now always returns `['sh', '-c', ...]`.
+  - `add.vim`: `s:copy_files_windows()` (robocopy/xcopy) and the
+    `has('win32')` dispatch in `s:copy_local_files()`; only the POSIX
+    `cp -R` path (`s:copy_files_unix`) is kept.
+  - `core.vim` `is_local_path()`: Windows drive-letter pattern
+    (`^[A-Za-z]:[\\\/]`) removed; only Unix-style paths are recognised.
+  - `core.vim` `normalize_path()`: backslash-to-slash conversion block
+    (`has('win32')`) removed.
+  - `core.vim` `remove_path()`: Windows drive-root guard
+    (`^[A-Za-z]:[\\/]*$`) removed.
+  - `backup.vim`: `!has('win32') && !has('win64') &&` prefix on the
+    symlink short-circuit removed; the check is now unconditional.
+  - `plugin/plugin_manager.vim`: `~/vimfiles` default for `vim_dir`
+    removed; default is always `~/.vim`. Obsolete `has('multi_byte')`
+    removed from the `fancy_ui` default (now just `&encoding ==# 'utf-8'`).
+  - `doc/plugin_manager.txt`: "Windows-specific Issues" troubleshooting
+    block and Windows permission notes removed; defaults updated.
+
 ### CI
 - Added `vim-vint` linting to both GitHub Actions and GitLab CI pipelines.
   A dedicated `lint` job runs `vint -e autoload/ plugin/ ftplugin/ ftdetect/

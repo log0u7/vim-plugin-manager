@@ -24,14 +24,11 @@ function! plugin_manager#async#supported() abort
     return s:has_async
 endfunction
 
-" Build the argv list to pass to job_start() for the current platform.
-" On Windows (win32/win64) we use cmd.exe /c; everywhere else we use sh -c.
-" Exposed as a script-local accessor so tests can verify it without
+" Build the argv list to pass to job_start().
+" The project targets Linux only, so sh -c is always correct.
+" Exposed as a public function so tests can verify the shape without
 " depending on actually starting a job.
 function! plugin_manager#async#shell_argv(cmd) abort
-    if has('win32') || has('win64')
-        return ['cmd.exe', '/c', a:cmd]
-    endif
     return ['sh', '-c', a:cmd]
 endfunction
 
