@@ -208,13 +208,18 @@ declare - remote"]
     UI["ui.vim - sidebar, spinners, glyphs"]
   end
 
-  CORE["core.vim - errors, logging, paths, config, URL parsing"]
-
   subgraph Ext["External"]
     SUB["Git submodules / .gitmodules"]
     JOBS["Vim job/channel processes"]
     BUF["pluginmanager buffer (filetype + syntax)"]
   end
+
+  subgraph Foundation["Foundation - used by every active layer"]
+    CORE["core.vim - errors, logging, paths, config, URL parsing"]
+  end
+
+  classDef foundation fill:#f4f0ff,stroke:#6b46c1,stroke-width:2px
+  class CORE foundation
 
   PM --> DISP
   SB --> DISP
@@ -228,6 +233,7 @@ declare - remote"]
   GIT --> SUB
   ASYNC --> JOBS
   UI --> BUF
+  DISP -.->|"core#throw / handle_error"| CORE
   CMDS -.->|"core#throw / handle_error / get_config"| CORE
   GIT -.->|"core#throw / log"| CORE
   ASYNC -.->|"core#log"| CORE
