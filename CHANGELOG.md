@@ -4,6 +4,14 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 
 ## [Unreleased]
 
+### CI
+- Added `vim-vint` linting to both GitHub Actions and GitLab CI pipelines.
+  A dedicated `lint` job runs `vint -e autoload/ plugin/ ftplugin/ ftdetect/
+  syntax/` on every push and pull request. Configuration in `.vintrc.yaml`
+  enables correctness policies (undefined variables, `set nocompatible`) as
+  errors while leaving style policies off to avoid conflict with the project's
+  existing conventions.
+
 ### Features
 - Tab completion for `:PluginManager`: sub-command names complete at position 1;
   installed plugin names (from `.gitmodules`) complete at position 2 for

@@ -1,0 +1,35 @@
+# .vintrc.yaml - VimScript linting configuration for vim-vint
+#
+# Only correctness policies that vint 0.3.21 actually ships are enabled.
+# Style policies are disabled so they do not conflict with the project's
+# own conventions (2-space indentation, single quotes where clear, etc.).
+#
+# Neovim is intentionally unsupported: this plugin targets Vim 8.2+ only.
+
+cmdargs:
+  severity: error
+
+policies:
+  # --------------------------------------------------------------------------
+  # CORRECTNESS policies (enabled)
+  # --------------------------------------------------------------------------
+
+  # Detect uses of undefined variables.
+  ProhibitUsingUndeclaredVariable:
+    enabled: true
+
+  # Require :set nocompatible is not used (we target Vim 8 native, not vi-compat).
+  ProhibitSetNoCompatible:
+    enabled: true
+
+  # --------------------------------------------------------------------------
+  # STYLE policies (disabled - project uses its own conventions)
+  # --------------------------------------------------------------------------
+  ProhibitUnnecessaryDoubleQuote:
+    enabled: false
+
+  ProhibitAbbreviationOption:
+    enabled: false
+
+  ProhibitEqualTildeOperator:
+    enabled: false
