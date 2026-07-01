@@ -1,0 +1,108 @@
+Before:
+  " Fixture: a fake vim config dir + a local source directory to install from.
+  " Only the local-plugin path is tested here (no network required).
+  " Async is disabled so the install flow is deterministic in headless mode.
+
+  let g:_pm_add_saved = {
+        \ 'vim_dir':     get(g:, 'plugin_manager_vim_dir', ''),
+        \ 'cwd':         getcwd(),
+        \ 'plugins_dir': get(g:, 'plugin_manager_plugins_dir', ''),
+        \ 'logging':     get(g:, 'plugin_manager_enable_logging', 0),
+        \ 'jobs':        get(g:, 'plugin_manager_max_concurrent_jobs', 4),
+        \ }
+
+  let g:_pm_add_root   = tempname()
+  let g:_pm_add_vim    = g:_pm_add_root . '/vim'
+  let g:_pm_add_src    = g:_pm_add_root . '/myplugin-src'
+
+  call mkdir(g:_pm_add_root, 'p')
+  call mkdir(g:_pm_add_vim,  'p')
+  call mkdir(g:_pm_add_src,  'p')
+
+  " Create a minimal source plugin with a plugin/ file and a doc/ directory
+  call mkdir(g:_pm_add_src . '/plugin', 'p')
+  call mkdir(g:_pm_add_src . '/doc',    'p')
+  call writefile(['" myplugin'], g:_pm_add_src . '/plugin/myplugin.vim')
+  call writefile(['myplugin.txt'],       g:_pm_add_src . '/doc/myplugin.txt')
+
+  " Initialise vim dir as a git repo (required by require_vim_directory)
+  call system('git init ' . shellescape(g:_pm_add_vim))
+  call system('git -C ' . shellescape(g:_pm_add_vim) . ' config user.email "t@t.com"')
+  call system('git -C ' . shellescape(g:_pm_add_vim) . ' config user.name "T"')
+  call writefile(['# vimrc'], g:_pm_add_vim . '/vimrc')
+  call system('git -C ' . shellescape(g:_pm_add_vim) . ' add .')
+  call system('git -C ' . shellescape(g:_pm_add_vim) . ' commit -m "init"')
+
+  let g:plugin_manager_vim_dir           = g:_pm_add_vim
+  let g:plugin_manager_plugins_dir       = g:_pm_add_vim . '/pack/plugins'
+  let g:plugin_manager_enable_logging    = 0
+  let g:plugin_manager_max_concurrent_jobs = 0
+
+  execute 'cd ' . fnameescape(g:_pm_add_vim)
+
+  let s:_pm_add_sbuf = bufnr('PluginManager')
+  if s:_pm_add_sbuf != -1
+    execute 'bwipeout! ' . s:_pm_add_sbuf
+  endif
+
+After:
+  execute 'cd ' . fnameescape(g:_pm_add_saved.cwd)
+  if isdirectory(g:_pm_add_root)
+    call delete(g:_pm_add_root, 'rf')
+  endif
+  let g:plugin_manager_vim_dir             = g:_pm_add_saved.vim_dir
+  let g:plugin_manager_plugins_dir         = g:_pm_add_saved.plugins_dir
+  let g:plugin_manager_enable_logging      = g:_pm_add_saved.logging
+  let g:plugin_manager_max_concurrent_jobs = g:_pm_add_saved.jobs
+  unlet g:_pm_add_saved g:_pm_add_root g:_pm_add_vim g:_pm_add_src
+  let s:_pm_add_sbuf2 = bufnr('PluginManager')
+  if s:_pm_add_sbuf2 != -1
+    execute 'bwipeout! ' . s:_pm_add_sbuf2
+  endif
+
+Execute (add local plugin copies files to start directory):
+  " Pass the absolute path directly; convert_to_full_url detects it as local
+  " via is_local_path() (absolute path starting with '/').
+  let g:_pm_add_result = plugin_manager#cmd#add#execute(g:_pm_add_src)
+
+  let g:_pm_add_dest = g:_pm_add_vim . '/pack/plugins/start/myplugin-src'
+  Assert isdirectory(g:_pm_add_dest),
+        \ 'destination directory should exist: ' . g:_pm_add_dest
+  Assert filereadable(g:_pm_add_dest . '/plugin/myplugin.vim'),
+        \ 'plugin file should be copied'
+  unlet g:_pm_add_result g:_pm_add_dest
+
+Execute (add local plugin with custom dir name):
+  " The 'dir' option overrides the destination directory name.
+  let g:_pm_add_opts = plugin_manager#core#process_plugin_options([{'dir': 'custom-name'}])
+  let g:_pm_add_result = plugin_manager#cmd#add#execute(g:_pm_add_src, g:_pm_add_opts)
+
+  let g:_pm_add_dest = g:_pm_add_vim . '/pack/plugins/start/custom-name'
+  Assert isdirectory(g:_pm_add_dest),
+        \ 'destination with custom name should exist: ' . g:_pm_add_dest
+  unlet g:_pm_add_result g:_pm_add_dest g:_pm_add_opts
+
+Execute (add local plugin to opt directory):
+  " The 'load' option set to 'opt' places the plugin under pack/plugins/opt.
+  let g:_pm_add_opts = plugin_manager#core#process_plugin_options([{'load': 'opt'}])
+  let g:_pm_add_result = plugin_manager#cmd#add#execute(g:_pm_add_src, g:_pm_add_opts)
+
+  let g:_pm_add_dest = g:_pm_add_vim . '/pack/plugins/opt/myplugin-src'
+  Assert isdirectory(g:_pm_add_dest),
+        \ 'opt destination should exist: ' . g:_pm_add_dest
+  unlet g:_pm_add_result g:_pm_add_dest g:_pm_add_opts
+
+Execute (add local plugin missing source shows error gracefully):
+  " A non-existent absolute path is detected as local but the directory is
+  " missing; add should return 0 (fail) without crashing.
+  let g:_pm_add_result = plugin_manager#cmd#add#execute('/nonexistent/path/that/does/not/exist')
+  AssertEqual 0, g:_pm_add_result, 'add should return 0 on missing source'
+  unlet g:_pm_add_result
+
+Execute (add#exists returns true for already-installed plugin):
+  " After a successful install, add#exists must detect the plugin as present.
+  call plugin_manager#cmd#add#execute(g:_pm_add_src)
+  let g:_pm_add_name = fnamemodify(g:_pm_add_src, ':t')
+  Assert plugin_manager#cmd#add#exists(g:_pm_add_name, {}),
+        \ 'add#exists should return true for installed plugin'
+  unlet g:_pm_add_name

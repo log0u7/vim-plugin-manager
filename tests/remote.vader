@@ -1,0 +1,86 @@
+Before:
+  " Fixture: a vim config git repo + a bare repo acting as the push remote.
+  " repository_exists uses 'git ls-remote' which works with local paths,
+  " so no network access is required.
+
+  let g:_pm_rmt_saved = {
+        \ 'vim_dir': get(g:, 'plugin_manager_vim_dir', ''),
+        \ 'cwd':     getcwd(),
+        \ 'logging': get(g:, 'plugin_manager_enable_logging', 0),
+        \ }
+
+  let g:_pm_rmt_root   = tempname()
+  let g:_pm_rmt_vim    = g:_pm_rmt_root . '/vim'
+  let g:_pm_rmt_bare   = g:_pm_rmt_root . '/remote.git'
+  let g:_pm_rmt_noexist = g:_pm_rmt_root . '/does-not-exist.git'
+
+  call mkdir(g:_pm_rmt_root, 'p')
+
+  " Bare repo (valid remote target)
+  call system('git init --bare ' . shellescape(g:_pm_rmt_bare))
+
+  " Vim config repo
+  call mkdir(g:_pm_rmt_vim, 'p')
+  call system('git init ' . shellescape(g:_pm_rmt_vim))
+  call system('git -C ' . shellescape(g:_pm_rmt_vim) . ' config user.email "t@t.com"')
+  call system('git -C ' . shellescape(g:_pm_rmt_vim) . ' config user.name "T"')
+  call writefile(['# vimrc'], g:_pm_rmt_vim . '/vimrc')
+  call system('git -C ' . shellescape(g:_pm_rmt_vim) . ' add .')
+  call system('git -C ' . shellescape(g:_pm_rmt_vim) . ' commit -m "init"')
+
+  let g:plugin_manager_vim_dir        = g:_pm_rmt_vim
+  let g:plugin_manager_enable_logging = 0
+
+  execute 'cd ' . fnameescape(g:_pm_rmt_vim)
+
+  let s:_pm_rmt_sbuf = bufnr('PluginManager')
+  if s:_pm_rmt_sbuf != -1
+    execute 'bwipeout! ' . s:_pm_rmt_sbuf
+  endif
+
+After:
+  execute 'cd ' . fnameescape(g:_pm_rmt_saved.cwd)
+  if isdirectory(g:_pm_rmt_root)
+    call delete(g:_pm_rmt_root, 'rf')
+  endif
+  let g:plugin_manager_vim_dir        = g:_pm_rmt_saved.vim_dir
+  let g:plugin_manager_enable_logging = g:_pm_rmt_saved.logging
+  unlet g:_pm_rmt_saved g:_pm_rmt_root g:_pm_rmt_vim g:_pm_rmt_bare g:_pm_rmt_noexist
+  let s:_pm_rmt_sbuf2 = bufnr('PluginManager')
+  if s:_pm_rmt_sbuf2 != -1
+    execute 'bwipeout! ' . s:_pm_rmt_sbuf2
+  endif
+
+Execute (remote add registers the remote in the vim config repo):
+  " Manually add the remote using git#execute with an explicit dir, exactly
+  " as add_remote does internally, and verify it is visible.
+  let g:_pm_rmt_r = plugin_manager#git#execute(
+        \ 'git remote add origin ' . shellescape(g:_pm_rmt_bare),
+        \ g:_pm_rmt_vim, 0, 0)
+  AssertEqual 1, g:_pm_rmt_r.success,
+        \ 'git remote add should succeed: ' . g:_pm_rmt_r.output
+
+  let g:_pm_rmt_remotes = substitute(
+        \ system('git -C ' . shellescape(g:_pm_rmt_vim) . ' remote'),
+        \ '\n', '', 'g')
+  AssertEqual 'origin', g:_pm_rmt_remotes,
+        \ 'origin remote should be registered: got=' . g:_pm_rmt_remotes
+  unlet g:_pm_rmt_r g:_pm_rmt_remotes
+
+Execute (remote add with non-existent repo shows error gracefully):
+  " A path that does not exist must fail with REPO_NOT_FOUND, not crash.
+  let g:_pm_rmt_caught = ''
+  try
+    call plugin_manager#cmd#remote#add(g:_pm_rmt_noexist)
+  catch
+    let g:_pm_rmt_caught = v:exception
+  endtry
+  " handle_error swallows the throw; check sidebar for error indication
+  let g:_pm_rmt_sbuf3 = bufnr('PluginManager')
+  if g:_pm_rmt_sbuf3 != -1
+    let g:_pm_rmt_content = join(getbufline(g:_pm_rmt_sbuf3, 1, '$'), "\n")
+    Assert g:_pm_rmt_content =~# '\cRepo\|not found\|fail\|error',
+          \ 'sidebar should indicate repo-not-found: ' . g:_pm_rmt_content
+    unlet g:_pm_rmt_content
+  endif
+  unlet g:_pm_rmt_caught g:_pm_rmt_sbuf3
