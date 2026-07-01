@@ -342,7 +342,12 @@ endfunction
 
 function! s:on_batch_fetched(ctx, result) abort
   let a:ctx.pending = len(a:ctx.valid_modules)
-  
+
+  if empty(a:ctx.valid_modules)
+    call s:finalize_update_all(a:ctx)
+    return
+  endif
+
   " Fan-out: analyze and update each module in parallel
   for l:module in a:ctx.valid_modules
     call s:analyze_and_update(a:ctx, l:module)

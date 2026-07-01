@@ -87,8 +87,8 @@ function! s:reload_plugin_runtime_files(module_path) abort
   let l:runtime_paths = split(globpath(a:module_path, '**/*.vim'), '\n')
   
   for l:rtp in l:runtime_paths
-    if l:rtp =~ '/plugin/' || l:rtp =~ '/ftplugin/'
-      execute 'runtime! ' . l:rtp
+    if l:rtp =~# '/plugin/' || l:rtp =~# '/ftplugin/'
+      execute 'runtime! ' . fnameescape(l:rtp)
     endif
   endfor
 endfunction
