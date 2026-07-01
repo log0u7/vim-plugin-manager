@@ -687,23 +687,49 @@ endfunction
 
 " Platform-independent file or directory removal.
 " Uses Vim's native delete() to avoid shell dependencies.
+"
+" Safety contract: refuses to delete if the resolved path is:
+"   - empty or filesystem roots (/, C:\)
+"   - the user home directory (expand('~'))
+"   - equal to or a parent of the configured vim_dir
+"   - contains traversal components (..)
 function! plugin_manager#core#remove_path(path) abort
-let l:path = expand(a:path)
+  let l:path = expand(a:path)
 
-if empty(l:path) || l:path ==# '/' || l:path =~# '^[A-Za-z]:[\\/]*$'
-  " Safety check to prevent catastrophic removals
-  return 0
-endif
+  " Reject empty or filesystem roots
+  if empty(l:path) || l:path ==# '/' || l:path =~# '^[A-Za-z]:[\\/]*$'
+    return 0
+  endif
 
-if plugin_manager#core#dir_exists(l:path)
-  " delete(path, 'rf') removes a directory tree (Vim 8+), returns 0 on success
-  return delete(l:path, 'rf') == 0
-elseif plugin_manager#core#file_exists(l:path)
-  return delete(l:path) == 0
-endif
+  " Reject home directory
+  let l:home = expand('~')
+  if l:path ==# l:home
+    return 0
+  endif
 
-" Path doesn't exist, so "removal" is successful
-return 1
+  " Reject traversal components (..)
+  if l:path =~# '\.\.'
+    return 0
+  endif
+
+  " Reject anything at or above the vim_dir to prevent wiping config root
+  let l:vim_dir = expand(plugin_manager#core#get_config('vim_dir', ''))
+  if !empty(l:vim_dir)
+    " Path must be strictly inside vim_dir (not equal to it)
+    if l:path ==# l:vim_dir || stridx(l:path, l:vim_dir . '/') != 0
+      return 0
+    endif
+  endif
+
+  if plugin_manager#core#dir_exists(l:path)
+    " delete(path, 'rf') removes a directory tree (Vim 8+), returns 0 on success
+    return delete(l:path, 'rf') == 0
+  elseif plugin_manager#core#file_exists(l:path)
+    return delete(l:path) == 0
+  endif
+
+  " Path doesn't exist, so "removal" is considered successful
+  return 1
 endfunction
 
 " ------------------------------------------------------------------------------
