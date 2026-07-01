@@ -44,6 +44,13 @@ supported (it has lazy.nvim, packer.nvim and vim-plug). Windows and macOS are
 not supported: the project targets Linux only (Debian, Ubuntu, Arch, Gentoo,
 RHEL/AlmaLinux/Rocky).
 
+The minimum Vim version floor is 8.2 and must not be raised without a concrete
+reason. It is set by RHEL 9 / AlmaLinux 9 / Rocky 9, which ship Vim 8.2.2637.
+RHEL 9 is supported until 2032. The codebase uses no Vim 9.0+ features; a
+vim9script migration is explicitly deferred (dominant cost is git/network I/O,
+not script execution). The guard `if v:version < 802` in
+`plugin/plugin_manager.vim` is intentional - do not raise it to 900.
+
 ## Coding conventions
 
 For VimScript:

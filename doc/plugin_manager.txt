@@ -22,8 +22,19 @@ PluginManager is a simple but powerful plugin management solution for Vim that
 uses Git submodules to manage plugins. It follows Vim 8's native package
 structure and provides an easy-to-use interface for managing plugins.
 
+Platform: Linux only (Debian, Ubuntu, Arch, Gentoo, RHEL/AlmaLinux/Rocky).
+Windows and macOS are not supported.
+
 Note: Neovim is not supported. Neovim already has mature Lua-based managers
 (lazy.nvim, packer.nvim) and vim-plug. Use one of those under Neovim.
+
+Minimum Vim version:~
+
+The minimum version is Vim 8.2 (with +job and +channel). This floor is set
+by RHEL 9 / AlmaLinux 9 / Rocky 9, which ship Vim 8.2.2637 and are
+supported until 2032. The codebase uses no Vim 9.0+ features. A vim9script
+migration is explicitly deferred: the dominant cost is git and network I/O,
+not script execution, so there is no measured benefit (YAGNI).
 
 Features:
 - Native package management without dependencies
