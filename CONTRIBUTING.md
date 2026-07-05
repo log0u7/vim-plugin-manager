@@ -170,7 +170,7 @@ The project is organized into several key components:
    - `autoload/plugin_manager/core/log.vim`: Log management (`debug`, `trace`, `view`, `clear`, rotation).
    - `autoload/plugin_manager/core/cache.vim`: Update check cache (`read`, `write`, TTL).
    - `autoload/plugin_manager/core/util.vim`: Paths, config, URL parsing, filesystem, plugin options.
-   - `autoload/plugin_manager/git.vim`: Abstracts all Git operations and submodule management.
+   - `autoload/plugin_manager/git.vim`: Abstracts all Git operations and submodule management. Injects `git -C <dir>` for directory scoping (git-only; use `core/util.vim`'s `run_in_dir` for arbitrary shell commands).
    - `autoload/plugin_manager/async.vim`: Provides non-blocking async operations using Vim's job/channel API.
    - `autoload/plugin_manager/ui.vim`: Handles user interface, sidebar rendering, and progress indication.
 

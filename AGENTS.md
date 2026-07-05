@@ -84,6 +84,13 @@ For VimScript:
   `g:plugin_manager_*` config variables. Everything else (`core/*`,
   `git.vim`, `async.vim`, `ui.vim` internals, `cmd/*.vim`) is internal
   and may change without deprecation.
+- **Directory scoping**: git commands run through `git#execute`, which
+  injects `git -C <dir>` when a directory is provided (available since
+  git 1.8.5; project floor is 2.39). Arbitrary shell commands (exec
+  hooks, cp, rsync) run through `core#util#run_in_dir`, which uses
+  `cd <dir> && <cmd>` (POSIX subshell, never touches Vim's process
+  cwd). Never use `:cd` / `:lcd` in plugin code. Command strings must
+  be single invocations (no shell `||`, `&&`, `;`).
 
 ## Architecture
 
