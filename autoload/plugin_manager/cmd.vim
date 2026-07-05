@@ -111,7 +111,7 @@ endfunction
 " Main function to handle all plugin manager commands
 function! plugin_manager#cmd#dispatch(...) abort
   try
-    if !plugin_manager#core#ensure_vim_directory()
+    if !plugin_manager#core#util#ensure_vim_directory()
       return
     endif
     

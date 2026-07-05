@@ -166,7 +166,10 @@ The project is organized into several key components:
    - `autoload/plugin_manager/api.vim`: Provides a unified API for all plugin operations.
 
 4. **Core Functionality**
-   - `autoload/plugin_manager/core.vim`: Contains fundamental utilities, error handling, path management and configuration functions.
+   - `autoload/plugin_manager/core.vim`: Error handling foundation (`throw`, `handle_error`, `parse_error`).
+   - `autoload/plugin_manager/core/log.vim`: Log management (`debug`, `trace`, `view`, `clear`, rotation).
+   - `autoload/plugin_manager/core/cache.vim`: Update check cache (`read`, `write`, TTL).
+   - `autoload/plugin_manager/core/util.vim`: Paths, config, URL parsing, filesystem, plugin options.
    - `autoload/plugin_manager/git.vim`: Abstracts all Git operations and submodule management.
    - `autoload/plugin_manager/async.vim`: Provides non-blocking async operations using Vim's job/channel API.
    - `autoload/plugin_manager/ui.vim`: Handles user interface, sidebar rendering, and progress indication.
@@ -334,7 +337,7 @@ When adding new features:
 
 ### Configuration System
 
-The plugin uses global configuration variables defined in `plugin/plugin_manager.vim`, and accessed via `plugin_manager#core#get_config()`:
+The plugin uses global configuration variables defined in `plugin/plugin_manager.vim`, and accessed via `plugin_manager#core#util#get_config()`:
 
 - `g:plugin_manager_vim_dir`: Base directory for Vim configuration.
 - `g:plugin_manager_plugins_dir`: Directory for storing plugins.

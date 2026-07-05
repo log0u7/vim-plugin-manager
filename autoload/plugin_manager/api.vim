@@ -66,6 +66,16 @@ function! plugin_manager#api#health() abort
   return plugin_manager#cmd#health#execute()
 endfunction
 
+" View the error log
+function! plugin_manager#api#view_log() abort
+  return plugin_manager#core#log#view()
+endfunction
+
+" Clear the error log
+function! plugin_manager#api#clear_log() abort
+  return plugin_manager#core#log#clear()
+endfunction
+
 " Add a remote repository
 function! plugin_manager#api#add_remote(url) abort
   return plugin_manager#cmd#remote#add(a:url)

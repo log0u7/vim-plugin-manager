@@ -4,7 +4,7 @@
 " Add a remote repository for backup
 function! plugin_manager#cmd#remote#add(url) abort
   try
-    call plugin_manager#core#require_vim_directory('remote')
+    call plugin_manager#core#util#require_vim_directory('remote')
 
     call plugin_manager#ui#open_header('Add remote repository:')
 

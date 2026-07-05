@@ -4,7 +4,7 @@
 " List all installed plugins
 function! plugin_manager#cmd#list#all() abort
   try
-    if !plugin_manager#core#ensure_vim_directory()
+    if !plugin_manager#core#util#ensure_vim_directory()
       return
     endif
     
@@ -36,11 +36,11 @@ endfunction
 " Show summary of submodule changes
 function! plugin_manager#cmd#list#summary() abort
   try
-    if !plugin_manager#core#ensure_vim_directory()
+    if !plugin_manager#core#util#ensure_vim_directory()
       return
     endif
     
-    let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+    let l:vim_dir = plugin_manager#core#util#get_config('vim_dir', '')
     if !filereadable(l:vim_dir . '/.gitmodules')
       call plugin_manager#ui#open_sidebar(
             \ plugin_manager#ui#header('Plugin summary:') +

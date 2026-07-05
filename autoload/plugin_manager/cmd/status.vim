@@ -4,7 +4,7 @@
 " Show detailed status of all plugins
 function! plugin_manager#cmd#status#execute() abort
   try
-    call plugin_manager#core#require_vim_directory('status')
+    call plugin_manager#core#util#require_vim_directory('status')
     
     let l:modules = plugin_manager#git#parse_modules()
     
@@ -63,7 +63,7 @@ endfunction
 " ------------------------------------------------------------------------------
 
 function! s:fetch_status_sync(ctx) abort
-  let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+  let l:vim_dir = plugin_manager#core#util#get_config('vim_dir', '')
   call plugin_manager#git#execute(
         \ 'git submodule foreach --recursive "git fetch -q origin 2>/dev/null || true"',
         \ l:vim_dir, 0, 0)

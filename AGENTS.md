@@ -132,7 +132,7 @@ PM_ERROR:<component>:<CODE>:<message>
 - Keep changes minimal and within the most relevant module; create a new module
   only when needed.
 - When adding a config option, declare it in `plugin/plugin_manager.vim` with a
-  sensible default and read it via `plugin_manager#core#get_config()`.
+  sensible default and read it via `plugin_manager#core#util#get_config()`.
 - Add or update Vader tests for new logic; prefer tests that do not require
   network access (mock with local fixtures).
 - Update documentation (`README.md`, `doc/plugin_manager.txt`, `CHANGELOG.md`)

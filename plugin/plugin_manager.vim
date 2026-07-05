@@ -158,8 +158,8 @@ command! -nargs=+ -complete=file Plugin call plugin_manager#api#plugin(<args>)
 command! -nargs=0 PluginEnd call plugin_manager#api#end()
 
 " Commands for log management
-command! PluginManagerViewLog call plugin_manager#core#view_log()
-command! PluginManagerClearLog call plugin_manager#core#clear_log()
+command! PluginManagerViewLog call plugin_manager#api#view_log()
+command! PluginManagerClearLog call plugin_manager#api#clear_log()
 
 " ------------------------------------------------------------------------------
 " UPDATE NOTIFICATIONS (opt-in)
