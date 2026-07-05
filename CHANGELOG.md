@@ -2,6 +2,43 @@
 
 All notable changes to the Vim Plugin Manager will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- Public API methods `api#view_log()` and `api#clear_log()`, wired to
+  `:PluginManagerViewLog` and `:PluginManagerClearLog` commands.
+- `core/log.vim` sub-module for log management (write, get_path, clear,
+  view, debug, trace, rotation).
+- `core/cache.vim` sub-module for update check cache (read, write, TTL).
+- `core/util.vim` sub-module for paths, config, URL parsing, filesystem
+  ops, and plugin options.
+
+### Changed
+- Split `core.vim` into `core/{log,cache,util}.vim` following single
+  responsibility. `core.vim` now contains only error handling (`throw`,
+  `handle_error`, `parse_error`, `is_pm_error`, `log_error_internal`).
+- Reindented `plugin/plugin_manager.vim` to 2-space project standard.
+
+### Fixed
+- **Async completion race**: jobs now complete only after both `exit_cb`
+  (process exited) and `close_cb` (channel closed) fire. Previously,
+  `exit_cb` alone could trigger completion before all output was read,
+  causing truncated results. A safety net falls back to exit-only when
+  no channel is available. (Reported as intermittent truncation in
+  large-output jobs.)
+- Removed dead `s:exited_with_callback` state dict (written and cleaned
+  but never read).
+
+### Removed
+- Per-file `Version:` headers from all 23 `.vim`/`.txt` files.
+- `make update-version` Makefile target (no longer needed).
+- Outdated legacy UI helpers `start_task`, `update_task`, `complete_task`.
+
+### Deprecated
+- Direct calls to `core#<function>` (non-error functions moved to
+  `core/{log,cache,util}#*`). Use the documented `api.vim` public API
+  instead.
+
 ## [2.0.0] - 2026-07-01
 
 ### Breaking Changes
