@@ -101,6 +101,12 @@ Execute (remove exact name succeeds and deletes only that plugin):
         \ 'vim-fugitive-blame should be removed'
   Assert isdirectory(g:_pm_rm_vim . '/pack/plugins/start/vim-fugitive'),
         \ 'vim-fugitive should still exist'
+  " Commit message must exist and start with Remove
+  let g:_pm_rm_log = substitute(
+        \ system('git -C ' . shellescape(g:_pm_rm_vim) . ' log -1 --pretty=%s'),
+        \ '\n', '', 'g')
+  Assert g:_pm_rm_log =~# '^Remove ',
+        \ 'commit message should start with Remove, got: ' . g:_pm_rm_log
 
 Execute (remove unknown plugin shows error and removes nothing):
   " An unknown plugin name should fail gracefully without removing anything.

@@ -192,9 +192,14 @@ function! s:commit_removal(module_name, module_info) abort
     let l:commit_msg .= " (" . a:module_info.url . ")"
   endif
 
-  " Stage only .gitmodules (updated by git rm); pass vim_dir so the command
-  " runs in the repo root regardless of the process cwd.
+  " Stage .gitmodules (updated by git rm); run in vim_dir for repo-root scope.
   call plugin_manager#git#execute('git add .gitmodules', l:vim_dir, 0, 0)
-  call plugin_manager#git#execute('git commit -m ' . shellescape(l:commit_msg) .
-        \ ' || git commit --allow-empty -m ' . shellescape(l:commit_msg), l:vim_dir, 0, 0)
+  " Try to commit; if nothing to commit (already removed via rm), create an
+  " empty commit so the removal is recorded as a separate history entry.
+  let l:result = plugin_manager#git#execute(
+        \ 'git commit -m ' . shellescape(l:commit_msg), l:vim_dir, 0, 0)
+  if !l:result.success
+    call plugin_manager#git#execute(
+          \ 'git commit --allow-empty -m ' . shellescape(l:commit_msg), l:vim_dir, 0, 0)
+  endif
 endfunction
