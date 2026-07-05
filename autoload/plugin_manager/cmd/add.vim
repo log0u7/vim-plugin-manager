@@ -128,7 +128,7 @@ function! s:install_local_plugin(path, options) abort
     call s:copy_local_files(a:path, l:plugin_dir)
 
     if !empty(get(a:options, 'exec', ''))
-      let l:result = plugin_manager#git#execute(a:options.exec, l:plugin_dir, 0, 0)
+      let l:result = plugin_manager#core#util#run_in_dir(a:options.exec, l:plugin_dir)
       if !l:result.success
         call plugin_manager#ui#complete_operation(l:op_id, 'fail', 'Exec failed')
         return 0
@@ -161,7 +161,7 @@ function! s:copy_local_files(src_path, dest_path) abort
   " Try rsync first
   if executable('rsync')
     let l:rsync_command = 'rsync -a --exclude=".git" ' . shellescape(a:src_path . '/') . ' ' . shellescape(a:dest_path . '/')
-    let l:result = plugin_manager#git#execute(l:rsync_command, '', 0, 0)
+    let l:result = plugin_manager#core#util#run_in_dir(l:rsync_command, '')
     let l:copy_success = l:result.success
     
     if l:copy_success
@@ -179,9 +179,9 @@ endfunction
 
 function! s:copy_files_unix(src_path, dest_path) abort
   " cp -R is portable across GNU and BSD; remove any nested .git afterwards.
-  let l:result = plugin_manager#git#execute(
+  let l:result = plugin_manager#core#util#run_in_dir(
         \ 'cp -R ' . shellescape(a:src_path) . '/. ' . shellescape(a:dest_path),
-        \ '', 0, 0)
+        \ '')
   if !l:result.success
     return 0
   endif
