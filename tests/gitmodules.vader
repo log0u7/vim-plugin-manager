@@ -153,3 +153,32 @@ Execute (parse_modules values are normalized by git - no trailing spaces):
   call delete(g:_pm_space_tmp, 'rf')
   call plugin_manager#git#refresh_modules_cache()
   unlet g:_pm_space_tmp g:_pm_space_saved g:_pm_space_mods
+
+Execute (git -C works with a dir containing a space):
+  let g:_pm_c_sp = tempname() . '/a b'
+  call mkdir(g:_pm_c_sp, 'p')
+  silent! call system('git init ' . shellescape(g:_pm_c_sp))
+  let g:_pm_c_res = plugin_manager#git#execute(
+        \ 'git rev-parse --git-dir', g:_pm_c_sp, 0, 0)
+  Assert g:_pm_c_res.success,
+        \ 'git -C with space in path should succeed, got: ' . g:_pm_c_res.output
+  let g:_pm_c_out = substitute(g:_pm_c_res.output, '\n', '', 'g')
+  AssertEqual '.git', g:_pm_c_out,
+        \ 'rev-parse --git-dir in a repo should return .git'
+  call delete(g:_pm_c_sp, 'rf')
+  unlet g:_pm_c_sp g:_pm_c_res g:_pm_c_out
+
+Execute (git -C with empty dir leaves command unchanged):
+  " git --version needs no repo; empty dir passes the command through as-is.
+  let g:_pm_c_res2 = plugin_manager#git#execute(
+        \ 'git --version', '', 0, 0)
+  Assert g:_pm_c_res2.success,
+        \ 'git --version with empty dir should succeed'
+  Assert g:_pm_c_res2.output =~# '^git version',
+        \ 'output should start with git version, got: ' . g:_pm_c_res2.output
+  unlet g:_pm_c_res2
+
+Execute (non-git command throws NOT_GIT_COMMAND):
+  AssertThrows call plugin_manager#git#execute('rsync -a src/ dest/', '', 0, 0)
+  AssertEqual 'PM_ERROR:git:NOT_GIT_COMMAND:rsync -a src/ dest/', g:vader_exception,
+        \ 'non-git command should produce NOT_GIT_COMMAND'

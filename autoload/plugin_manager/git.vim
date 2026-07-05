@@ -275,13 +275,32 @@ endfunction
 " GIT COMMAND EXECUTION
 " ------------------------------------------------------------------------------
 
-" Execute a git command with proper error handling
+" Execute a git command with proper error handling.
+" Accepts only commands starting with 'git '. Non-git commands throw
+" NOT_GIT_COMMAND; use core#util#run_in_dir() for arbitrary shell.
+" When a:dir is non-empty, injects `git -C <dir>` in place of the
+" leading `git` (consistent with async call sites and test fixtures).
 function! plugin_manager#git#execute(cmd, dir, ...) abort
+  if a:cmd !~# '^git\>'
+    call plugin_manager#core#throw('git', 'NOT_GIT_COMMAND', a:cmd)
+  endif
+
   let l:output_to_ui = get(a:, 1, 0)
   let l:throw_on_error = get(a:, 2, 1)
   
-  " Handle directory change if needed (shellescape for consistent quoting)
-  let l:full_cmd = empty(a:dir) ? a:cmd : 'cd ' . shellescape(a:dir) . ' && ' . a:cmd
+  " Build the command: inject git -C when a dir is provided.
+  " When a:dir is empty, keep a:cmd as-is (callers like async already
+  " embed their own -C path).
+  if empty(a:dir)
+    let l:full_cmd = a:cmd
+  else
+    " Tripwire: compound shell operators would scope only the first git
+    " invocation. Flag them so review catches future regressions.
+    if a:cmd =~# '\v(\|\||\&\&|;)'
+      call plugin_manager#core#log#debug('git', 'tripwire: compound command passed to git#execute - ' . a:cmd)
+    endif
+    let l:full_cmd = 'git -C ' . shellescape(a:dir) . strpart(a:cmd, 3)
+  endif
   
   " Trace the command to the debug log if enabled
   if get(g:, 'plugin_manager_trace_commands', 0)
