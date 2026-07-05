@@ -1,6 +1,5 @@
 " autoload/plugin_manager/api.vim - Unified API for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 2.0.0
 
 " ------------------------------------------------------------------------------
 " PUBLIC API FUNCTIONS

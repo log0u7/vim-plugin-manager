@@ -72,7 +72,7 @@ For VimScript:
   ```vim
   " path/to/file.vim - Short description
   " Maintainer: G.K.E. <gke@6admin.io>
-  " Version: 1.6.0
+  " Version: <x.y.z>
   ```
 - Document functions with a short comment above them.
 - Prefer Vim script native idioms over shelling out when feasible.
@@ -185,9 +185,9 @@ All merges use `--no-ff` to preserve branch topology.
 ## Releases
 
 Releases are automated via `.github/workflows/release.yml`:
-- Bump versions: `make update-version VERSION=x.y.z` (updates `Version:`
-  headers across `*.vim`, `*.txt`, `README.md`).
-- Update `CHANGELOG.md` for the new version.
+- Update `CHANGELOG.md` for the new version (the single source of truth).
+- Per-file `Version:` headers are not maintained — the canonical version is
+  the Git tag and CHANGELOG entry.
 - Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 - Pushing a `vX.Y.Z` tag to GitHub triggers a job that runs `make archive`
   and publishes a GitHub Release with the `.tar.gz` asset and auto-generated

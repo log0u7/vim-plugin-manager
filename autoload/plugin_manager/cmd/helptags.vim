@@ -1,6 +1,5 @@
 " autoload/plugin_manager/cmd/helptags.vim - Simplified helptags command
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 2.0.0
 
 " Generate helptags for all or a specific plugin
 " Args: [create_header=1], [specific_module=''], [silent=0]
