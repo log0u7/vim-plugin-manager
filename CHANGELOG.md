@@ -2,6 +2,25 @@
 
 All notable changes to the Vim Plugin Manager will be documented in this file.
 
+## [2.1.2] - 2026-07-05
+
+### Changed
+- **Directory scoping**: `git#execute` now injects `git -C <dir>` instead
+  of `cd <dir> && <cmd>`. The codebase now uses a single idiom for
+  scoping git commands (`git -C`), matching the async call sites and test
+  fixtures. Non-git commands are rejected with `NOT_GIT_COMMAND`
+  (use `core#util#run_in_dir` instead).
+- `git#execute` is now git-only: any command not starting with `git `
+  throws `PM_ERROR:git:NOT_GIT_COMMAND`. Four non-git callers (rsync,
+  cp -R, cp, exec hooks) were migrated to `core#util#run_in_dir`.
+- Added `core#util#run_in_dir(cmd, dir)` for scoping arbitrary shell
+  commands via `cd <dir> && <cmd>`. Returns `{success, output}`.
+
+### Fixed
+- `remove.vim`: split `git commit -m X || git commit --allow-empty -m X`
+  compound command into two sequential calls, enabling the `git -C`
+  injection (a single `-C` prefix would scope only the first invocation).
+
 ## [2.1.1] - 2026-07-05
 
 ### Fixed
