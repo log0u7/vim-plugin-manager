@@ -208,6 +208,9 @@ Releases are automated via `.github/workflows/release.yml`:
 - Tag and push: `make tag VERSION=vX.Y.Z` (creates an annotated tag that
   `git push --follow-tags` will carry to all three remotes). Manual equivalent:
   `git tag -a vX.Y.Z -m "vX.Y.Z" && git push origin main --follow-tags`.
+  Push one tag at a time: pushing multiple tags simultaneously can cause an
+  older tag's release workflow to finish last, making GitHub mark it as
+  "Latest" instead of the newest version.
 - Pushing a `vX.Y.Z` tag to GitHub triggers a job that runs `make archive`
   and publishes a GitHub Release with the `.tar.gz` asset and auto-generated
   notes.
