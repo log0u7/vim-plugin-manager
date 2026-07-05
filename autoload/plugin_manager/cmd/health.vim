@@ -8,7 +8,7 @@ function! plugin_manager#cmd#health#execute() abort
   try
     call plugin_manager#ui#open_header('Health check:')
 
-    let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+    let l:vim_dir = plugin_manager#core#util#get_config('vim_dir', '')
     let l:ok    = 0
     let l:warn  = 0
     let l:fail  = 0

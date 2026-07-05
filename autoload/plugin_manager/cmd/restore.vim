@@ -4,12 +4,12 @@
 " Restore all plugins from .gitmodules
 function! plugin_manager#cmd#restore#execute() abort
   try
-    call plugin_manager#core#require_vim_directory('restore')
+    call plugin_manager#core#util#require_vim_directory('restore')
 
     call plugin_manager#ui#open_header('Restoring plugins:')
 
-    let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
-    if !plugin_manager#core#file_exists(l:vim_dir . '/.gitmodules')
+    let l:vim_dir = plugin_manager#core#util#get_config('vim_dir', '')
+    if !plugin_manager#core#util#file_exists(l:vim_dir . '/.gitmodules')
       call plugin_manager#core#throw('restore', 'GITMODULES_NOT_FOUND', '.gitmodules file not found')
     endif
 

@@ -11,7 +11,7 @@ function! plugin_manager#cmd#helptags#execute(...) abort
     let l:specific_module = a:0 > 1 ? a:2 : ''
     let l:silent = a:0 > 2 ? a:3 : 0
     
-    if !plugin_manager#core#ensure_vim_directory()
+    if !plugin_manager#core#util#ensure_vim_directory()
       return
     endif
     
@@ -20,9 +20,9 @@ function! plugin_manager#cmd#helptags#execute(...) abort
       call plugin_manager#ui#open_header('Generating helptags:')
     endif
     
-    let l:plugins_dir = plugin_manager#core#get_config('plugins_dir', '')
+    let l:plugins_dir = plugin_manager#core#util#get_config('plugins_dir', '')
     
-    if !l:silent && !plugin_manager#core#dir_exists(l:plugins_dir)
+    if !l:silent && !plugin_manager#core#util#dir_exists(l:plugins_dir)
       call plugin_manager#ui#update_sidebar([plugin_manager#ui#error('Plugin directory not found')], 1)
       return
     endif
@@ -61,18 +61,18 @@ endfunction
 
 function! s:generate_for_all_plugins(...) abort
   let l:silent = a:0 > 0 ? a:1 : 0
-  let l:start_dir = plugin_manager#core#get_plugin_dir('start')
-  let l:opt_dir = plugin_manager#core#get_plugin_dir('opt')
+  let l:start_dir = plugin_manager#core#util#get_plugin_dir('start')
+  let l:opt_dir = plugin_manager#core#util#get_plugin_dir('opt')
   
   let l:all_plugin_dirs = []
   
   " Add from start folder
-  if plugin_manager#core#dir_exists(l:start_dir)
+  if plugin_manager#core#util#dir_exists(l:start_dir)
     call extend(l:all_plugin_dirs, glob(l:start_dir . '/*', 0, 1))
   endif
   
   " Add from opt folder
-  if plugin_manager#core#dir_exists(l:opt_dir)
+  if plugin_manager#core#util#dir_exists(l:opt_dir)
     call extend(l:all_plugin_dirs, glob(l:opt_dir . '/*', 0, 1))
   endif
   
@@ -87,7 +87,7 @@ function! s:generate_for_all_plugins(...) abort
   
   " Process each plugin
   for l:plugin_dir in l:all_plugin_dirs
-    if plugin_manager#core#dir_exists(l:plugin_dir)
+    if plugin_manager#core#util#dir_exists(l:plugin_dir)
       let l:plugin_name = fnamemodify(l:plugin_dir, ':t')
       
       if s:generate_for_plugin(l:plugin_name, l:plugin_dir, l:silent)
@@ -135,7 +135,7 @@ endfunction
 
 function! s:generate_helptag(plugin_path) abort
   let l:doc_path = a:plugin_path . '/doc'
-  if plugin_manager#core#dir_exists(l:doc_path)
+  if plugin_manager#core#util#dir_exists(l:doc_path)
     try
       execute 'helptags ' . fnameescape(l:doc_path)
       return 1

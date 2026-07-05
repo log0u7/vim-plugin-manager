@@ -232,7 +232,7 @@ function! plugin_manager#ui#get_status_glyph(status) abort
   if has_key(s:status_glyphs, a:status)
     return s:status_glyphs[a:status]
   endif
-  call plugin_manager#core#log_debug('ui', 'Unknown status key: ' . a:status)
+  call plugin_manager#core#log#debug('ui', 'Unknown status key: ' . a:status)
   return s:symbols.info
 endfunction
 
@@ -267,11 +267,11 @@ endfunction
 " Log a detail message (routed to the debug log, never to the sidebar)
 " Accepts a string or a list of strings (joined by newline)
 function! plugin_manager#ui#log_detail(component, detail) abort
-  if exists('*plugin_manager#core#log_debug')
+  if exists('*plugin_manager#core#log#debug')
     if type(a:detail) == v:t_list
-      call plugin_manager#core#log_debug(a:component, join(a:detail, "\n"))
+      call plugin_manager#core#log#debug(a:component, join(a:detail, "\n"))
     else
-      call plugin_manager#core#log_debug(a:component, a:detail)
+      call plugin_manager#core#log#debug(a:component, a:detail)
     endif
   endif
 endfunction

@@ -4,7 +4,7 @@
 " Execute the remove command
 function! plugin_manager#cmd#remove#execute(module_name, force_flag) abort
   try
-    call plugin_manager#core#require_vim_directory('remove')
+    call plugin_manager#core#util#require_vim_directory('remove')
     
     if empty(a:module_name)
       call plugin_manager#core#throw('remove', 'MISSING_ARGS', 'Missing plugin name argument')
@@ -94,15 +94,15 @@ endfunction
 
 function! s:find_in_filesystem(name) abort
   for l:dir_type in ['start', 'opt']
-    let l:base_dir = plugin_manager#core#get_plugin_dir(l:dir_type)
+    let l:base_dir = plugin_manager#core#util#get_plugin_dir(l:dir_type)
 
-    if !plugin_manager#core#dir_exists(l:base_dir)
+    if !plugin_manager#core#util#dir_exists(l:base_dir)
       continue
     endif
 
     " Direct (exact) match - unambiguous, always safe
     let l:direct_path = l:base_dir . '/' . a:name
-    if plugin_manager#core#dir_exists(l:direct_path)
+    if plugin_manager#core#util#dir_exists(l:direct_path)
       return {'name': a:name, 'path': l:direct_path, 'url': ''}
     endif
 
@@ -137,7 +137,7 @@ function! s:remove_module(module_name, module_path) abort
 
   let l:op_id = plugin_manager#ui#start_operation(a:module_name, 'Removing')
 
-  let l:vim_dir  = plugin_manager#core#get_config('vim_dir', '')
+  let l:vim_dir  = plugin_manager#core#util#get_config('vim_dir', '')
   let l:module_info = s:get_module_metadata(a:module_path)
 
   " git submodule deinit and git rm take the repo-relative path as argument
@@ -151,13 +151,13 @@ function! s:remove_module(module_name, module_path) abort
     " Fallback: delete the working tree directory directly using absolute path
     let l:abs_path = empty(l:vim_dir) ? a:module_path : (l:vim_dir . '/' . a:module_path)
     call plugin_manager#ui#log_detail('remove', 'git rm failed, removing path manually: ' . l:abs_path)
-    call plugin_manager#core#remove_path(l:abs_path)
+    call plugin_manager#core#util#remove_path(l:abs_path)
   endif
 
   " Remove the cached git metadata for this submodule (absolute path)
   let l:git_modules_path = l:vim_dir . '/.git/modules/' . a:module_path
-  if plugin_manager#core#dir_exists(l:git_modules_path)
-    call plugin_manager#core#remove_path(l:git_modules_path)
+  if plugin_manager#core#util#dir_exists(l:git_modules_path)
+    call plugin_manager#core#util#remove_path(l:git_modules_path)
   endif
 
   call s:commit_removal(a:module_name, l:module_info)
@@ -186,7 +186,7 @@ endfunction
 
 function! s:commit_removal(module_name, module_info) abort
   let l:commit_msg = "Remove " . a:module_name . " plugin"
-  let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+  let l:vim_dir = plugin_manager#core#util#get_config('vim_dir', '')
 
   if !empty(a:module_info) && has_key(a:module_info, 'url')
     let l:commit_msg .= " (" . a:module_info.url . ")"
