@@ -108,17 +108,14 @@ To contribute a change:
 
 Releases are automated via `.github/workflows/release.yml`:
 
-1. Update version headers in all source files:
-   ```bash
-   make update-version VERSION=x.y.z
-   ```
-2. Update `CHANGELOG.md` with notes for the new version.
-3. Commit and push to `main`:
+1. Update `CHANGELOG.md` with notes for the new version (the single
+   source of truth for versioning).
+2. Commit and push to `main`:
    ```bash
    git commit -m "chore: bump to vx.y.z"
    git push
    ```
-4. Tag the release and push the tag:
+3. Tag the release and push the tag:
    ```bash
    git tag vX.Y.Z
    git push origin vX.Y.Z
@@ -126,6 +123,9 @@ Releases are automated via `.github/workflows/release.yml`:
    Pushing a `vX.Y.Z` tag to GitHub triggers the release workflow, which
    builds `vim-plugin-manager-vX.Y.Z.tar.gz` via `make archive` and publishes a
    GitHub Release with the asset and auto-generated release notes.
+
+Note: Per-file `Version:` headers are not maintained. The canonical version
+is the Git tag and the CHANGELOG entry.
 
 ## Pull Request Process
 
@@ -166,7 +166,10 @@ The project is organized into several key components:
    - `autoload/plugin_manager/api.vim`: Provides a unified API for all plugin operations.
 
 4. **Core Functionality**
-   - `autoload/plugin_manager/core.vim`: Contains fundamental utilities, error handling, path management and configuration functions.
+   - `autoload/plugin_manager/core.vim`: Error handling foundation (`throw`, `handle_error`, `parse_error`).
+   - `autoload/plugin_manager/core/log.vim`: Log management (`debug`, `trace`, `view`, `clear`, rotation).
+   - `autoload/plugin_manager/core/cache.vim`: Update check cache (`read`, `write`, TTL).
+   - `autoload/plugin_manager/core/util.vim`: Paths, config, URL parsing, filesystem, plugin options.
    - `autoload/plugin_manager/git.vim`: Abstracts all Git operations and submodule management.
    - `autoload/plugin_manager/async.vim`: Provides non-blocking async operations using Vim's job/channel API.
    - `autoload/plugin_manager/ui.vim`: Handles user interface, sidebar rendering, and progress indication.
@@ -227,11 +230,14 @@ declare - remote"]
   end
 
   subgraph Foundation["Foundation - used by every active layer"]
-    CORE["core.vim - errors, logging, paths, config, URL parsing"]
+    CORE["core.vim - errors (throw, handle_error, parse_error)"]
+    LOG["core/log.vim - log management"]
+    CACHE["core/cache.vim - update check cache"]
+    UTIL["core/util.vim - paths, config, URL parsing, options"]
   end
 
   classDef foundation fill:#f4f0ff,stroke:#6b46c1,stroke-width:2px
-  class CORE foundation
+  class CORE,LOG,CACHE,UTIL foundation
 
   PM --> DISP
   SB --> DISP
@@ -246,14 +252,14 @@ declare - remote"]
   ASYNC --> JOBS
   UI --> BUF
   DISP -.->|"core#throw / handle_error"| CORE
-  CMDS -.->|"core#throw / handle_error / get_config"| CORE
-  GIT -.->|"core#throw / log"| CORE
-  ASYNC -.->|"core#log"| CORE
-  UI -.->|"core#get_config"| CORE
+  CMDS -.->|"core#throw / handle_error / util#get_config"| CORE
+  GIT -.->|"core#throw / log#write"| CORE
+  ASYNC -.->|"log#write / log#debug"| LOG
+  UI -.->|"util#get_config"| UTIL
 ```
 
-Dotted arrows indicate dependency on `core.vim` utilities; every module uses
-them but they are not part of the primary data flow.
+Dotted arrows indicate dependency on `core.vim` and its sub-modules;
+every active layer uses them but they are not part of the primary data flow.
 
 `:PluginManagerRemote` bypasses the dispatcher and calls `api#add_remote`
 directly - it is a dedicated command, not a sub-command of `:PluginManager`.
@@ -334,7 +340,7 @@ When adding new features:
 
 ### Configuration System
 
-The plugin uses global configuration variables defined in `plugin/plugin_manager.vim`, and accessed via `plugin_manager#core#get_config()`:
+The plugin uses global configuration variables defined in `plugin/plugin_manager.vim`, and accessed via `plugin_manager#core#util#get_config()`:
 
 - `g:plugin_manager_vim_dir`: Base directory for Vim configuration.
 - `g:plugin_manager_plugins_dir`: Directory for storing plugins.

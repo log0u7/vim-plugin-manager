@@ -1,51 +1,51 @@
 Execute (convert_to_full_url handles user/repo shorthand):
-  let url = plugin_manager#core#convert_to_full_url('tpope/vim-fugitive')
+  let url = plugin_manager#core#util#convert_to_full_url('tpope/vim-fugitive')
   AssertEqual 'https://github.com/tpope/vim-fugitive.git', url
 
 Execute (convert_to_full_url passes through full URLs):
-  let url = plugin_manager#core#convert_to_full_url('https://gitlab.com/user/repo.git')
+  let url = plugin_manager#core#util#convert_to_full_url('https://gitlab.com/user/repo.git')
   AssertEqual 'https://gitlab.com/user/repo.git', url
 
 Execute (convert_to_full_url passes through SSH URLs unchanged):
-  let url = plugin_manager#core#convert_to_full_url('git@github.com:user/repo.git')
+  let url = plugin_manager#core#util#convert_to_full_url('git@github.com:user/repo.git')
   AssertEqual 'git@github.com:user/repo.git', url
-  let url2 = plugin_manager#core#convert_to_full_url('git@gitlab.com:group/project.git')
+  let url2 = plugin_manager#core#util#convert_to_full_url('git@gitlab.com:group/project.git')
   AssertEqual 'git@gitlab.com:group/project.git', url2
 
 Execute (convert_to_full_url rejects garbage):
-  let url = plugin_manager#core#convert_to_full_url('not a url at all !!')
+  let url = plugin_manager#core#util#convert_to_full_url('not a url at all !!')
   AssertEqual '', url
 
 Execute (extract_plugin_name from shorthand and URL):
-  AssertEqual 'vim-fugitive', plugin_manager#core#extract_plugin_name('tpope/vim-fugitive')
-  AssertEqual 'vim-fugitive', plugin_manager#core#extract_plugin_name('https://github.com/tpope/vim-fugitive.git')
+  AssertEqual 'vim-fugitive', plugin_manager#core#util#extract_plugin_name('tpope/vim-fugitive')
+  AssertEqual 'vim-fugitive', plugin_manager#core#util#extract_plugin_name('https://github.com/tpope/vim-fugitive.git')
 
 Execute (extract_plugin_name from SSH URL):
-  AssertEqual 'repo', plugin_manager#core#extract_plugin_name('git@github.com:user/repo.git')
-  AssertEqual 'project', plugin_manager#core#extract_plugin_name('git@gitlab.com:group/project.git')
-  AssertEqual 'repo', plugin_manager#core#extract_plugin_name('git@github.com:user/repo')
+  AssertEqual 'repo', plugin_manager#core#util#extract_plugin_name('git@github.com:user/repo.git')
+  AssertEqual 'project', plugin_manager#core#util#extract_plugin_name('git@gitlab.com:group/project.git')
+  AssertEqual 'repo', plugin_manager#core#util#extract_plugin_name('git@github.com:user/repo')
 
 Execute (process_plugin_options applies defaults):
-  let opts = plugin_manager#core#process_plugin_options([])
+  let opts = plugin_manager#core#util#process_plugin_options([])
   AssertEqual 'start', opts.load
   AssertEqual '', opts.dir
   AssertEqual '', opts.branch
 
 Execute (process_plugin_options accepts a dictionary):
-  let opts = plugin_manager#core#process_plugin_options([{'load': 'opt', 'branch': 'main'}])
+  let opts = plugin_manager#core#util#process_plugin_options([{'load': 'opt', 'branch': 'main'}])
   AssertEqual 'opt', opts.load
   AssertEqual 'main', opts.branch
 
 Execute (normalize_path collapses duplicate and trailing slashes):
-  AssertEqual '/a/b/c', plugin_manager#core#normalize_path('/a//b/c/')
+  AssertEqual '/a/b/c', plugin_manager#core#util#normalize_path('/a//b/c/')
 
 Execute (get_pull_flag reflects configured strategy):
   let g:plugin_manager_pull_strategy = 'ff-only'
-  AssertEqual '--ff-only', plugin_manager#core#get_pull_flag()
+  AssertEqual '--ff-only', plugin_manager#core#util#get_pull_flag()
   let g:plugin_manager_pull_strategy = 'rebase'
-  AssertEqual '--rebase', plugin_manager#core#get_pull_flag()
+  AssertEqual '--rebase', plugin_manager#core#util#get_pull_flag()
   let g:plugin_manager_pull_strategy = 'merge'
-  AssertEqual '--no-rebase', plugin_manager#core#get_pull_flag()
+  AssertEqual '--no-rebase', plugin_manager#core#util#get_pull_flag()
   unlet g:plugin_manager_pull_strategy
 
 Execute (is_pm_error recognizes structured messages):

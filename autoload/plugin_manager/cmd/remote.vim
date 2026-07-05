@@ -1,11 +1,10 @@
 " autoload/plugin_manager/cmd/remote.vim - Remote repository management for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 2.0.0
 
 " Add a remote repository for backup
 function! plugin_manager#cmd#remote#add(url) abort
   try
-    call plugin_manager#core#require_vim_directory('remote')
+    call plugin_manager#core#util#require_vim_directory('remote')
 
     call plugin_manager#ui#open_header('Add remote repository:')
 

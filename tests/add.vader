@@ -74,7 +74,7 @@ Execute (add local plugin copies files to start directory):
 
 Execute (add local plugin with custom dir name):
   " The 'dir' option overrides the destination directory name.
-  let g:_pm_add_opts = plugin_manager#core#process_plugin_options([{'dir': 'custom-name'}])
+  let g:_pm_add_opts = plugin_manager#core#util#process_plugin_options([{'dir': 'custom-name'}])
   let g:_pm_add_result = plugin_manager#cmd#add#execute(g:_pm_add_src, g:_pm_add_opts)
 
   let g:_pm_add_dest = g:_pm_add_vim . '/pack/plugins/start/custom-name'
@@ -84,7 +84,7 @@ Execute (add local plugin with custom dir name):
 
 Execute (add local plugin to opt directory):
   " The 'load' option set to 'opt' places the plugin under pack/plugins/opt.
-  let g:_pm_add_opts = plugin_manager#core#process_plugin_options([{'load': 'opt'}])
+  let g:_pm_add_opts = plugin_manager#core#util#process_plugin_options([{'load': 'opt'}])
   let g:_pm_add_result = plugin_manager#cmd#add#execute(g:_pm_add_src, g:_pm_add_opts)
 
   let g:_pm_add_dest = g:_pm_add_vim . '/pack/plugins/opt/myplugin-src'

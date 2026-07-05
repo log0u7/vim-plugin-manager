@@ -1,6 +1,5 @@
 " autoload/plugin_manager/cmd/add.vim - Simplified add command
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 2.0.0
 
 " Main function to add a plugin
 function! plugin_manager#cmd#add#execute(...) abort
@@ -10,7 +9,7 @@ function! plugin_manager#cmd#add#execute(...) abort
     endif
     
     let l:plugin_input = a:1
-    let l:module_url = plugin_manager#core#convert_to_full_url(l:plugin_input)
+    let l:module_url = plugin_manager#core#util#convert_to_full_url(l:plugin_input)
     
     if empty(l:module_url)
       call plugin_manager#core#throw('add', 'INVALID_URL', 'Invalid plugin format: ' . l:plugin_input)
@@ -19,7 +18,7 @@ function! plugin_manager#cmd#add#execute(...) abort
     " Process options
     let l:options = {}
     if a:0 >= 2
-      let l:options = plugin_manager#core#process_plugin_options(a:000[1:])
+      let l:options = plugin_manager#core#util#process_plugin_options(a:000[1:])
     endif
     
     " Check if local path
@@ -50,7 +49,7 @@ function! plugin_manager#cmd#add#exists(plugin_name, options) abort
   let l:plugin_dir_name = empty(l:custom_name) ? l:plugin_name : l:custom_name
   
   let l:plugin_type = get(a:options, 'load', 'start')
-  let l:plugin_dir = plugin_manager#core#get_plugin_dir(l:plugin_type) . '/' . l:plugin_dir_name
+  let l:plugin_dir = plugin_manager#core#util#get_plugin_dir(l:plugin_type) . '/' . l:plugin_dir_name
   
   return isdirectory(l:plugin_dir)
         \ || plugin_manager#git#submodule_exists(l:plugin_dir)
@@ -61,12 +60,12 @@ endfunction
 " ------------------------------------------------------------------------------
 
 function! s:install_remote_plugin(url, options) abort
-  let l:plugin_name = plugin_manager#core#extract_plugin_name(a:url)
+  let l:plugin_name = plugin_manager#core#util#extract_plugin_name(a:url)
   let l:custom_name = get(a:options, 'dir', '')
   let l:plugin_dir_name = empty(l:custom_name) ? l:plugin_name : l:custom_name
   
   let l:plugin_type = get(a:options, 'load', 'start')
-  let l:plugin_dir = plugin_manager#core#get_plugin_dir(l:plugin_type) . '/' . l:plugin_dir_name
+  let l:plugin_dir = plugin_manager#core#util#get_plugin_dir(l:plugin_type) . '/' . l:plugin_dir_name
   
   call plugin_manager#ui#open_header('Installing plugin:')
 
@@ -103,7 +102,7 @@ function! s:install_local_plugin(path, options) abort
   let l:plugin_dir_name = empty(l:custom_name) ? l:plugin_name : l:custom_name
   
   let l:plugin_type = get(a:options, 'load', 'start')
-  let l:plugin_dir = plugin_manager#core#get_plugin_dir(l:plugin_type) . '/' . l:plugin_dir_name
+  let l:plugin_dir = plugin_manager#core#util#get_plugin_dir(l:plugin_type) . '/' . l:plugin_dir_name
   
   call plugin_manager#ui#open_header('Installing local plugin:')
 
