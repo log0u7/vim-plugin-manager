@@ -1,5 +1,4 @@
 Before:
-  runtime! autoload/plugin_manager/async.vim
   " Save original concurrency limit and reset job state via a fresh reload
   let g:_pm_async_saved_max = get(g:, 'plugin_manager_max_concurrent_jobs', 4)
   let g:_pm_async_results = []

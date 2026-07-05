@@ -64,6 +64,7 @@ $(VIMRC_TEST):
 	@echo "set rtp+=$(CURDIR)/$(VADER_DIR)" >> $(VIMRC_TEST)
 	@echo "filetype off" >> $(VIMRC_TEST)
 	@echo "syntax off" >> $(VIMRC_TEST)
+	@echo "let g:plugin_manager_test_force_sync = 1" >> $(VIMRC_TEST)
 
 test: $(VADER_DIR) $(VIMRC_TEST)
 	@echo "==> Running Vader tests..."

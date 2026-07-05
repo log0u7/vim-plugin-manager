@@ -47,15 +47,8 @@ function! plugin_manager#cmd#check#execute(...) abort
       endfor
     endif
 
-    if plugin_manager#async#supported()
-      call s:check_async(l:ctx)
-      " In async mode the result is not yet available; callers that need it
-      " must use the on_done callback passed in opts.  Return an empty list
-      " rather than stale cache data to make the contract explicit.
-      return []
-    else
-      return s:check_sync(l:ctx)
-    endif
+    call s:check_async(l:ctx)
+    return []
   catch
     call plugin_manager#core#handle_error(v:exception, 'check')
     return []
@@ -113,29 +106,6 @@ function! s:on_startup_check_done_autoupdate(plugins) abort
   " Surface what is about to be updated, then run the standard update flow
   call plugin_manager#ui#show_update_notification(a:plugins)
   call plugin_manager#api#update('all')
-endfunction
-
-" ------------------------------------------------------------------------------
-" SYNCHRONOUS CHECK
-" ------------------------------------------------------------------------------
-
-function! s:check_sync(ctx) abort
-  " Fetch all remotes at once, then analyze each module locally
-  call plugin_manager#git#execute(
-        \ 'git submodule foreach --recursive "git fetch -q origin 2>/dev/null || true"',
-        \ plugin_manager#core#util#get_config('vim_dir', ''), 0, 0)
-
-  for l:module in a:ctx.valid_modules
-    " Always define l:op_id; empty string is the safe sentinel for silent mode
-    let l:op_id = !a:ctx.silent ? a:ctx.ops[l:module.short_name] : ''
-    let l:behind = s:check_and_complete(a:ctx, l:module, l:op_id)
-    if l:behind > 0
-      call add(a:ctx.behind, {'name': l:module.short_name, 'behind': l:behind})
-    endif
-  endfor
-
-  call s:finalize(a:ctx)
-  return a:ctx.behind
 endfunction
 
 " ------------------------------------------------------------------------------
