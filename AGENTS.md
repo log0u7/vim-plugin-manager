@@ -205,7 +205,9 @@ Releases are automated via `.github/workflows/release.yml`:
 - Update `CHANGELOG.md` for the new version (the single source of truth).
 - Per-file `Version:` headers are not maintained - the canonical version is
   the Git tag and CHANGELOG entry.
-- Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+- Tag and push: `make tag VERSION=vX.Y.Z` (creates an annotated tag that
+  `git push --follow-tags` will carry to all three remotes). Manual equivalent:
+  `git tag -a vX.Y.Z -m "vX.Y.Z" && git push origin main --follow-tags`.
 - Pushing a `vX.Y.Z` tag to GitHub triggers a job that runs `make archive`
   and publishes a GitHub Release with the `.tar.gz` asset and auto-generated
   notes.
