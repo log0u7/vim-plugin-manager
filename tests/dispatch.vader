@@ -96,8 +96,9 @@ Execute (legacy add format: url + dirname without opt defaults to start):
   runtime! autoload/plugin_manager/api.vim
   unlet g:_pm_api_add_calls
 
-Execute (dispatch add with missing arg shows usage, not MISSING_ARGS crash):
-  " dispatch guards a:0 >= 2 for add, so missing arg shows usage silently
+Execute (dispatch add with missing arg shows MISSING_ARGS, not INVALID_COMMAND):
+  " The dispatcher catches MISSING_ARGS from the explicit guard before falling
+  " through to INVALID_COMMAND. No uncaught exception should reach the user.
   call plugin_manager#cmd#dispatch('add')
   Assert 1
 

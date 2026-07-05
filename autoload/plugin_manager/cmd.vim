@@ -126,6 +126,8 @@ function! plugin_manager#cmd#dispatch(...) abort
     " Route command to appropriate adapter function
     if l:command ==# 'add' && a:0 >= 2
       call call('s:cmd_add', l:args)
+    elseif l:command ==# 'add'
+      call plugin_manager#core#throw('cmd', 'MISSING_ARGS', 'Missing plugin argument')
     elseif l:command ==# 'remove' && a:0 >= 2
       call call('s:cmd_remove', l:args)
     elseif l:command ==# 'list'

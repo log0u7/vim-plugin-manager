@@ -390,7 +390,7 @@ function! plugin_manager#ui#format_plugin_line(status, name, info) abort
   let l:name = a:name
 
   if strchars(l:name) > l:max_name_len
-    let l:name = l:name[:(l:max_name_len-4)] . s:symbols.ellipsis
+    let l:name = strcharpart(l:name, 0, l:max_name_len - 4) . s:symbols.ellipsis
   endif
 
   let l:dots = repeat('.', max([1, l:max_name_len - strchars(l:name) + 2]))

@@ -32,13 +32,7 @@ function! plugin_manager#cmd#status#execute() abort
       let l:ctx.ops[l:module.short_name] = l:op_id
     endfor
 
-    let l:use_async = plugin_manager#async#supported()
-
-    if l:use_async
-      call s:fetch_status_async(l:ctx)
-    else
-      call s:fetch_status_sync(l:ctx)
-    endif
+    call s:fetch_status_async(l:ctx)
   catch
     call plugin_manager#core#handle_error(v:exception, "status")
   endtry
@@ -56,25 +50,6 @@ function! s:create_status_context(modules) abort
         \ 'ops':           {},
         \ 'pending':       len(l:valid_modules)
         \ }
-endfunction
-
-" ------------------------------------------------------------------------------
-" SYNCHRONOUS STATUS (fallback when +job is unavailable)
-" ------------------------------------------------------------------------------
-
-function! s:fetch_status_sync(ctx) abort
-  let l:vim_dir = plugin_manager#core#util#get_config('vim_dir', '')
-  call plugin_manager#git#execute(
-        \ 'git submodule foreach --recursive "git fetch -q origin 2>/dev/null || true"',
-        \ l:vim_dir, 0, 0)
-
-  for l:module in a:ctx.valid_modules
-    let l:info = s:get_module_status_info(l:module, 1)
-    call s:complete_status_op(a:ctx, l:module, l:info)
-    let a:ctx.pending -= 1
-  endfor
-
-  call s:maybe_finalize_status(a:ctx)
 endfunction
 
 " ------------------------------------------------------------------------------

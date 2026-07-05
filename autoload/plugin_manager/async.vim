@@ -16,8 +16,13 @@ let s:job_id_counter = 0
 let s:active_count = 0
 let s:job_queue = []
 
-" Check if async is supported
+" Check if async is supported.
+" Test override: set g:plugin_manager_test_force_sync=1 to force the
+" synchronous fallback path even when +job/+channel are available.
 function! plugin_manager#async#supported() abort
+  if exists('g:plugin_manager_test_force_sync') && g:plugin_manager_test_force_sync
+    return 0
+  endif
   return s:has_async
 endfunction
 
@@ -35,8 +40,9 @@ endfunction
 
 " Start a job asynchronously, with unified interface for Vim/Neovim
 function! plugin_manager#async#start_job(cmd, opts) abort
-  " If async is not supported, execute synchronously
-  if !s:has_async
+  " If async is not supported, execute synchronously.
+  " Test override: g:plugin_manager_test_force_sync forces the fallback.
+  if !s:has_async || (exists('g:plugin_manager_test_force_sync') && g:plugin_manager_test_force_sync)
     let l:output = system(a:cmd)
     let l:status = v:shell_error
     

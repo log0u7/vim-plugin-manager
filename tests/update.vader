@@ -86,8 +86,8 @@ After:
   let g:plugin_manager_enable_logging = g:_pm_upd_saved.logging
   unlet g:_pm_upd_saved g:_pm_upd_root g:_pm_upd_bare g:_pm_upd_vim
   unlet g:_pm_upd_plug g:_pm_upd_tmp_src
-  " Restore the real async#supported
-  runtime! autoload/plugin_manager/async.vim
+  " Restore the real async#supported from the project version (first on rtp)
+  execute 'source ' . fnameescape(globpath(&rtp, 'autoload/plugin_manager/async.vim', 0, 1)[0])
   let s:_pm_sbuf2 = bufnr('PluginManager')
   if s:_pm_sbuf2 != -1
     execute 'bwipeout! ' . s:_pm_sbuf2
