@@ -97,6 +97,28 @@ function! plugin_manager#core#util#ensure_directory(dir) abort
 endfunction
 
 " ------------------------------------------------------------------------------
+" SHELL COMMAND EXECUTION (non-git)
+" ------------------------------------------------------------------------------
+
+" Run an arbitrary shell command scoped to a directory.
+" Uses `cd <dir> && <cmd>` (POSIX subshell) which never changes Vim's
+" process cwd. For git commands, use git#execute (which injects git -C).
+"
+" @param cmd  Shell command string.
+" @param dir  Directory to scope the command in. Empty = run unscoped.
+" @returns    {'success': bool, 'output': string}
+function! plugin_manager#core#util#run_in_dir(cmd, dir) abort
+  let l:full_cmd = empty(a:dir) ? a:cmd : 'cd ' . shellescape(a:dir) . ' && ' . a:cmd
+
+  if plugin_manager#core#util#get_config('trace_commands', 0)
+    call plugin_manager#core#log#trace('util', 'run_in_dir: ' . l:full_cmd)
+  endif
+
+  let l:output = system(l:full_cmd)
+  return {'success': v:shell_error == 0, 'output': l:output}
+endfunction
+
+" ------------------------------------------------------------------------------
 " CONFIGURATION MANAGEMENT
 " ------------------------------------------------------------------------------
 

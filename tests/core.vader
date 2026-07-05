@@ -62,3 +62,25 @@ Execute (parse_error splits the 4-field format):
 Execute (core#throw produces a valid structured error):
   AssertThrows call plugin_manager#core#throw('add', 'REPO_NOT_FOUND', 'boom')
   AssertEqual 'PM_ERROR:add:REPO_NOT_FOUND:boom', g:vader_exception
+
+Execute (run_in_dir scopes command to the given directory):
+  let g:_pm_tmp = tempname()
+  call mkdir(g:_pm_tmp, 'p')
+  let res = plugin_manager#core#util#run_in_dir('pwd', g:_pm_tmp)
+  Assert res.success, 'run_in_dir should succeed'
+  " pwd output must end with the temp dir (trailing newline stripped)
+  let g:_pm_pwd = substitute(res.output, '\n', '', 'g')
+  AssertEqual g:_pm_tmp, g:_pm_pwd,
+        \ 'pwd should match the scoped directory, got: ' . g:_pm_pwd
+  call delete(g:_pm_tmp, 'rf')
+  unlet g:_pm_tmp g:_pm_pwd
+
+Execute (run_in_dir returns failed status on bad command):
+  let res = plugin_manager#core#util#run_in_dir('false', '')
+  AssertEqual 0, res.success,
+        \ 'run_in_dir should report failure for a failing command'
+
+Execute (run_in_dir with empty dir runs unscoped):
+  let res = plugin_manager#core#util#run_in_dir('echo hello', '')
+  Assert res.success, 'unscoped echo should succeed'
+  AssertEqual 'hello', substitute(res.output, '\n', '', 'g')
