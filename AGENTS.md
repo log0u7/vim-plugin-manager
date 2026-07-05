@@ -198,6 +198,7 @@ All merges use `--no-ff` to preserve branch topology.
 ## Releases
 
 Releases are automated via `.github/workflows/release.yml`:
+- Commit all changes and ensure the working tree is clean before tagging.
 - Update `CHANGELOG.md` for the new version (the single source of truth).
 - Per-file `Version:` headers are not maintained - the canonical version is
   the Git tag and CHANGELOG entry.
