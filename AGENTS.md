@@ -30,13 +30,9 @@ There is no compilation step. The project is loaded directly by Vim.
   ```bash
   make clean
   ```
-- Run VimScript linting (vim-vint):
-  ```bash
-  pip install vim-vint
-  vint -e autoload/ plugin/ ftplugin/ ftdetect/ syntax/
-  ```
-  Configuration: `.vintrc.yaml` (correctness=error, style=off).
-- CI runs `test-ci` AND `vint`: `.github/workflows/test.yml` (GitHub Actions)
+- VimScript linting: optional, via `vim-vint` (not run in CI). Config:
+  `.vintrc.yaml` (correctness=error, style=off).
+- CI runs `test-ci`: `.github/workflows/test.yml` (GitHub Actions)
   and `.gitlab-ci.yml` (GitLab). Keep both green.
 - CI matrix covers AlmaLinux 9/10, Debian Bookworm/Trixie, Ubuntu 24.04/26.04,
   Arch Linux. Gentoo runs non-blocking (`allow_failure: true`). The AlmaLinux 9

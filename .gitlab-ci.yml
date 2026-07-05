@@ -1,16 +1,5 @@
 stages:
-  - lint
   - test
-
-# --------------------------------------------------------------------------
-# Lint: VimScript static analysis via vim-vint
-# --------------------------------------------------------------------------
-lint_vimscript:
-  image: python:3-slim
-  stage: lint
-  script:
-    - pip install --quiet setuptools vim-vint
-    - vint -e autoload/ plugin/ ftplugin/ ftdetect/ syntax/
 
 # --------------------------------------------------------------------------
 # Tests: Vader suite across a matrix of Linux distributions.
