@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Install vim-vint
-        run: pip install vim-vint
+        run: pip install setuptools vim-vint
 
       - name: Run vint
         run: vint -e autoload/ plugin/ ftplugin/ ftdetect/ syntax/
