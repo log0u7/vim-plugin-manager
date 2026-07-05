@@ -31,7 +31,7 @@ VADER_SHA   := 429b669e6158be3a9fc110799607c232e6ed8e29
 VADER_TESTS ?= tests/*.vader
 VIMRC_TEST  := .vaderrc.vim
 
-.PHONY: help update-version archive test test-ci test-async clean
+.PHONY: help archive test test-ci test-async clean
 
 help:
 	@echo ""
@@ -42,10 +42,7 @@ help:
 	@echo "  make clean                                   # Remove generated test artifacts"
 	@echo ""
 	@echo "Release:"
-	@echo "  make update-version                          # Update all *.vim, *.txt, README.md with Git version"
-	@echo "  make update-version VERSION=1.6              # Update all with custom version"
-	@echo "  make update-version FILE=path/to/file        # Update only that file with Git version"
-	@echo "  make update-version FILE=path VERSION=1.6    # Update only that file with custom version"
+
 	@echo "  make archive                                 # Create archive from latest tag"
 	@echo "  make archive VERSION=1.3.5                   # Create archive from specified version tag"
 	@echo ""
@@ -93,18 +90,6 @@ clean:
 # ---------------------------------------------------------------------------
 # Release targets
 # ---------------------------------------------------------------------------
-
-update-version:
-	@echo "Updating version to: $(VERSION_STRING)"
-	@if [ -n "$(FILE)" ]; then \
-		echo "Processing $(FILE)..."; \
-		sed -i -E 's/(^.*Version[ ]*:).*/\1 $(VERSION_STRING)/' "$(FILE)"; \
-	else \
-		find . -type f \( -name "*.vim" -o -name "*.txt" -o -name "README.md" \) | while read file; do \
-			echo "Processing $$file..."; \
-			sed -i -E 's/(^.*Version[ ]*:).*/\1 $(VERSION_STRING)/' "$$file"; \
-		done; \
-	fi
 
 archive:
 	@echo "Creating archive $(ARCHIVE_NAME).tar.gz from tag $(ARCHIVE_VERSION)"

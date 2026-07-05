@@ -1,6 +1,5 @@
 " autoload/plugin_manager/core.vim - Core utilities and error handling for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 2.0.0
 
 " ------------------------------------------------------------------------------
 " ERROR HANDLING SYSTEM

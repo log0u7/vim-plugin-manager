@@ -108,17 +108,14 @@ To contribute a change:
 
 Releases are automated via `.github/workflows/release.yml`:
 
-1. Update version headers in all source files:
-   ```bash
-   make update-version VERSION=x.y.z
-   ```
-2. Update `CHANGELOG.md` with notes for the new version.
-3. Commit and push to `main`:
+1. Update `CHANGELOG.md` with notes for the new version (the single
+   source of truth for versioning).
+2. Commit and push to `main`:
    ```bash
    git commit -m "chore: bump to vx.y.z"
    git push
    ```
-4. Tag the release and push the tag:
+3. Tag the release and push the tag:
    ```bash
    git tag vX.Y.Z
    git push origin vX.Y.Z
@@ -126,6 +123,9 @@ Releases are automated via `.github/workflows/release.yml`:
    Pushing a `vX.Y.Z` tag to GitHub triggers the release workflow, which
    builds `vim-plugin-manager-vX.Y.Z.tar.gz` via `make archive` and publishes a
    GitHub Release with the asset and auto-generated release notes.
+
+Note: Per-file `Version:` headers are not maintained. The canonical version
+is the Git tag and the CHANGELOG entry.
 
 ## Pull Request Process
 

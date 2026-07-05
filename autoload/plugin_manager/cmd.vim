@@ -1,6 +1,5 @@
 " autoload/plugin_manager/cmd.vim - Command dispatcher for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 2.0.0
 
 " ------------------------------------------------------------------------------
 " COMMAND ADAPTERS FOR PLUGIN API

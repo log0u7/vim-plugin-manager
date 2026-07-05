@@ -1,6 +1,5 @@
 " autoload/plugin_manager/cmd/remove.vim - Simplified remove command
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 2.0.0
 
 " Execute the remove command
 function! plugin_manager#cmd#remove#execute(module_name, force_flag) abort

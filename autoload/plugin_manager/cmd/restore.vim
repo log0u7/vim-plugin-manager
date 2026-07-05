@@ -1,6 +1,5 @@
 " autoload/plugin_manager/cmd/restore.vim - Simplified restore command
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 2.0.0
 
 " Restore all plugins from .gitmodules
 function! plugin_manager#cmd#restore#execute() abort
