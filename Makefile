@@ -101,6 +101,10 @@ tag:
 		echo "Error: VERSION must start with v (e.g. v2.1.3)"; \
 		exit 1; \
 	}
+	@git diff --quiet --exit-code || { \
+		echo "Error: working tree has uncommitted changes; commit first"; \
+		exit 1; \
+	}
 	@VERSION_NO_V=$$(echo "$(VERSION)" | sed 's/^v//'); \
 	if ! grep -q "^## \[$$VERSION_NO_V\]" CHANGELOG.md; then \
 		echo "Error: No CHANGELOG entry found for $(VERSION)"; \
