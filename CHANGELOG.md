@@ -2,6 +2,31 @@
 
 All notable changes to the Vim Plugin Manager will be documented in this file.
 
+## [2.1.1] - 2026-07-05
+
+### Fixed
+- **Sync/async duplication**: removed dedicated `*_sync` functions from
+  update.vim, status.vim, and check.vim. `async#start_job` has a built-in
+  synchronous `system()` fallback when `+job` is unavailable or
+  `g:plugin_manager_test_force_sync` is set (headless test support).
+- **`submodule foreach` protocol restriction**: replaced
+  `submodule foreach --recursive "git fetch origin"` with per-module
+  `git -C <path> fetch origin` calls to avoid CVE-2022-39253 blocking
+  file:// transport on git >= 2.38.1.
+- **Multi-byte truncation**: replaced byte-slicing `l:name[:(max-4)]`
+  with `strcharpart(l:name, 0, max-4)` in `format_plugin_line`.
+- **Missing argument guard**: added explicit `MISSING_ARGS` check in
+  cmd.vim for `add` without a URL.
+- **Auto-commit scope**: update commands now stage only `.gitmodules` +
+  updated module paths instead of `git commit -am`, avoiding sweeping
+  unrelated tracked changes in vim_dir.
+- **Test runtime path collision**: changed `runtime!` (all matches) to
+  `runtime` (single match) for async.vim loading in tests. An installed
+  copy at `~/.vim/pack/.../vim-plugin-manager/` was shadowing the
+  project version's `async#supported()` function (missing the
+  `g:plugin_manager_test_force_sync` check), preventing the sync
+  fallback from activating in headless mode.
+
 ## [2.1.0] - 2026-07-05
 
 > **Semver note**: this tag adds public API (`api#view_log()`, `api#clear_log()`,
