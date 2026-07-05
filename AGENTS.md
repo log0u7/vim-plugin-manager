@@ -72,11 +72,13 @@ For VimScript:
   ```vim
   " path/to/file.vim - Short description
   " Maintainer: G.K.E. <gke@6admin.io>
-  " Version: <x.y.z>
   ```
 - Document functions with a short comment above them.
 - Prefer Vim script native idioms over shelling out when feasible.
-- Keep the current version header consistent across files within a release.
+- Follow Semantic Versioning 2.0.0 for tags:
+  PATCH = bug fix retrocompatible only.
+  MINOR = addition d'API publique retrocompatible ou deprecation.
+  MAJOR = breaking change.
 
 ## Architecture
 
