@@ -31,7 +31,7 @@ VADER_SHA   := 429b669e6158be3a9fc110799607c232e6ed8e29
 VADER_TESTS ?= tests/*.vader
 VIMRC_TEST  := .vaderrc.vim
 
-.PHONY: help archive test test-ci test-async clean
+.PHONY: help archive tag test test-ci test-async clean
 
 help:
 	@echo ""
@@ -42,7 +42,7 @@ help:
 	@echo "  make clean                                   # Remove generated test artifacts"
 	@echo ""
 	@echo "Release:"
-
+	@echo "  make tag VERSION=vX.Y.Z                      # Create annotated tag and push (--follow-tags)"
 	@echo "  make archive                                 # Create archive from latest tag"
 	@echo "  make archive VERSION=1.3.5                   # Create archive from specified version tag"
 	@echo ""
@@ -91,6 +91,22 @@ clean:
 # ---------------------------------------------------------------------------
 # Release targets
 # ---------------------------------------------------------------------------
+
+tag:
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Error: VERSION is required (e.g. make tag VERSION=v2.1.3)"; \
+		exit 1; \
+	fi
+	@echo "$(VERSION)" | grep -q '^v' || { \
+		echo "Error: VERSION must start with v (e.g. v2.1.3)"; \
+		exit 1; \
+	}
+	@if ! grep -q "^## \[$(VERSION)\]" CHANGELOG.md; then \
+		echo "Error: No CHANGELOG entry found for $(VERSION)"; \
+		exit 1; \
+	fi
+	git tag -a $(VERSION) -m "$(VERSION)"
+	git push origin main --follow-tags
 
 archive:
 	@echo "Creating archive $(ARCHIVE_NAME).tar.gz from tag $(ARCHIVE_VERSION)"
