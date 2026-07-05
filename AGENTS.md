@@ -83,14 +83,17 @@ For VimScript:
 ```
 plugin/plugin_manager.vim     Entry point: config defaults + command definitions
 autoload/plugin_manager/
-  core.vim    Error handling, logging, path/config utils, URL/option parsing
-  git.vim     Git operations, .gitmodules cache, submodule status
-  async.vim   Non-blocking async jobs (Vim job/channel) with a concurrency queue
-  ui.vim      Sidebar rendering, spinners, operation tracking
-  api.vim     Public API facade
-  cmd.vim     Command dispatcher + legacy-format adapters
-  cmd/*.vim   add, remove, update, status, list, helptags, reload,
-              backup, restore, remote, declare, check
+  core.vim          Error handling (throw, handle_error, parse_error)
+  core/log.vim      Log management (debug, trace, view, clear, rotation)
+  core/cache.vim    Update check cache (read, write, TTL)
+  core/util.vim     Paths, config, URL parsing, filesystem, plugin options
+  git.vim           Git operations, .gitmodules cache, submodule status
+  async.vim         Non-blocking async jobs (Vim job/channel) with a concurrency queue
+  ui.vim            Sidebar rendering, spinners, operation tracking
+  api.vim           Public API facade
+  cmd.vim           Command dispatcher + legacy-format adapters
+  cmd/*.vim         add, remove, update, status, list, helptags, reload,
+                    backup, restore, remote, declare, check
 ftdetect/ ftplugin/ syntax/   Sidebar buffer (filetype=pluginmanager)
 doc/                          :help documentation
 tests/                        Vader tests
