@@ -1,6 +1,5 @@
 " autoload/plugin_manager/cmd/declare.vim - Simplified declarative configuration
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 2.0.0
 
 " State tracking
 let s:plugin_block_active = 0
@@ -52,7 +51,7 @@ endfunction
 
 function! s:process_declarations() abort
   try
-    call plugin_manager#core#require_vim_directory('declare')
+    call plugin_manager#core#util#require_vim_directory('declare')
     
     if empty(s:plugin_declarations)
       return
@@ -99,7 +98,7 @@ endfunction
 
 function! s:process_plugin(url, options) abort
   " Convert to full URL
-  let l:full_url = plugin_manager#core#convert_to_full_url(a:url)
+  let l:full_url = plugin_manager#core#util#convert_to_full_url(a:url)
   if empty(l:full_url)
     let l:plugin_name = fnamemodify(a:url, ':t')
     let l:op_id = plugin_manager#ui#start_operation(l:plugin_name, 'Processing')
@@ -108,7 +107,7 @@ function! s:process_plugin(url, options) abort
   endif
   
   " Extract plugin name
-  let l:plugin_name = plugin_manager#core#extract_plugin_name(l:full_url)
+  let l:plugin_name = plugin_manager#core#util#extract_plugin_name(l:full_url)
   
   " Check if already exists
   if plugin_manager#cmd#add#exists(l:plugin_name, a:options)

@@ -1,11 +1,10 @@
 " autoload/plugin_manager/cmd/reload.vim - Simplified reload command
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 2.0.0
 
 " Reload a specific plugin or all Vim configuration
 function! plugin_manager#cmd#reload#execute(...) abort
   try
-    call plugin_manager#core#require_vim_directory('reload')
+    call plugin_manager#core#util#require_vim_directory('reload')
     
     call plugin_manager#ui#open_header('Reloading:')
     
@@ -101,7 +100,7 @@ function! s:reload_all_runtime_files() abort
 endfunction
 
 function! s:source_vimrc() abort
-  let l:vimrc_path = expand(plugin_manager#core#get_config('vimrc_path', ''))
+  let l:vimrc_path = expand(plugin_manager#core#util#get_config('vimrc_path', ''))
   
   if !empty(l:vimrc_path) && filereadable(l:vimrc_path)
     execute 'source ' . fnameescape(l:vimrc_path)

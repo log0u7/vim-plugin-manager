@@ -1,6 +1,5 @@
 " autoload/plugin_manager/cmd/health.vim - Health diagnostic command
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 2.0.0
 
 " Run a set of read-only precondition checks and report results in the sidebar.
 " Each check renders one line with an ok/warn/fail glyph.  A failed check is a
@@ -9,7 +8,7 @@ function! plugin_manager#cmd#health#execute() abort
   try
     call plugin_manager#ui#open_header('Health check:')
 
-    let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+    let l:vim_dir = plugin_manager#core#util#get_config('vim_dir', '')
     let l:ok    = 0
     let l:warn  = 0
     let l:fail  = 0

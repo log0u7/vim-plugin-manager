@@ -1,6 +1,5 @@
 " autoload/plugin_manager/git.vim - Git operations abstraction for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 2.0.0
 
 " ------------------------------------------------------------------------------
 " GITMODULES CACHE AND PARSING
@@ -14,7 +13,7 @@ let s:gitmodules_mtime = 0
 function! plugin_manager#git#parse_modules() abort
   " Validate the vim directory without changing the process cwd.
   " All file access uses absolute paths derived from vim_dir.
-  let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+  let l:vim_dir = plugin_manager#core#util#get_config('vim_dir', '')
   if empty(l:vim_dir) || !isdirectory(l:vim_dir . '/.git')
     return {}
   endif
@@ -192,7 +191,7 @@ function! plugin_manager#git#submodule_exists(plugin_path_or_name) abort
     return 0
   endif
 
-  let l:search = plugin_manager#core#normalize_path(a:plugin_path_or_name)
+  let l:search = plugin_manager#core#util#normalize_path(a:plugin_path_or_name)
   let l:short = fnamemodify(l:search, ':t')
   " Determine whether the caller supplied a bare name (no separators) or a
   " fuller identifier (org/repo, URL, path). Bare names may match by
@@ -221,7 +220,7 @@ function! plugin_manager#git#submodule_exists(plugin_path_or_name) abort
 
     " Match by normalized path
     let l:norm_mod_path = !empty(l:mod_path)
-          \ ? plugin_manager#core#normalize_path(l:mod_path)
+          \ ? plugin_manager#core#util#normalize_path(l:mod_path)
           \ : ''
     if !empty(l:norm_mod_path) && (l:norm_mod_path ==# l:search
           \ || l:norm_mod_path ==# l:short)
@@ -231,9 +230,9 @@ function! plugin_manager#git#submodule_exists(plugin_path_or_name) abort
     " Try absolute-vs-relative normalisation: strip vim_dir prefix from search
     " or add it to the module path, so an absolute install_dir matches a
     " relative entry in .gitmodules.
-    let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+    let l:vim_dir = plugin_manager#core#util#get_config('vim_dir', '')
     if !empty(l:vim_dir) && !empty(l:norm_mod_path)
-      let l:vim_dir_norm = plugin_manager#core#normalize_path(l:vim_dir)
+      let l:vim_dir_norm = plugin_manager#core#util#normalize_path(l:vim_dir)
       let l:abs_mod_path = l:vim_dir_norm . '/' . l:norm_mod_path
       if l:abs_mod_path ==# l:search
         return 1
@@ -286,7 +285,7 @@ function! plugin_manager#git#execute(cmd, dir, ...) abort
   
   " Trace the command to the debug log if enabled
   if get(g:, 'plugin_manager_trace_commands', 0)
-    call plugin_manager#core#log_trace('git', 'exec: ' . l:full_cmd)
+    call plugin_manager#core#log#trace('git', 'exec: ' . l:full_cmd)
   endif
   
   if l:output_to_ui && exists('*plugin_manager#ui#update_sidebar')
@@ -376,9 +375,9 @@ function! plugin_manager#git#collect_status_local(module_path) abort
   
   " First try to find remote branch from .gitmodules at the vim config root.
   " Use the relative path as the submodule section key (not just the basename).
-  let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+  let l:vim_dir = plugin_manager#core#util#get_config('vim_dir', '')
   let l:gitmodules_path = l:vim_dir . '/.gitmodules'
-  let l:rel_path = plugin_manager#core#make_relative_path(a:module_path)
+  let l:rel_path = plugin_manager#core#util#make_relative_path(a:module_path)
   let l:res = plugin_manager#git#execute(
         \ 'git config -f ' . shellescape(l:gitmodules_path) .
         \ ' submodule.' . shellescape(l:rel_path) . '.branch',
@@ -497,14 +496,14 @@ endfunction
 
 " Add a git submodule
 function! plugin_manager#git#add_submodule(url, install_dir, options) abort
-  call plugin_manager#core#require_vim_directory('git')
+  call plugin_manager#core#util#require_vim_directory('git')
   
   " Get relative install path
-  let l:relative_path = plugin_manager#core#make_relative_path(a:install_dir)
+  let l:relative_path = plugin_manager#core#util#make_relative_path(a:install_dir)
   
   " Create parent directory if needed
   let l:parent_dir = fnamemodify(a:install_dir, ':h')
-  call plugin_manager#core#ensure_directory(l:parent_dir)
+  call plugin_manager#core#util#ensure_directory(l:parent_dir)
   
   " Check if submodule already exists (canonical detection, handles both
   " relative and absolute paths as well as short_name matching)
@@ -524,7 +523,7 @@ function! plugin_manager#git#add_submodule(url, install_dir, options) abort
   " Add URL and path
   let l:cmd .= ' ' . shellescape(a:url) . ' ' . shellescape(l:relative_path)
   
-  let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+  let l:vim_dir = plugin_manager#core#util#get_config('vim_dir', '')
 
   " Execute the command (must run at the repo root so git knows the repo)
   let l:result = plugin_manager#git#execute(l:cmd, l:vim_dir, 1, 1)
@@ -561,7 +560,7 @@ endfunction
 
 " Update a specific git submodule
 function! plugin_manager#git#update_submodule(module_path) abort
-  call plugin_manager#core#require_vim_directory('git')
+  call plugin_manager#core#util#require_vim_directory('git')
   
   " Check if directory exists
   if !isdirectory(a:module_path)
@@ -585,7 +584,7 @@ function! plugin_manager#git#update_submodule(module_path) abort
   
   " Build pull command with stripped branch name (remove origin/ prefix)
   let l:branch = plugin_manager#git#remote_branch_name(l:update_status.remote_branch)
-  let l:pull_flag = plugin_manager#core#get_pull_flag()
+  let l:pull_flag = plugin_manager#core#util#get_pull_flag()
   let l:result = plugin_manager#git#execute('git pull origin ' . shellescape(l:branch) . ' ' . l:pull_flag,
         \ a:module_path, 1, 1)
   
@@ -604,12 +603,12 @@ endfunction
 
 " Add a remote repository
 function! plugin_manager#git#add_remote(url, name) abort
-  call plugin_manager#core#require_vim_directory('git')
+  call plugin_manager#core#util#require_vim_directory('git')
 
   " Capture vim_dir before any UI call that might switch buffers and alter
   " the process cwd (e.g. autochdir).  All git commands are issued with an
   " explicit dir so they are never affected by cwd drift.
-  let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+  let l:vim_dir = plugin_manager#core#util#get_config('vim_dir', '')
 
   " Check if the repository exists
   if !plugin_manager#git#repository_exists(a:url)

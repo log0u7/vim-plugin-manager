@@ -1,6 +1,5 @@
 " autoload/plugin_manager/api.vim - Unified API for vim-plugin-manager
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 2.0.0
 
 " ------------------------------------------------------------------------------
 " PUBLIC API FUNCTIONS
@@ -65,6 +64,16 @@ endfunction
 " Run the health diagnostic
 function! plugin_manager#api#health() abort
   return plugin_manager#cmd#health#execute()
+endfunction
+
+" View the error log
+function! plugin_manager#api#view_log() abort
+  return plugin_manager#core#log#view()
+endfunction
+
+" Clear the error log
+function! plugin_manager#api#clear_log() abort
+  return plugin_manager#core#log#clear()
 endfunction
 
 " Add a remote repository

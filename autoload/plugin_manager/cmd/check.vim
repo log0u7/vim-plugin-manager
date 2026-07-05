@@ -1,6 +1,5 @@
 " autoload/plugin_manager/cmd/check.vim - Update detection and notifications
 " Maintainer: G.K.E. <gke@6admin.io>
-" Version: 2.0.0
 
 " ------------------------------------------------------------------------------
 " PUBLIC ENTRY POINTS
@@ -13,7 +12,7 @@
 "   - 'force'    : 1 to ignore the cache freshness (always fetch)
 function! plugin_manager#cmd#check#execute(...) abort
   try
-    call plugin_manager#core#require_vim_directory('check')
+    call plugin_manager#core#util#require_vim_directory('check')
 
     let l:opts = a:0 > 0 ? a:1 : {}
     let l:silent = get(l:opts, 'silent', 0)
@@ -68,22 +67,22 @@ endfunction
 " Honors opt-in flags and the cache freshness to avoid needless network access.
 function! plugin_manager#cmd#check#startup(...) abort
   " Re-entrancy guard: do nothing if checks are disabled
-  if !plugin_manager#core#get_config('check_on_startup', 0)
+  if !plugin_manager#core#util#get_config('check_on_startup', 0)
     return
   endif
 
   " Bail out quietly if the vim dir is not usable (avoid noisy errors at startup)
-  let l:vim_dir = plugin_manager#core#get_config('vim_dir', '')
+  let l:vim_dir = plugin_manager#core#util#get_config('vim_dir', '')
   if empty(l:vim_dir) || !isdirectory(l:vim_dir . '/.git')
     return
   endif
 
-  let l:interval = plugin_manager#core#get_config('check_interval', 24)
-  let l:auto_update = plugin_manager#core#get_config('auto_update', 0)
+  let l:interval = plugin_manager#core#util#get_config('check_interval', 24)
+  let l:auto_update = plugin_manager#core#util#get_config('auto_update', 0)
 
   " If the cache is still fresh, just surface the cached result silently
-  if !plugin_manager#core#check_due(l:interval)
-    let l:cached = get(plugin_manager#core#read_check_cache(), 'plugins', [])
+  if !plugin_manager#core#cache#due(l:interval)
+    let l:cached = get(plugin_manager#core#cache#read(), 'plugins', [])
     if !empty(l:cached)
       call plugin_manager#ui#show_update_notification(l:cached)
     endif
@@ -124,7 +123,7 @@ function! s:check_sync(ctx) abort
   " Fetch all remotes at once, then analyze each module locally
   call plugin_manager#git#execute(
         \ 'git submodule foreach --recursive "git fetch -q origin 2>/dev/null || true"',
-        \ plugin_manager#core#get_config('vim_dir', ''), 0, 0)
+        \ plugin_manager#core#util#get_config('vim_dir', ''), 0, 0)
 
   for l:module in a:ctx.valid_modules
     " Always define l:op_id; empty string is the safe sentinel for silent mode
@@ -229,7 +228,7 @@ endfunction
 
 function! s:finish(plugins, opts) abort
   " Persist to cache so startup checks can skip the network next time
-  call plugin_manager#core#write_check_cache(a:plugins)
+  call plugin_manager#core#cache#write(a:plugins)
 
   " Notify caller (e.g. auto-update flow)
   if has_key(a:opts, 'on_done') && !empty(a:opts.on_done)
