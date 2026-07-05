@@ -538,7 +538,7 @@ function! plugin_manager#git#add_submodule(url, install_dir, options) abort
   " Execute post-install command if provided (run inside the submodule dir)
   if !empty(a:options.exec)
     let l:abs_path = empty(l:vim_dir) ? l:relative_path : (l:vim_dir . '/' . l:relative_path)
-    let l:exec_result = plugin_manager#git#execute(a:options.exec, l:abs_path, 1, 0)
+    let l:exec_result = plugin_manager#core#util#run_in_dir(a:options.exec, l:abs_path)
     if !l:exec_result.success
       call plugin_manager#core#throw('git', 'COMMAND_FAILED', 'Post-install command failed: ' . a:options.exec)
     endif
