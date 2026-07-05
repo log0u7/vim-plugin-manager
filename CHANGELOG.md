@@ -4,10 +4,14 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 
 ## [2.1.0] - 2026-07-05
 
-> **Semver note**: ce tag ajoute de l'API publique (`api#view_log()`, `api#clear_log()`,
-> trois nouveaux namespaces autoload) et marque `core#<function>` déprécié. Par la spec
-> Semantic Versioning 2.0.0, le bon niveau était MINOR, pas PATCH. Le tag initial v2.0.1
-> a été retiré et remplacé par v2.1.0. La règle sera appliquée d'office au prochain tag.
+> **Semver note**: this tag adds public API (`api#view_log()`, `api#clear_log()`,
+> three new autoload namespaces). Per Semantic Versioning 2.0.0 the correct level was
+> MINOR, not PATCH. The initial v2.0.1 tag was retracted and replaced by v2.1.0
+> (note: per semver spec, published releases should not be modified but superseded;
+> this exception is acknowledged and future tags will not be retracted). The `core#*`
+> functions were removed without a compat shim because they are internal (see
+> public API definition in AGENTS.md). For a true deprecation of public API, a shim
+> would be kept for at least one MINOR.
 
 ### Added
 - Public API methods `api#view_log()` and `api#clear_log()`, wired to
@@ -39,10 +43,12 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 - `make update-version` Makefile target (no longer needed).
 - Outdated legacy UI helpers `start_task`, `update_task`, `complete_task`.
 
-### Deprecated
-- Direct calls to `core#<function>` (non-error functions moved to
-  `core/{log,cache,util}#*`). Use the documented `api.vim` public API
-  instead.
+### Removed (internal refactor)
+- `core#<function>` direct calls (non-error functions moved to
+  `core/{log,cache,util}#*`). These were internal functions; no compat
+  shim was provided because the public API surface (`api.vim`, commands,
+  `g:plugin_manager_*` variables) is unchanged. External code that
+  relied on internal functions should migrate to `api.vim`.
 
 ## [2.0.0] - 2026-07-01
 
