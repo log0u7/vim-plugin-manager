@@ -26,6 +26,7 @@ let g:_smoke_fail  = 0
 let g:_cb_start_job = []   " collects results from start_job opts.callback
 let g:_cb_async_git = []   " collects results from async#git callback
 let g:_cb_queue     = []   " collects results from queued jobs
+let g:_cb_large     = []   " collects results from large-output jobs
 
 function! s:ok(msg) abort
   call add(g:_smoke_log, 'PASS: ' . a:msg)
@@ -59,7 +60,13 @@ function! s:launch(timer) abort
         \ 'callback': {r -> add(g:_cb_async_git, r)}
         \ })
 
-  " 3. Queued jobs: limit concurrency to 1, launch 3 jobs in sequence
+  " 3. Large output: seq 1 20000 exercises the close_cb completion path.
+  " Without close_cb the callback can fire before all output is flushed.
+  call plugin_manager#async#start_job('seq 1 20000', {
+        \ 'callback': {r -> add(g:_cb_large, r)}
+        \ })
+
+  " 4. Queued jobs: limit concurrency to 1, launch 3 jobs in sequence
   let g:plugin_manager_max_concurrent_jobs = 1
   call plugin_manager#async#start_job('echo q0', {'callback': {r -> add(g:_cb_queue, r.status)}})
   call plugin_manager#async#start_job('echo q1', {'callback': {r -> add(g:_cb_queue, r.status)}})
@@ -99,6 +106,13 @@ function! s:finish(timer) abort
     call s:assert_eq('queued job 2 status=0', 0, g:_cb_queue[2])
   endif
 
+  " --- Check 4: large output (seq 1 20000) delivered intact ---
+  call s:assert_eq('large output callback fired', 1, len(g:_cb_large))
+  if len(g:_cb_large) > 0
+    let l:lines = split(g:_cb_large[0].output, "\n")
+    call s:assert_eq('large output has 20000 lines', 20000, len(l:lines))
+  endif
+
   " --- Write result file ---
   let l:total = g:_smoke_pass + g:_smoke_fail
   let l:summary = 'async smoke: ' . g:_smoke_pass . '/' . l:total . ' passed'
@@ -125,4 +139,4 @@ if !plugin_manager#async#supported()
 endif
 
 call timer_start(500,  function('s:launch'))
-call timer_start(6000, function('s:finish'))
+call timer_start(10000, function('s:finish'))

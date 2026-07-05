@@ -78,7 +78,9 @@ function! plugin_manager#async#start_job(cmd, opts) abort
         \ 'finished': 0,
         \ 'queued': localtime(),
         \ 'job': v:null,
-        \ 'timeout_timer': 0
+        \ 'timeout_timer': 0,
+        \ 'exited': 0,
+        \ 'closed': 0
         \ }
     if has_key(a:opts, 'callback')
         let s:jobs[l:job_id].callback = a:opts.callback
@@ -112,6 +114,7 @@ function! s:spawn_job(job_id) abort
             \ 'out_cb': function('s:vim_out_cb', [a:job_id]),
             \ 'err_cb': function('s:vim_err_cb', [a:job_id]),
             \ 'exit_cb': function('s:vim_exit_cb', [a:job_id]),
+            \ 'close_cb': function('s:vim_close_cb', [a:job_id]),
             \ 'mode': 'raw',
             \ }
     
@@ -266,8 +269,37 @@ function! s:vim_exit_cb(job_id, job, status) abort
     
     let s:jobs[a:job_id].status = a:status
     let s:jobs[a:job_id].finished = localtime()
-    
-    call s:process_job_completion(a:job_id)
+    let s:jobs[a:job_id].exited = 1
+
+    " Safety net: if the job has no channel (e.g. no pipes), the close_cb
+    " will never fire. Treat the channel as already closed so that
+    " maybe_complete can proceed.
+    if s:jobs[a:job_id].job is v:null
+        let s:jobs[a:job_id].closed = 1
+    endif
+
+    call s:maybe_complete(a:job_id)
+endfunction
+
+function! s:vim_close_cb(job_id, channel) abort
+    if !has_key(s:jobs, a:job_id)
+        return
+    endif
+
+    let s:jobs[a:job_id].closed = 1
+    call s:maybe_complete(a:job_id)
+endfunction
+
+" Proceed to process_job_completion only when both exited and closed are set.
+" The completed guard in process_job_completion prevents any double entry
+" from the error/stop paths that call process_job_completion directly.
+function! s:maybe_complete(job_id) abort
+    if !has_key(s:jobs, a:job_id)
+        return
+    endif
+    if s:jobs[a:job_id].exited && s:jobs[a:job_id].closed
+        call s:process_job_completion(a:job_id)
+    endif
 endfunction
 
 " ------------------------------------------------------------------------------
