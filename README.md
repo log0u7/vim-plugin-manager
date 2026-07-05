@@ -573,9 +573,3 @@ For detailed documentation, use the `:help plugin-manager` command after install
 PluginManager is released under the MIT License.
 
 Copyright (c) 2018 - 2026 G.K.E. <gke@6admin.io>
-
-## About
-
-- Maintained by: G.K.E. <gke@6admin.io>
-- Source: https://github.com/log0u7/vim-plugin-manager
-- Version: 2.0.0
