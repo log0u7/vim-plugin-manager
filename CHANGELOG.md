@@ -2,7 +2,12 @@
 
 All notable changes to the Vim Plugin Manager will be documented in this file.
 
-## [Unreleased]
+## [2.1.0] - 2026-07-05
+
+> **Semver note**: ce tag ajoute de l'API publique (`api#view_log()`, `api#clear_log()`,
+> trois nouveaux namespaces autoload) et marque `core#<function>` déprécié. Par la spec
+> Semantic Versioning 2.0.0, le bon niveau était MINOR, pas PATCH. Le tag initial v2.0.1
+> a été retiré et remplacé par v2.1.0. La règle sera appliquée d'office au prochain tag.
 
 ### Added
 - Public API methods `api#view_log()` and `api#clear_log()`, wired to
