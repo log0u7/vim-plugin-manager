@@ -79,6 +79,11 @@ For VimScript:
   PATCH = bug fix retrocompatible only.
   MINOR = addition d'API publique retrocompatible ou deprecation.
   MAJOR = breaking change.
+- The public API surface is: `api.vim` functions, `:PluginManager*` /
+  `:Plugin` / `:PluginBegin` / `:PluginEnd` commands, and
+  `g:plugin_manager_*` config variables. Everything else (`core/*`,
+  `git.vim`, `async.vim`, `ui.vim` internals, `cmd/*.vim`) is internal
+  and may change without deprecation.
 
 ## Architecture
 
@@ -191,7 +196,7 @@ All merges use `--no-ff` to preserve branch topology.
 
 Releases are automated via `.github/workflows/release.yml`:
 - Update `CHANGELOG.md` for the new version (the single source of truth).
-- Per-file `Version:` headers are not maintained — the canonical version is
+- Per-file `Version:` headers are not maintained - the canonical version is
   the Git tag and CHANGELOG entry.
 - Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 - Pushing a `vX.Y.Z` tag to GitHub triggers a job that runs `make archive`
