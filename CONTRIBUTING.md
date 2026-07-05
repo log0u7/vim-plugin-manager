@@ -230,11 +230,14 @@ declare - remote"]
   end
 
   subgraph Foundation["Foundation - used by every active layer"]
-    CORE["core.vim - errors, logging, paths, config, URL parsing"]
+    CORE["core.vim - errors (throw, handle_error, parse_error)"]
+    LOG["core/log.vim - log management"]
+    CACHE["core/cache.vim - update check cache"]
+    UTIL["core/util.vim - paths, config, URL parsing, options"]
   end
 
   classDef foundation fill:#f4f0ff,stroke:#6b46c1,stroke-width:2px
-  class CORE foundation
+  class CORE,LOG,CACHE,UTIL foundation
 
   PM --> DISP
   SB --> DISP
@@ -249,14 +252,14 @@ declare - remote"]
   ASYNC --> JOBS
   UI --> BUF
   DISP -.->|"core#throw / handle_error"| CORE
-  CMDS -.->|"core#throw / handle_error / get_config"| CORE
-  GIT -.->|"core#throw / log"| CORE
-  ASYNC -.->|"core#log"| CORE
-  UI -.->|"core#get_config"| CORE
+  CMDS -.->|"core#throw / handle_error / util#get_config"| CORE
+  GIT -.->|"core#throw / log#write"| CORE
+  ASYNC -.->|"log#write / log#debug"| LOG
+  UI -.->|"util#get_config"| UTIL
 ```
 
-Dotted arrows indicate dependency on `core.vim` utilities; every module uses
-them but they are not part of the primary data flow.
+Dotted arrows indicate dependency on `core.vim` and its sub-modules;
+every active layer uses them but they are not part of the primary data flow.
 
 `:PluginManagerRemote` bypasses the dispatcher and calls `api#add_remote`
 directly - it is a dedicated command, not a sub-command of `:PluginManager`.
