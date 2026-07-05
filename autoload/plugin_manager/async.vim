@@ -13,8 +13,6 @@ let s:has_async = has('job') && has('channel')
 " Job tracking
 let s:jobs = {}
 let s:job_id_counter = 0
-let s:exited_with_callback = {}
-
 " Concurrency control
 let s:active_count = 0
 let s:job_queue = []
@@ -223,9 +221,6 @@ function! plugin_manager#async#cleanup(max_age_seconds) abort
         let l:job = s:jobs[l:id]
         if l:job.finished && (l:now - l:job.finished) > a:max_age_seconds
             unlet s:jobs[l:id]
-            if has_key(s:exited_with_callback, l:id)
-                unlet s:exited_with_callback[l:id]
-            endif
         endif
     endfor
 endfunction
@@ -339,9 +334,6 @@ function! s:process_job_completion(job_id) abort
                 \ 'errors': l:job.errors,
                 \ 'cmd': l:job.cmd
                 \ })
-        
-            " Mark that callback was called
-            let s:exited_with_callback[a:job_id] = 1
         catch
             " Handle callback errors
             echohl ErrorMsg
