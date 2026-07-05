@@ -2,6 +2,16 @@
 
 All notable changes to the Vim Plugin Manager will be documented in this file.
 
+## [2.1.3] - 2026-07-06
+
+### Removed
+- **vim-vint linting from CI**: the `vim-vint` linter is unmaintained and
+  incompatible with Python 3.14 (`pkg_resources` removed from stdlib). The
+  lint jobs in `.gitlab-ci.yml` (GitLab) and `.github/workflows/test.yml`
+  (GitHub Actions) have been removed. `.vintrc.yaml` is kept for optional
+  local use. The test suite (120/120, 239 assertions) and async smoke test
+  (13/13) remain the canonical quality gate.
+
 ## [2.1.2] - 2026-07-05
 
 ### Changed

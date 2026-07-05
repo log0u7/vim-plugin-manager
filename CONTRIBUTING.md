@@ -397,7 +397,7 @@ The `test` target runs `vim -Nu .vaderrc.vim -c 'Vader! tests/*.vader'`
 (interactive terminal). The `test-ci` target runs the same via `vim -es`
 (headless/ex mode) and produces clean plain-text output.
 
-The CI matrix runs the Vader suite and the vint lint step on:
+The CI matrix runs the Vader suite on:
 
 | Distribution | Vim version | Notes |
 |---|---|---|
@@ -410,31 +410,29 @@ The CI matrix runs the Vader suite and the vint lint step on:
 | Arch Linux | 9.2.0735 | Rolling, the ceiling |
 | Gentoo | 9.1.1652 | Non-blocking (`allow_failure: true`) |
 
-### Linting (vim-vint)
+### Linting
 
-VimScript is also linted with [vim-vint](https://github.com/Kuniwak/vint) in
-CI. To run it locally:
+VimScript can be linted locally with [vim-vint](https://github.com/Kuniwak/vint)
+if desired (it is no longer run in CI). The configuration lives in
+`.vintrc.yaml` at the repository root. Only correctness policies (undefined
+variables, `set nocompatible`) are enabled as errors; style policies are left
+off to avoid conflict with the project's existing conventions.
+
+To run vint locally (requires Python):
 
 ```bash
 pip install vim-vint
 vint -e autoload/ plugin/ ftplugin/ ftdetect/ syntax/
 ```
 
-The configuration lives in `.vintrc.yaml` at the repository root. Only
-correctness policies (undefined variables, `set nocompatible`) are enabled as
-errors; style policies are left off to avoid conflict with the project's
-existing conventions.
-
 When adding new features or fixing bugs:
 
 1. Add or update Vader tests under `tests/`. Prefer tests that do not require
    network access (mock with local fixtures).
-2. Run `vint -e autoload/ plugin/ ftplugin/ ftdetect/ syntax/` and ensure it
-   reports no errors.
-3. Verify your changes work correctly in Vim 8.2+ on Linux (Neovim and
+2. Verify your changes work correctly in Vim 8.2+ on Linux (Neovim and
    Windows are not supported).
-4. Test all related functionality to ensure no regressions.
-5. Ensure the suite passes (`make test-ci`) before opening a PR.
+3. Test all related functionality to ensure no regressions.
+4. Ensure the suite passes (`make test-ci`) before opening a PR.
 
 ## Documentation
 

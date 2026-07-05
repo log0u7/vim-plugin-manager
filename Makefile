@@ -101,7 +101,8 @@ tag:
 		echo "Error: VERSION must start with v (e.g. v2.1.3)"; \
 		exit 1; \
 	}
-	@if ! grep -q "^## \[$(VERSION)\]" CHANGELOG.md; then \
+	@VERSION_NO_V=$$(echo "$(VERSION)" | sed 's/^v//'); \
+	if ! grep -q "^## \[$$VERSION_NO_V\]" CHANGELOG.md; then \
 		echo "Error: No CHANGELOG entry found for $(VERSION)"; \
 		exit 1; \
 	fi
