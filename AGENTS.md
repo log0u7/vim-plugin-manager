@@ -1,9 +1,8 @@
 # AGENTS.md
 
 Guidance for AI agents and automated tooling working in this repository.
-This file complements `CONTRIBUTING.md` (aimed at human contributors) with the
-concrete commands, conventions, and guardrails an agent needs to make safe,
-consistent changes.
+Complements `CONTRIBUTING.md` (human contributors) with the concrete commands,
+conventions, and guardrails an agent needs for safe, consistent changes.
 
 ## Project summary
 
@@ -150,8 +149,6 @@ PM_ERROR:<component>:<CODE>:<message>
   network access (mock with local fixtures).
 - Update documentation (`README.md`, `doc/plugin_manager.txt`, `CHANGELOG.md`)
   when behavior changes.
-- Never use the em dash character. Use `:`, `,`, parentheses `()`, or a plain
-  hyphen `-` instead. This applies to files and commit messages.
 
 ## Commit conventions
 
@@ -168,7 +165,7 @@ Valid types:
 - `ci:` CI/CD workflow changes
 - `build:` build system or dependency changes
 
-Scopes (optional but recommended when relevant):
+Scopes (optional, recommended when relevant):
 `core`, `async`, `ui`, `git`, `cmd`, `api`, `github`, `gitlab`, `deps`.
 
 Examples:
@@ -184,8 +181,8 @@ Only commit when explicitly requested.
 
 ## Branching model
 
-The project uses a simplified workflow with Conventional Commit prefixes.
-There is no `develop` branch. All changes branch from and merge into `main`:
+Simplified workflow with Conventional Commit prefixes. No `develop` branch;
+all changes branch from and merge into `main`:
 
 - `main` -- stable code, tagged `vX.Y.Z` for releases.
 - `feature/*` -- new features, branched from `main`, merged back with `--no-ff`.
