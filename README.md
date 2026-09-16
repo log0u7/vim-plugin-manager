@@ -124,36 +124,41 @@ A good practice is to create your own configuration files for each plugin you in
 ~/.vim/plugin/fugitive_config.vim
 ```
 
+A complete real-world implementation of this practice is
+[MyVim](https://github.com/log0u7/myvim): one file per plugin, with a
+`vim_*` / `plugin_*` naming convention separating pure-Vim settings from
+per-plugin configuration, plus `ftplugin/` and `doc/` shipped inside the
+plugin. See its README and `:help myvim`.
+
 These files will be automatically included in backups when using `:PluginManager backup` since the plugin manager will commit all changes in your Vim configuration directory before pushing to remote repositories. This ensures that all your custom configurations, mappings, and settings are properly versioned and backed up.
 
 ### Example Plugin Configurations
 
-Here are some examples for common plugins:
+Real extracts from the [MyVim](https://github.com/log0u7/myvim) repository
+(`plugin/` directory):
 
-**NERDTree Configuration** (`~/.vim/plugin/nerdtree_config.vim`):
+**NERDTree Configuration** (`plugin/plugin_nerdtree.vim`):
 ```vim
-" Custom NERDTree configuration
-let g:NERDTreeShowHidden = 1
-let g:NERDTreeMinimalUI = 1
-let g:NERDTreeIgnore = ['^\.git$', '^\.DS_Store$']
-nnoremap <leader>n :NERDTreeToggle<CR>
+" Plugin NERDTree
+let NERDTreeShowBookmarks = 1   	" Show the bookmarks table
+let NERDTreeShowHidden = 1      	" Show hidden files
+let NERDTreeWinPos = 'left'     	" Panel opens on the left side
+let NERDTreeIgnore=['\.git$','.swp$']	" Ignore some files and directories
+" (the <F2> toggle is centralized in plugin/vim_mappings.vim)
 ```
 
-**FZF Configuration** (`~/.vim/plugin/fzf_config.vim`):
+**FZF mappings** (`plugin/vim_mappings.vim`, shared by all completion tools):
 ```vim
-" Custom FZF configuration
-let g:fzf_layout = { 'down': '~40%' }
-nnoremap <leader>f :Files<CR>
+" fzf (ctrlp keeps <C-p> via its own default mapping)
+nnoremap <leader>p :Files<CR>
 nnoremap <leader>b :Buffers<CR>
 nnoremap <leader>g :GFiles<CR>
 ```
 
-**Fugitive Configuration** (`~/.vim/plugin/fugitive_config.vim`):
+**Secrets never committed** (`plugin/plugin_fugitive.vim` + gitignored file):
 ```vim
-" Custom Fugitive configuration
-nnoremap <leader>gs :Git<CR>
-nnoremap <leader>gc :Git commit<CR>
-nnoremap <leader>gp :Git push<CR>
+" in plugin/plugin_fugitive.vim: tokens live in a gitignored file,
+" see "Secrets" in the MyVim README and the plugin/*-secrets.vim pattern
 ```
 
 ### Using .gitignore

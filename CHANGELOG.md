@@ -4,6 +4,27 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 
 ## [Unreleased]
 
+## [2.1.6] - 2026-09-16
+
+### Fixed
+- **CI: silent exit 1 in headless mode**: the generated `.vaderrc.vim` set
+  `packpath=` (empty). On several Vim builds (Debian trixie 9.1.1230,
+  Ubuntu 26.04, Gentoo) that made `vim -es` exit 1 without any error
+  message, failing the test jobs even when the whole Vader suite passed
+  (123/123). The vimrc now removes only the developer entry
+  (`set packpath-=$HOME/.vim`), which keeps the test session isolated from
+  the local `~/.vim` pack plugins without tripping the exit code.
+- `.vaderrc.vim` regeneration: the rule now depends on `Makefile` and is
+  `.PHONY`, so the file is always regenerated for the current environment
+  (a container bind mount and a developer shell used to reuse each other's
+  stale copy, pointing at the wrong paths).
+
+### Documentation
+- README "Custom Plugin Configurations" and "Example Plugin
+  Configurations": use MyVim as the real-world illustration (real extracts
+  from `plugin/plugin_nerdtree.vim`, `plugin/vim_mappings.vim` and the
+  secrets pattern) instead of throwaway snippets.
+
 ## [2.1.5] - 2026-09-16
 
 ### Fixed

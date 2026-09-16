@@ -59,12 +59,15 @@ $(VADER_DIR):
 	git -C $(VADER_DIR) checkout $(VADER_SHA)
 
 # Generate the minimal vimrc that points Vim at the plugin and Vader.
-$(VIMRC_TEST):
+# Regenerated on every make run: its content depends on the environment
+# ($HOME differs between a developer shell and a container bind mount).
+.PHONY: $(VIMRC_TEST)
+$(VIMRC_TEST): Makefile
 	@echo "set rtp^=$(CURDIR)" > $(VIMRC_TEST)
 	@echo "set rtp+=$(CURDIR)/$(VADER_DIR)" >> $(VIMRC_TEST)
 	@echo "filetype off" >> $(VIMRC_TEST)
 	@echo "syntax off" >> $(VIMRC_TEST)
-	@echo "set packpath=" >> $(VIMRC_TEST)
+	@echo "set packpath-=$$HOME/.vim" >> $(VIMRC_TEST)
 	@echo "let g:plugin_manager_test_force_sync = 1" >> $(VIMRC_TEST)
 
 test: $(VADER_DIR) $(VIMRC_TEST)
