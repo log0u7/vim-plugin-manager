@@ -2,6 +2,12 @@
 
 All notable changes to the Vim Plugin Manager will be documented in this file.
 
+## [Unreleased]
+
+### Documentation
+- README: real-world example section pointing to MyVim (configuration
+  plugin managed with the manager, declared last in the declarative block).
+
 ## [2.1.3] - 2026-07-06
 
 ### Removed

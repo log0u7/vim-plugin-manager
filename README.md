@@ -288,6 +288,17 @@ PluginEnd
 
 When Vim loads your vimrc, all these plugins will be installed automatically if they don't exist yet. This allows you to easily manage your plugin collection and share your configuration with others.
 
+### Real-world example
+
+[MyVim](https://github.com/log0u7/myvim) is a live configuration plugin
+managed with this manager: every plugin is declared in the `PluginBegin`
+block of `~/.vim/vimrc` (one Git submodule per plugin under
+`pack/plugins/start/`), and MyVim itself is declared last, shipping the
+per-plugin settings and mappings as `plugin/vim_*.vim` (pure Vim config)
+and `plugin/plugin_*.vim` (per-plugin configuration) files. See the
+[MyVim Quickstart](https://github.com/log0u7/myvim#quickstart) for the full
+walkthrough.
+
 ### Removing Plugins
 
 ```vim
