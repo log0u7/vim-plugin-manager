@@ -4,6 +4,19 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 
 ## [Unreleased]
 
+## [2.1.8] - 2026-09-16
+
+### Changed
+- ui usage: 'Check for available updates' -> 'Check for updates'
+
+### Tests
+- tests/log.vader: unit tests for core/log (entry format internal/EXTERNAL,
+  debug gating, clear)
+- tests/util.vader: unit tests for core/util (extract_plugin_name variants,
+  convert_to_full_url, is_local_path semantics, ensure_directory,
+  remove_path safety contract)
+- tests/README.md: coverage map by layer (unit/integration/smoke)
+
 ## [2.1.7] - 2026-09-16
 
 ### Fixed
