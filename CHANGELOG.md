@@ -4,6 +4,20 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 
 ## [Unreleased]
 
+## [2.1.5] - 2026-09-16
+
+### Fixed
+- **Header bars sized to the title**: the sidebar header separator was a
+  fixed 20-character bar, shorter than titles such as
+  `PluginManager Commands:` (23 chars). Header, usage and
+  update-notification bars now repeat the separator glyph
+  `strdisplaywidth(title)` times (multibyte-safe), restoring the dynamic
+  underline behavior.
+
+### Tests
+- ui.vader: regressions for header/usage bar width (bar covers the whole
+  title, uniform glyphs, wider than the old fixed bar).
+
 ## [2.1.4] - 2026-09-16
 
 ### Fixed

@@ -18,11 +18,17 @@ let s:symbols = {
       \ 'cross':     s:fancy_ui ? '✗' : 'x',
       \ 'arrow':     s:fancy_ui ? '→' : '->',
       \ 'ellipsis':  s:fancy_ui ? '…' : '...',
-      \ 'separator': s:fancy_ui ? '━━━━━━━━━━━━━━━━━━━━' : '--------------------',
+      \ 'separator': s:fancy_ui ? '━' : '-',
       \ 'warning':   s:fancy_ui ? '⚠' : '!',
       \ 'info':      s:fancy_ui ? 'ℹ' : 'i',
       \ 'pending':   s:fancy_ui ? '○' : 'o',
       \ }
+
+" Build a separator bar sized to the given title (display width, multibyte
+" safe): titles and their underline always match.
+function! s:title_bar(title) abort
+  return repeat(s:symbols.separator, max([1, strdisplaywidth(a:title)]))
+endfunction
 
 " Spinner frames
 let s:spinner_styles = {
@@ -295,7 +301,7 @@ endfunction
 
 " Return the standard 3-line header block: [title, separator, '']
 function! plugin_manager#ui#header(title) abort
-  return [a:title, s:symbols.separator, '']
+  return [a:title, s:title_bar(a:title), '']
 endfunction
 
 " Open (or refresh) the sidebar with a standard header for a given title
@@ -315,7 +321,7 @@ endfunction
 " Show update notification with the list of plugins that have updates available
 " @param plugins: list of dicts {name, behind}
 function! plugin_manager#ui#show_update_notification(plugins) abort
-  let l:lines = ['Update notification:', s:symbols.separator, '']
+  let l:lines = ['Update notification:', s:title_bar('Update notification:'), '']
 
   if empty(a:plugins)
     call add(l:lines, plugin_manager#ui#success('All plugins are up-to-date'))
@@ -342,7 +348,7 @@ endfunction
 function! plugin_manager#ui#usage() abort
   let l:lines = [
         \ 'PluginManager Commands:',
-        \ s:symbols.separator,
+        \ s:title_bar('PluginManager Commands:'),
         \ 'add <plugin> [options]  - Install plugin',
         \ 'remove <plugin> [-f]    - Remove plugin',
         \ 'update [plugin|all]     - Update plugins',

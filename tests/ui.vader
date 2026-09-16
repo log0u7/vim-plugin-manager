@@ -188,3 +188,21 @@ Execute (purge stale operations does not remove active ops):
   let content = join(getbufline(sbuf, 1, '$'), "\n")
   Assert content =~# 'keep', 'active operation should survive purge'
   Assert content =~# 'Kept', 'completed operation should render normally'
+
+Execute (Header separator matches the title display width):
+  let g:ui_header_test = plugin_manager#ui#header('PluginManager Commands:')
+  AssertEqual strdisplaywidth(g:ui_header_test[0]), strdisplaywidth(g:ui_header_test[1]), 'bar must cover the whole title'
+  Assert g:ui_header_test[1] !~# '^$', 'bar must not be empty'
+  " all bar characters are identical
+  AssertEqual '', substitute(g:ui_header_test[1], matchstr(g:ui_header_test[1], '^.'), '', 'g'), 'bar is uniform'
+  unlet g:ui_header_test
+
+Execute (Usage and update-notification bars match their titles):
+  call plugin_manager#ui#usage()
+  let g:ui_usage_buf = bufnr('PluginManager')
+  Assert g:ui_usage_buf != -1, 'usage opened the sidebar'
+  let g:ui_usage_lines = getbufline(g:ui_usage_buf, 1, 2)
+  AssertEqual strdisplaywidth(g:ui_usage_lines[0]), strdisplaywidth(g:ui_usage_lines[1]), 'usage bar must cover the whole title'
+  Assert strdisplaywidth(g:ui_usage_lines[1]) > 20, 'usage title is longer than the old fixed 20-char bar'
+  unlet g:ui_usage_lines
+  unlet g:ui_usage_buf
