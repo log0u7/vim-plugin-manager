@@ -1,0 +1,53 @@
+" Unit tests for core/log.vim (log file write, format, clear, gating).
+" All writes go to a TEMP vim_dir so the real ~/.vim/logs is untouched.
+
+Before:
+  let g:plugin_manager_vim_dir = '/tmp/pm-log-test'
+  call delete('/tmp/pm-log-test', 'rf')
+  call mkdir('/tmp/pm-log-test', 'p')
+
+After:
+  call delete('/tmp/pm-log-test', 'rf')
+  unlet g:plugin_manager_vim_dir
+
+Execute (log#write formats an internal error):
+  let g:log_parsed = {'type': 'internal', 'component': 'core', 'code': 'TEST_CODE', 'message': 'boom'}
+  call plugin_manager#core#log#write(g:log_parsed)
+  let g:log_lines = readfile(plugin_manager#core#log#get_path())
+  AssertEqual 1, len(g:log_lines), 'one entry written'
+  Assert g:log_lines[0] =~# '| core | TEST_CODE | boom$', 'internal format: ' . g:log_lines[0]
+  unlet g:log_parsed
+  unlet g:log_lines
+
+Execute (log#write marks external errors as EXTERNAL):
+  let g:log_parsed = {'type': 'external', 'component': 'vim', 'code': 'E42', 'message': 'nope'}
+  call plugin_manager#core#log#write(g:log_parsed)
+  let g:log_lines = readfile(plugin_manager#core#log#get_path())
+  Assert g:log_lines[-1] =~# '| vim | EXTERNAL | nope$', 'external format: ' . g:log_lines[-1]
+  unlet g:log_parsed
+  unlet g:log_lines
+
+Execute (log#debug is gated by debug_mode):
+  let g:plugin_manager_enable_logging = 1
+  let g:plugin_manager_debug_mode = 0
+  call plugin_manager#core#log#write({'type': 'internal', 'component': 'core', 'code': 'SEED', 'message': 'seed'})
+  let g:before = len(readfile(plugin_manager#core#log#get_path()))
+  call plugin_manager#core#log#debug('test', 'hidden')
+  AssertEqual g:before, len(readfile(plugin_manager#core#log#get_path())), 'debug off: nothing written'
+  let g:plugin_manager_debug_mode = 1
+  call plugin_manager#core#log#debug('test', 'shown')
+  let g:log_lines = readfile(plugin_manager#core#log#get_path())
+  Assert g:log_lines[-1] =~# 'DEBUG:test:DEBUG:shown$', 'debug on: entry written'
+  unlet g:plugin_manager_debug_mode
+  unlet g:plugin_manager_enable_logging
+  unlet g:before
+  unlet g:log_lines
+
+Execute (log#clear resets the file with an INFO entry):
+  call mkdir('/tmp/pm-log-test/logs', 'p')
+  call writefile(['seed'], '/tmp/pm-log-test/logs/plugin_manager.log')
+  AssertEqual 1, plugin_manager#core#log#clear()
+  let g:log_lines = readfile(plugin_manager#core#log#get_path())
+  AssertEqual 1, len(g:log_lines)
+  Assert g:log_lines[0] =~# '| system | INFO | Log file cleared$', 'clear marker'
+  unlet g:log_lines

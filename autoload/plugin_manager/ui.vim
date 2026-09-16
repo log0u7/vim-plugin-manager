@@ -352,7 +352,7 @@ function! plugin_manager#ui#usage() abort
         \ 'add <plugin> [options]  - Install plugin',
         \ 'remove <plugin> [-f]    - Remove plugin',
         \ 'update [plugin|all]     - Update plugins',
-        \ 'check                   - Check for available updates',
+        \ 'check                   - Check for updates',
         \ 'health                  - Run diagnostics',
         \ 'list                    - List installed plugins',
         \ 'status                  - Show plugin status',

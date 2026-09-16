@@ -1,0 +1,50 @@
+" Unit tests for core/util.vim pure helpers (naming, urls, paths, safety).
+" Filesystem tests use /tmp/pm-util-test; the vim_dir guard is exercised
+" with a dedicated vim_dir so remove_path refusals are deterministic.
+
+Before:
+  let g:plugin_manager_vim_dir = '/tmp/pm-util-test/vim'
+  call delete('/tmp/pm-util-test', 'rf')
+  call mkdir('/tmp/pm-util-test/vim/plugins', 'p')
+  call writefile(['x'], '/tmp/pm-util-test/vim/plugins/keep.txt')
+  call writefile(['x'], '/tmp/pm-util-test/outside.txt')
+
+After:
+  call delete('/tmp/pm-util-test', 'rf')
+  unlet g:plugin_manager_vim_dir
+
+Execute (extract_plugin_name handles the input variants):
+  AssertEqual 'myvim', plugin_manager#core#util#extract_plugin_name('log0u7/myvim')
+  AssertEqual 'myvim', plugin_manager#core#util#extract_plugin_name('https://github.com/log0u7/myvim.git')
+  AssertEqual 'myvim', plugin_manager#core#util#extract_plugin_name('git@github.com:log0u7/myvim.git')
+  AssertEqual 'myvim', plugin_manager#core#util#extract_plugin_name('local:/home/me/projects/myvim')
+
+Execute (convert_to_full_url expands short names and passes urls through):
+  let g:full = plugin_manager#core#util#convert_to_full_url('log0u7/myvim')
+  Assert g:full =~# '^https://github.com/log0u7/myvim\.git$', 'short name expands: ' . g:full
+  AssertEqual 'https://gitlab.com/a/b.git', plugin_manager#core#util#convert_to_full_url('https://gitlab.com/a/b.git')
+  unlet g:full
+
+Execute (is_local_path detects absolute paths, ~ and existing dirs):
+  Assert plugin_manager#core#util#is_local_path('~/some/dir')
+  Assert plugin_manager#core#util#is_local_path('/absolute')
+  Assert plugin_manager#core#util#is_local_path('/tmp')
+  Assert !plugin_manager#core#util#is_local_path('./does-not-exist')
+  Assert !plugin_manager#core#util#is_local_path('user/repo')
+
+Execute (ensure_directory creates nested dirs):
+  call plugin_manager#core#util#ensure_directory('/tmp/pm-util-test/nested/a/b')
+  Assert plugin_manager#core#util#dir_exists('/tmp/pm-util-test/nested/a/b')
+
+Execute (remove_path safety contract):
+  " inside vim_dir: allowed
+  AssertEqual 1, plugin_manager#core#util#remove_path('/tmp/pm-util-test/vim/plugins/keep.txt')
+  " vim_dir itself: refused
+  AssertEqual 0, plugin_manager#core#util#remove_path('/tmp/pm-util-test/vim')
+  " outside vim_dir: refused
+  AssertEqual 0, plugin_manager#core#util#remove_path('/tmp/pm-util-test/outside.txt')
+  " traversal: refused
+  AssertEqual 0, plugin_manager#core#util#remove_path('/tmp/pm-util-test/vim/../outside.txt')
+  " root and empty: refused
+  AssertEqual 0, plugin_manager#core#util#remove_path('/')
+  AssertEqual 0, plugin_manager#core#util#remove_path('')

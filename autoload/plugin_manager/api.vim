@@ -35,7 +35,7 @@ function! plugin_manager#api#update(module_name) abort
   return plugin_manager#cmd#update#execute(a:module_name)
 endfunction
 
-" Check for available updates
+" Check for updates
 function! plugin_manager#api#check(...) abort
   let l:opts = a:0 > 0 ? a:1 : {}
   return plugin_manager#cmd#check#execute(l:opts)
