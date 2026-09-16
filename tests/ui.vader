@@ -206,3 +206,10 @@ Execute (Usage and update-notification bars match their titles):
   Assert strdisplaywidth(g:ui_usage_lines[1]) > 20, 'usage title is longer than the old fixed 20-char bar'
   unlet g:ui_usage_lines
   unlet g:ui_usage_buf
+
+Execute (integration: sidebar opens at the configured width):
+  let g:plugin_manager_sidebar_width = 40
+  call plugin_manager#ui#open_sidebar(['width test'])
+  let g:ui_w = winwidth(bufwinnr(bufnr('PluginManager')))
+  AssertEqual 40, g:ui_w, 'sidebar window must honor sidebar_width (got ' . g:ui_w . ')'
+  unlet g:plugin_manager_sidebar_width

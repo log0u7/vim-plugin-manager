@@ -1,0 +1,42 @@
+" Config layer tests: get_config contract + static guard against the
+" double-prefix regression (get_config already prepends 'plugin_manager_').
+
+Execute (get_config reads bare-named g: overrides):
+  let g:plugin_manager_test_option = 'override'
+  AssertEqual 'override', plugin_manager#core#util#get_config('test_option', 'default')
+  unlet g:plugin_manager_test_option
+  AssertEqual 'default', plugin_manager#core#util#get_config('test_option', 'default')
+
+Execute (get_config falls back to its default when unset):
+  AssertEqual 42, plugin_manager#core#util#get_config('test_option_missing', 42)
+
+Execute (static guard: no double-prefixed get_config call sites):
+  " Regression guard for 2.1.7: ui.vim called
+  " get_config('plugin_manager_sidebar_width', ...) which made get_config
+  " read g:plugin_manager_plugin_manager_sidebar_width (never set) and
+  " silently fall back to the default. get_config prepends the prefix
+  " itself: call sites must pass BARE names.
+  let g:cfg_offenders = []
+  for g:cfg_file in split(globpath(&runtimepath, 'autoload/plugin_manager/*.vim'), "\n")
+        \ + split(globpath(&runtimepath, 'autoload/plugin_manager/core/*.vim'), "\n")
+        \ + split(globpath(&runtimepath, 'autoload/plugin_manager/cmd/*.vim'), "\n")
+    for g:cfg_line in readfile(g:cfg_file)
+      if g:cfg_line =~# "get_config(['\"]plugin_manager_"
+        call add(g:cfg_offenders, fnamemodify(g:cfg_file, ':t') . ': ' . trim(g:cfg_line))
+      endif
+    endfor
+  endfor
+  AssertEqual [], g:cfg_offenders, 'double-prefixed get_config call sites found'
+  unlet g:cfg_offenders
+  unlet g:cfg_file
+  unlet g:cfg_line
+
+Execute (static guard: sidebar_width and spinner_interval are honored):
+  " Integration-level contract: the config values the UI reads must come
+  " from the user overrides, not the defaults.
+  let g:plugin_manager_sidebar_width = 40
+  let g:plugin_manager_spinner_interval = 120
+  AssertEqual 40, plugin_manager#core#util#get_config('sidebar_width', 80)
+  AssertEqual 120, plugin_manager#core#util#get_config('spinner_interval', 80)
+  unlet g:plugin_manager_sidebar_width
+  unlet g:plugin_manager_spinner_interval

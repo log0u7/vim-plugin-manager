@@ -4,6 +4,23 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 
 ## [Unreleased]
 
+## [2.1.7] - 2026-09-16
+
+### Fixed
+- **Config options silently ignored**: `ui.vim` called
+  `get_config('plugin_manager_sidebar_width', ...)` and
+  `get_config('plugin_manager_spinner_interval', ...)` with an already
+  prefixed name. Since `get_config` prepends `plugin_manager_` itself, the
+  lookups targeted `g:plugin_manager_plugin_manager_*` (never set) and
+  always fell back to the defaults: user overrides of `sidebar_width` and
+  `spinner_interval` were dead since the 2.x refactor. Call sites now pass
+  bare names, and a static Vader guard forbids the pattern.
+
+### Tests
+- New `tests/config.vader` (unit: get_config contract; static guard: no
+  double-prefixed call sites; integration: sidebar_width honored).
+- `tests/ui.vader`: sidebar opens at the configured width (integration).
+
 ## [2.1.6] - 2026-09-16
 
 ### Fixed

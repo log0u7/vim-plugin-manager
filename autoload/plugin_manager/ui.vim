@@ -148,7 +148,7 @@ function! plugin_manager#ui#open_sidebar(lines) abort
 
   " Create the sidebar window. This is an explicit user-facing open, so it is
   " acceptable to create/focus the window here.
-  let l:width = plugin_manager#core#util#get_config('plugin_manager_sidebar_width', 80)
+  let l:width = plugin_manager#core#util#get_config('sidebar_width', 80)
   execute 'silent! rightbelow ' . l:width . 'vnew ' . s:buffer_name
   setlocal filetype=pluginmanager
   setlocal buftype=nofile bufhidden=hide noswapfile nobuflisted
@@ -378,7 +378,7 @@ function! plugin_manager#ui#toggle_sidebar() abort
     let l:buf_id = s:bufnr()
     if l:buf_id != -1 && bufloaded(l:buf_id)
       execute 'vertical rightbelow sbuffer ' . l:buf_id
-      execute 'vertical resize ' . plugin_manager#core#util#get_config('plugin_manager_sidebar_width', 80)
+      execute 'vertical resize ' . plugin_manager#core#util#get_config('sidebar_width', 80)
     else
       call plugin_manager#ui#usage()
     endif
@@ -406,7 +406,7 @@ endfunction
 " Start the spinner timer if not already running and timers are available
 function! s:ensure_spinner() abort
   if s:has_timers && !s:spinner_timer && !empty(s:active_operations)
-    let l:interval = plugin_manager#core#util#get_config('plugin_manager_spinner_interval', 80)
+    let l:interval = plugin_manager#core#util#get_config('spinner_interval', 80)
     let s:spinner_timer = timer_start(l:interval, function('s:update_all_spinners'), {'repeat': -1})
   endif
 endfunction
