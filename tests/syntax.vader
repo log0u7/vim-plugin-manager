@@ -1,0 +1,9 @@
+Execute (Sidebar syntax loads without E33 on the PMPath pattern):
+  " The PMPath pattern used to contain an unescaped '~' (last-substitute
+  " atom), which raised E33 whenever no previous substitution existed and
+  " aborted the whole syntax file (broke :PluginManager health).
+  new
+  setfiletype pluginmanager
+  runtime! syntax/pluginmanager.vim
+  Assert get(b:, 'current_syntax', '') ==# 'pluginmanager', 'syntax applied cleanly (no E33)'
+  close!

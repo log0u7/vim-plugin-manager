@@ -4,6 +4,21 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 
 ## [Unreleased]
 
+## [2.1.4] - 2026-09-16
+
+### Fixed
+- **PMPath syntax pattern**: the sidebar `pluginmanager.vim` syntax matched
+  an unescaped `~/` in the path pattern. In Vim patterns, `~` is the
+  last-substitute atom: when no previous substitution existed, the
+  `:syntax` command raised E33, aborting the whole syntax file and crashing
+  `:PluginManager health` ("Unexpected error: Vim(syntax):E33"). The tilde
+  is now escaped (`\~`).
+
+### Changed
+- **Test isolation**: the generated `.vaderrc.vim` now sets `packpath=`
+  so the local test session no longer loads the developer's own
+  `~/.vim` pack plugins (made `make test-ci` environment-dependent).
+
 ### Documentation
 - README: real-world example section pointing to MyVim (configuration
   plugin managed with the manager, declared last in the declarative block).

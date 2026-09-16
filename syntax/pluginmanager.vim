@@ -77,7 +77,7 @@ syntax match PMUsageCmd /^[a-z][a-z-]\+\s\+/
 " ------------------------------------------------------------------------------
 
 syntax match PMUrl  /https\?:\/\/\S\+/
-syntax match PMPath /\(pack\/plugins\/\(start\|opt\)\/\|~\/\|\.\.\?\/\)[[:alnum:]_\-\.\/]\+/
+syntax match PMPath /\(pack\/plugins\/\(start\|opt\)\/\|\~\/\|\.\.\?\/\)[[:alnum:]_\-\.\/]\+/
 
 " ------------------------------------------------------------------------------
 " HIGHLIGHT LINKS
