@@ -15,6 +15,42 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
   fork + PR for external contributors, `--no-ff` direct merges for
   maintainers, and an explicit test-first (TDD) guidance section.
 
+## [2.2.1] - 2026-09-17
+
+### Fixed
+- **`update all` pin path now commits the pointer**: the all-plugins pin
+  branch never recorded the pre-checkout commit, so a pin move reported
+  "Up-to-date", was excluded from `updated_modules`, and left the parent
+  repo with a dirty gitlink (no pointer commit, no helptags). The
+  pre-checkout commit is now recorded like the pull path; regression test
+  asserts a clean parent repo and the `Update Modules` commit after a pin
+  move (`tests/pin.vader`).
+- **Pin map collisions on shared basenames**: pins were keyed by short
+  name first, so `orgA/vim-foo` and `orgB/vim-foo` (both extracting to
+  `vim-foo`) made the last declaration's pin win for BOTH modules. Pin
+  resolution now matches the module URL first (exact per-module match),
+  falling back to the name key for URL drift. Regression test with two
+  forges sharing a basename (`tests/pin_collision.vader`).
+- **`file://` installs register the submodule again**: the file transport
+  lift (git >= 2.38.1) was applied to the clone only, so `git submodule
+  add file://...` failed after a successful clone and left an unregistered
+  plugin dir invisible to update/gc. The lift now covers the registration
+  (`git#add_submodule`). Regression test installs through a `file://`
+  declaration without any fixture protocol config (`tests/declare.vader`).
+- **Sync declare path probes the right pack dir for lazy plugins**: the
+  synchronous fallback passed raw options to the exists() probe, which
+  looked in `start/` while `on`/`for` declarations install to `opt/`:
+  every vimrc re-source of a lazy declaration errored SUBMODULE_EXISTS.
+  Options are normalized once at the top of `s:process_plugin` (same as
+  the async path). Regression test re-declares an installed lazy local
+  plugin and asserts a clean skip (`tests/declare.vader`).
+- **Re-entrant `PluginEnd` runs keep in-flight installs**: `PluginBegin`
+  wiped the pending-installs map, making the double-clone guard
+  unreachable (a reload re-runs Begin first). The map now survives Begin
+  and is pruned by the clone callbacks. Unit-tested via test-only helpers
+  (`declare#_pending_test_set`/`_pending_names`, same pattern as
+  `lazy#_reset`).
+
 ## [2.2.0] - 2026-09-17
 
 ### Security

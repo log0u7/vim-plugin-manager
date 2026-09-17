@@ -533,6 +533,14 @@ function! plugin_manager#git#add_submodule(url, install_dir, options) abort
   
   " Add the submodule
   let l:cmd = 'git submodule add'
+
+  " file:// remotes are trusted input (vimrc/local path): lift the file
+  " transport restriction (git >= 2.38.1) for the registration too, or a
+  " successful clone is followed by a failed submodule add that leaves an
+  " unregistered plugin dir the manager can no longer see.
+  if a:url =~# '^file://'
+    let l:cmd = 'git -c protocol.file.allow=always submodule add'
+  endif
   
   " Add branch option if specified
   if !empty(a:options.branch)

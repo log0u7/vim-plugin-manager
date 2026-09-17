@@ -217,8 +217,12 @@ function! s:pin_for(pins, module) abort
   if empty(a:pins) || empty(a:module)
     return {}
   endif
-  return get(a:pins, 'name:' . get(a:module, 'short_name', ''),
-        \ get(a:pins, 'url:' . get(a:module, 'url', ''), {}))
+  " URL first: exact per-module match, immune to short-name collisions
+  " across forges (orgA/vim-foo and orgB/vim-foo both extract to
+  " 'vim-foo'). The name key stays as fallback for URL drift (declared
+  " https, installed through ssh).
+  return get(a:pins, 'url:' . get(a:module, 'url', ''),
+        \ get(a:pins, 'name:' . get(a:module, 'short_name', ''), {}))
 endfunction
 
 " Resolve the pin target and checkout it when HEAD differs. Replaces the
@@ -370,6 +374,12 @@ function! s:analyze_and_update(ctx, module) abort
   " A declared tag/commit pin replaces the pull flow entirely
   let l:pin = s:pin_for(get(a:ctx, 'pins', {}), a:module)
   if !empty(l:pin) && (has_key(l:pin, 'tag') || has_key(l:pin, 'commit'))
+    " Record the pre-checkout commit: s:on_pin_checkout compares against it
+    " in the all-plugins path (the single-plugin path uses current_commit).
+    " Without it a pin move reports Up-to-date and skips the pointer commit.
+    if has_key(a:ctx, 'pre_commits')
+      let a:ctx.pre_commits[a:module.short_name] = l:update_status.current_commit
+    endif
     call s:sync_pinned(a:ctx, a:module, l:pin,
           \ l:update_status.current_commit, l:op_id)
     return
