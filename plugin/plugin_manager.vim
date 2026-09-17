@@ -7,6 +7,10 @@ if exists('g:loaded_plugin_manager') || &cp
 endif
 let g:loaded_plugin_manager = 1
 
+" Absolute path of the manager's own package directory: gc must never
+" collect the manager itself even when it is not declared in the vimrc.
+let g:plugin_manager_self_path = expand('<sfile>:p:h:h')
+
 " ------------------------------------------------------------------------------
 " ENVIRONMENT GUARD
 " ------------------------------------------------------------------------------

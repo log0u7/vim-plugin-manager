@@ -84,7 +84,7 @@ function! plugin_manager#cmd#complete(arglead, cmdline, cursorpos) abort
 
   " Completing the sub-command (position 1)
   if l:nwords <= 2
-    let l:cmds = ['add', 'backup', 'check', 'health', 'helptags', 'list',
+    let l:cmds = ['add', 'backup', 'check', 'gc', 'health', 'helptags', 'list',
           \        'reload', 'remove', 'restore', 'status', 'summary', 'update']
     return filter(copy(l:cmds), {_, v -> v =~# '^' . a:arglead})
   endif
@@ -150,6 +150,8 @@ function! plugin_manager#cmd#dispatch(...) abort
       call plugin_manager#api#health()
     elseif l:command ==# 'reload'
       call call('s:cmd_reload', l:args)
+    elseif l:command ==# 'gc'
+      call call('plugin_manager#cmd#gc#execute', l:args)
     else
       call plugin_manager#core#throw('cmd', 'INVALID_COMMAND', 'Unknown command: ' . l:command)
     endif
