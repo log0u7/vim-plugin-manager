@@ -145,7 +145,10 @@ PM_ERROR:<component>:<CODE>:<message>
   only when needed.
 - When adding a config option, declare it in `plugin/plugin_manager.vim` with a
   sensible default and read it via `plugin_manager#core#util#get_config()`.
-- Add or update Vader tests for new logic; prefer tests that do not require
+- Add or update Vader tests for new logic - **test-first whenever practical**:
+  write the failing test before the implementation, and before the fix for
+  bug fixes (regression test). When not practical (docs, CI plumbing, smoke
+  fixtures), the PR must justify it. Prefer tests that do not require
   network access (mock with local fixtures).
 - Update documentation (`README.md`, `doc/plugin_manager.txt`, `CHANGELOG.md`)
   when behavior changes.
@@ -181,16 +184,19 @@ Only commit when explicitly requested.
 
 ## Branching model
 
-Simplified workflow with Conventional Commit prefixes. No `develop` branch;
-all changes branch from and merge into `main`:
+**GitHub Flow + tags.** One protected branch (`main`) and release tags; no
+`develop` branch, no `vX.Y` maintenance branches. The ruleset "main-protection"
+requires the `ci-green` check, resolved conversations, and forbids force
+pushes and deletions; PRs are squash-merged (one commit per PR). Maintainers
+bypass the ruleset.
 
-- `main` -- stable code, tagged `vX.Y.Z` for releases.
-- `feature/*` -- new features, branched from `main`, merged back with `--no-ff`.
-- `fix/*` -- bug fixes, branched from `main`.
-- `chore/*` -- maintenance tasks, branched from `main`.
-- `hotfix/*` -- urgent fixes on the current release, branched from `main`.
-
-All merges use `--no-ff` to preserve branch topology.
+- `main` -- stable code, tagged `vX.Y.Z` for releases. Releases are tags on
+  `main`; hotfixes are prioritized `fix/*` branches targeting `main`.
+- External contributors: fork + `feature/*`, `fix/*`, `docs/*`, `chore/*`
+  branch + pull request (template + Copilot review + maintainer review +
+  squash merge). One branch per topic, rebased on `main` when asked.
+- Maintainers: local `feature/*` / `fix/*` / `chore/*` branches merged with
+  `--no-ff` (preserves branch topology), pushed directly (bypass).
 
 ## Releases
 
