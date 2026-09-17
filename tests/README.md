@@ -1,10 +1,10 @@
 # Test suite map (coverage by layer)
 
 Layer conventions:
-- **unit** — pure functions, no network, no side effects outside /tmp.
-- **integration** — modules wired together (sidebar UI, git in a fixture
+- **unit**: pure functions, no network, no side effects outside /tmp.
+- **integration**: modules wired together (sidebar UI, git in a fixture
   repo, config honored end to end).
-- **smoke** — the whole thing boots: `make test-ci` runs every vader file;
+- **smoke**: the whole thing boots. `make test-ci` runs every vader file;
   `make test-async` exercises the real job/event-loop path
   (`tests/async_smoke.vim`); CI runs both across the distro matrix.
 

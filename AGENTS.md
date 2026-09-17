@@ -198,6 +198,31 @@ bypass the ruleset.
 - Maintainers: local `feature/*` / `fix/*` / `chore/*` branches merged with
   `--no-ff` (preserves branch topology), pushed directly (bypass).
 
+## Multi-session coordination
+
+Multiple agent sessions may work on this repository. These rules exist
+because two sessions mutating one working tree caused: commits landing on
+a foreign branch (the checkout changed under the first session), release
+tags created before the merge strategy was known (a squash merge orphaned
+them), and a PR merged while the other session was still planning its own
+push.
+
+- **Single-writer rule**: one session owns the working tree at a time.
+  Parallel work requires separate worktrees (`git worktree add`) or
+  separate clones; integration happens only through PRs.
+- **Verify before acting**: before any commit, run
+  `git branch --show-current`, `git status` and `git reflog -5`. A branch
+  switch by another session between two of your commands is possible:
+  re-verify after every pause.
+- **Tags only after merge**: release tags are created on the exact `main`
+  commit AFTER the merge lands, never before. A squash merge rewrites
+  history: tags created on pre-merge commits become orphans.
+- **Dependabot PRs**: dependabot prepares (grouped PRs, rebases, cooldown),
+  the maintainer validates: `gh pr review --approve` then merge. No
+  auto-merge: the ruleset
+  `require_extra_approval_for_unattributed_changes` is the guardrail, the
+  human approval is the policy.
+
 ## Releases
 
 Releases are automated via `.github/workflows/release.yml`:
