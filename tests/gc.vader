@@ -19,8 +19,10 @@ Before:
 
   call mkdir(g:_pm_gc_root, 'p')
 
-  " Bare repo with one commit
+  " Bare repo with one commit (HEAD must point at the pushed branch: git
+  " >= 2.52 does not infer it from a local clone)
   call system('git init --bare ' . shellescape(g:_pm_gc_bare))
+  call system('git -C ' . shellescape(g:_pm_gc_bare) . ' symbolic-ref HEAD refs/heads/main')
   call system('git init ' . shellescape(g:_pm_gc_root . '/seed'))
   call system('git -C ' . shellescape(g:_pm_gc_root . '/seed') . ' config user.email "test@test.com"')
   call system('git -C ' . shellescape(g:_pm_gc_root . '/seed') . ' config user.name "Test"')

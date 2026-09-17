@@ -25,6 +25,7 @@ Before:
 
   " 1. Bare repo (upstream remote)
   call system('git init --bare ' . shellescape(g:_pm_upd_bare))
+  call system('git -C ' . shellescape(g:_pm_upd_bare) . ' symbolic-ref HEAD refs/heads/main')
 
   " 2. Source working tree: initial commit + push to bare
   call mkdir(g:_pm_upd_tmp_src, 'p')

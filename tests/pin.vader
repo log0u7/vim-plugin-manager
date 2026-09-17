@@ -20,8 +20,10 @@ Before:
 
   call mkdir(g:_pm_pin_root, 'p')
 
-  " 1. Bare repo (upstream remote)
+  " 1. Bare repo (upstream remote; HEAD must point at the pushed branch,
+  "    git >= 2.52 does not infer it from a local clone)
   call system('git init --bare ' . shellescape(g:_pm_pin_bare))
+  call system('git -C ' . shellescape(g:_pm_pin_bare) . ' symbolic-ref HEAD refs/heads/main')
 
   " 2. Source working tree: two commits, each tagged
   call mkdir(g:_pm_pin_src, 'p')
