@@ -633,7 +633,8 @@ For detailed documentation, use the `:help plugin-manager` command after install
 
 Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md): fork +
 branch + pull request (Conventional Commits, test-first, one squash merge per
-PR). Bugs go through the [bug report form](
+PR). Every PR is squash-merged into `main` with its title as the commit message.
+Bugs go through the [bug report form](
 https://github.com/log0u7/vim-plugin-manager/issues/new?template=bug_report.yml).
 
 ## License
