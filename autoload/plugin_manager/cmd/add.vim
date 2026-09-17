@@ -77,6 +77,7 @@ function! s:install_remote_plugin(url, options) abort
       if isdirectory(l:doc_path)
         silent execute 'helptags ' . fnameescape(l:doc_path)
       endif
+      call plugin_manager#lazy#register(l:plugin_dir_name, a:options)
       call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Installed')
       call plugin_manager#ui#footer([plugin_manager#ui#success('Plugin installed')])
       return 1

@@ -108,7 +108,14 @@ function! s:process_plugin(url, options) abort
   
   " Extract plugin name
   let l:plugin_name = plugin_manager#core#util#extract_plugin_name(l:full_url)
-  
+
+  " Register lazy triggers (on/for) before anything else: they must exist
+  " even while the plugin is still being installed, and for skipped
+  " declarations (already installed) which never reach the install path.
+  call plugin_manager#lazy#register(
+        \ empty(get(a:options, 'dir', '')) ? l:plugin_name : a:options.dir,
+        \ a:options)
+
   " Check if already exists
   if plugin_manager#cmd#add#exists(l:plugin_name, a:options)
     return 'skipped'
