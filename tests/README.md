@@ -42,5 +42,5 @@ Layer conventions:
 | cmd/list, cmd/helptags, cmd/reload | exercised via dispatch/health/basic tests | integration (indirect) |
 
 Known indirect coverage (no dedicated file, acceptable): cmd/list,
-cmd/helptags, cmd/reload — each is a thin wrapper around api calls already
+cmd/helptags, cmd/reload: each is a thin wrapper around api calls already
 asserted through dispatch/health/basic.
