@@ -8,7 +8,7 @@ Before:
         \ 'plugins_dir': get(g:, 'plugin_manager_plugins_dir', ''),
         \ 'vimrc':       get(g:, 'plugin_manager_vimrc_path', ''),
         \ 'logging':     get(g:, 'plugin_manager_enable_logging', 0),
-        \ 'gc_exclude':  get(g:, 'plugin_manager_gc_exclude', ''),
+        \ 'gc_exclude':  get(g:, 'plugin_manager_gc_exclude', []),
         \ }
 
   let g:_pm_gc_root   = tempname()
@@ -75,7 +75,7 @@ After:
   let g:plugin_manager_plugins_dir    = g:_pm_gc_saved.plugins_dir
   let g:plugin_manager_vimrc_path     = g:_pm_gc_saved.vimrc
   let g:plugin_manager_enable_logging = g:_pm_gc_saved.logging
-  if g:_pm_gc_saved.gc_exclude !=# ''
+  if type(g:_pm_gc_saved.gc_exclude) == v:t_list && !empty(g:_pm_gc_saved.gc_exclude)
     let g:plugin_manager_gc_exclude = g:_pm_gc_saved.gc_exclude
   else
     silent! unlet g:plugin_manager_gc_exclude

@@ -112,6 +112,11 @@ if !exists('g:plugin_manager_auto_commit_on_update')
   let g:plugin_manager_auto_commit_on_update = 1  " Auto commit after updates
 endif
 
+" Plugins gc must never collect (list of plugin names)
+if !exists('g:plugin_manager_gc_exclude')
+  let g:plugin_manager_gc_exclude = []
+endif
+
 " Job management
 if !exists('g:plugin_manager_max_concurrent_jobs')
   let g:plugin_manager_max_concurrent_jobs = 4  " Maximum concurrent async jobs

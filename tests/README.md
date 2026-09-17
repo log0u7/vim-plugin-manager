@@ -36,6 +36,8 @@ Layer conventions:
 | vimrc.vim (declarations parser) | vimrc.vader | unit |
 | lazy.vim (on/for triggers) | lazy.vader | unit + integration |
 | pin re-assertion (update + vimrc) | pin.vader | integration |
+| pin collision across forges | pin_collision.vader | integration |
+| cmd/declare.vim (sync path, file://, lazy re-declare) | declare.vader | integration |
 | declare.vim (parallel install) | install_smoke.vim | smoke |
 | cmd/list, cmd/helptags, cmd/reload | exercised via dispatch/health/basic tests | integration (indirect) |
 

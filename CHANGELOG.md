@@ -15,6 +15,23 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
   fork + PR for external contributors, `--no-ff` direct merges for
   maintainers, and an explicit test-first (TDD) guidance section.
 
+## [2.2.5] - 2026-09-17
+
+### Fixed
+- **`g:plugin_manager_gc_exclude` has a declared default** (`[]`) in
+  `plugin/plugin_manager.vim`, matching the documented convention that
+  every `g:plugin_manager_*` option ships a sensible default
+  (`tests/gc.vader` restore logic adapted to the list type).
+
+### Documentation
+- doc: `:PluginManager check-updates` alias documented.
+- doc accuracy re-checked against the 2.2.1-2.2.3 fixes: the
+  "submodule pointer is committed" pin claim, the "detached HEAD without
+  a declaration: skipped" behavior and the file:// transport lift now all
+  match the code.
+- tests/README.md coverage map: declare.vader and pin_collision.vader
+  added.
+
 ## [2.2.4] - 2026-09-17
 
 ### Removed
