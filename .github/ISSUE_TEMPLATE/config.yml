@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation (:help)
+    url: https://github.com/log0u7/vim-plugin-manager/blob/main/doc/plugin_manager.txt
+    about: Full plugin documentation - check here before opening an issue.
+  - name: Contributing guide
+    url: https://github.com/log0u7/vim-plugin-manager/blob/main/CONTRIBUTING.md
+    about: How to report bugs properly and open pull requests.

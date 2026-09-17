@@ -4,6 +4,17 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Contributor workflow: GitHub issue forms (bug report, feature request),
+  pull request template, `copilot-instructions.md` for the automatic Copilot
+  code review, and a stable `ci-green` CI check aggregating the whole suite.
+
+### Changed
+- CONTRIBUTING.md documents GitHub Flow + tags: one protected `main`
+  (required checks, resolved conversations, no force push, squash merges),
+  fork + PR for external contributors, `--no-ff` direct merges for
+  maintainers, and an explicit test-first (TDD) guidance section.
+
 ## [2.2.0] - 2026-09-17
 
 ### Security

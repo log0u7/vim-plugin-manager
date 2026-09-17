@@ -49,60 +49,77 @@ git/network I/O, not script execution). Do not change the guard
 
 ## Development Workflow
 
-The project uses a simplified workflow. There is no `develop` branch. All
-changes branch from and merge into `main`:
+The project uses **GitHub Flow + tags**: a single protected branch (`main`)
+and release tags. There is no `develop` branch and no maintenance branches
+(`vX.Y`): fixes always target the current release.
 
-- `main`: stable code, tagged `vX.Y.Z` for releases.
-- `feature/*`, `fix/*`, `chore/*`: task branches, branched from `main`.
-- `hotfix/*`: urgent fixes on the current release, branched from `main`.
+- `main`: stable code, protected by a ruleset (required CI checks, no force
+  push, conversations must be resolved). Maintainers bypass this protection.
+- External contributors open pull requests from their fork.
+- Maintainers work on local `feature/*`, `fix/*`, `chore/*`, `hotfix/*`
+  branches and merge them with `--no-ff` to preserve branch topology.
+- Releases are tags on `main` (`vX.Y.Z`), see [Releases](#releases).
 
-All merges use `--no-ff` to preserve branch topology.
+### External contributors (fork + PR)
 
-To contribute a change:
-
-1. Ensure you're working on the latest `main`:
+1. **Fork the repository** on GitHub, clone your fork and add upstream:
+   ```bash
+   git clone https://github.com/yourusername/vim-plugin-manager.git
+   cd vim-plugin-manager
+   git remote add upstream https://github.com/log0u7/vim-plugin-manager.git
+   ```
+2. **Branch from the latest upstream `main`** (one branch per topic, no
+   long-lived branches):
    ```bash
    git fetch upstream
-   git rebase upstream/main
+   git checkout -b fix/my-bug upstream/main    # or feature/... docs/... chore/...
    ```
-
-2. Create a branch for your work:
-   ```bash
-   git checkout -b feature/your-feature-name main
-   ```
-
-3. Make your changes, following the [coding standards](#coding-standards).
-
+3. Make your changes, following the [coding standards](#coding-standards)
+   and the [TDD](#test-first-tdd) guidance.
 4. Test your changes (see [Testing](#testing)).
-
-5. Commit your changes with a descriptive message following
-   [Conventional Commits](https://www.conventionalcommits.org/):
+5. Commit with [Conventional Commits](https://www.conventionalcommits.org/):
    ```bash
    git commit -m "feat: add support for XYZ"
-   git commit -m "fix(core): implement missing s:check_log_rotation function"
    ```
-   
    Format: `type(scope): subject` (scope is optional).
-   
-   Valid types:
-   - `feat:` new features (prefer over the historical `feature:`)
-   - `fix:` bug fixes
-   - `docs:` documentation changes
-   - `test:` test additions or changes
-   - `refactor:` code refactoring
-   - `style:` formatting changes
-   - `chore:` routine maintenance
-   - `ci:` CI/CD workflow changes
-   - `build:` build system or dependency changes
-   
-   Recommended scopes: `core`, `async`, `ui`, `git`, `cmd`, `api`, `github`, `gitlab`, `deps`.
-
-6. Push your branch to your fork:
+   Valid types: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `style:`,
+   `chore:`, `ci:`, `build:`.
+   Recommended scopes: `core`, `async`, `ui`, `git`, `cmd`, `api`, `github`,
+   `gitlab`, `deps`.
+6. Push to your fork and open a pull request (see
+   [Pull Request Process](#pull-request-process)):
    ```bash
-   git push origin feature/your-feature-name
+   git push origin fix/my-bug
    ```
+7. Rebase on `upstream/main` if asked; the maintainer **squash-merges** the
+   PR (one commit per PR, PR title used as commit message, branch deleted
+   automatically).
 
-7. Create a [pull request](#pull-request-process).
+### Maintainers (direct push)
+
+1. Branch from `main`: `git checkout -b feature/my-feature main`.
+2. Commit in granular Conventional Commits.
+3. Merge back with `--no-ff` to preserve branch topology:
+   ```bash
+   git checkout main
+   git merge --no-ff feature/my-feature
+   ```
+4. Push directly (maintainers bypass the ruleset) and release with
+   `make tag VERSION=vX.Y.Z` when appropriate.
+
+### Test-first (TDD)
+
+Tests are written **test-first whenever practical**:
+
+1. **Red**: write the failing Vader test first. For a bug fix, the test must
+   reproduce the bug (regression test) before touching the code.
+2. **Green**: write the minimal change that makes the test pass.
+3. **Refactor**: clean up with the tests staying green.
+
+When this is not practical (pure docs, CI plumbing, UI cosmetics, smoke
+fixtures), say so in the PR's "How was this tested?" section. Prefer tests
+that run offline (local git fixtures, no network): see `tests/update.vader`
+and `tests/pin.vader` for the fixture patterns.
 
 ## Releases
 
@@ -129,12 +146,19 @@ is the Git tag and the CHANGELOG entry.
 
 ## Pull Request Process
 
-1. Fill out the pull request template completely.
+1. Open the PR from your fork branch; fill out the pull request template
+   completely (Summary, Type of change, Related issue, How was this tested,
+   Checklist).
 2. Link any relevant issues using GitHub keywords (e.g., "Fixes #123").
-3. Ensure your PR passes all tests and CI checks.
-4. Request a review from a maintainer.
-5. Be responsive to feedback and make necessary changes.
-6. Once approved, a maintainer will merge your PR.
+3. Ensure all CI checks are green (`ci-green` aggregates the whole suite) -
+   the ruleset on `main` blocks the merge until they are.
+4. A Copilot code review runs automatically; address or justify its findings,
+   then wait for a maintainer review.
+5. Be responsive to feedback and make necessary changes (push to the same
+   branch, stale conversations get dismissed).
+6. All review threads must be resolved. The maintainer **squash-merges**:
+   your PR becomes a single commit on `main` (use the PR title as the
+   Conventional Commit message), and your branch is deleted automatically.
 
 ## Coding Standards
 
@@ -427,12 +451,14 @@ vint -e autoload/ plugin/ ftplugin/ ftdetect/ syntax/
 
 When adding new features or fixing bugs:
 
-1. Add or update Vader tests under `tests/`. Prefer tests that do not require
+1. Follow the [TDD](#test-first-tdd) guidance: failing test first, minimal
+   implementation, then refactor.
+2. Add or update Vader tests under `tests/`. Prefer tests that do not require
    network access (mock with local fixtures).
-2. Verify your changes work correctly in Vim 8.2+ on Linux (Neovim and
+3. Verify your changes work correctly in Vim 8.2+ on Linux (Neovim and
    Windows are not supported).
-3. Test all related functionality to ensure no regressions.
-4. Ensure the suite passes (`make test-ci`) before opening a PR.
+4. Test all related functionality to ensure no regressions.
+5. Ensure the suite passes (`make test-ci`) before opening a PR.
 
 ## Documentation
 
@@ -446,18 +472,15 @@ Documentation should be clear, concise, and include examples where appropriate.
 
 ## Issue Reporting
 
-When reporting issues, please include:
+Bugs and feature requests go through the issue templates (forms):
 
-1. A clear and descriptive title.
-2. Steps to reproduce the issue.
-3. Expected and actual behavior.
-4. Vim version and OS information.
-5. Relevant error messages or screenshots.
-6. Any relevant configuration or setup.
+- **Bug report**: description, reproduction steps, expected/actual behavior,
+  Vim version, distro, git version, manager version, `PM_ERROR:` log lines.
+- **Feature request**: problem to solve, proposed solution, alternatives,
+  and whether you want to implement it yourself.
 
-Feature requests should include:
-1. A clear description of the problem the feature would solve.
-2. Any proposed solutions or implementation details.
+Please do not open blank issues; the forms capture everything a maintainer
+needs to triage quickly.
 
 ## Project Structure
 
