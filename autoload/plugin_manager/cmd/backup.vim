@@ -62,7 +62,11 @@ function! s:commit_local_changes(op_id) abort
     return
   endif
 
-  let l:result = plugin_manager#git#execute('git commit -am "Automatic backup"', l:vim_dir, 0, 0)
+  " Stage everything (tracked modifications AND untracked files): the doc
+  " promises custom files are backed up, and new config files are untracked.
+  call plugin_manager#git#execute('git add -A', l:vim_dir, 0, 0)
+  let l:result = plugin_manager#git#execute(
+        \ 'git commit -m ' . shellescape('Automatic backup'), l:vim_dir, 0, 0)
 
   if l:result.success
     call plugin_manager#ui#complete_operation(a:op_id, 'ok', 'Committed')
@@ -75,17 +79,32 @@ endfunction
 function! s:push_to_remotes(op_id) abort
   let l:vim_dir = plugin_manager#core#util#get_config('vim_dir', '')
   let l:remotes = plugin_manager#git#execute('git remote', l:vim_dir, 0, 0)
-  if empty(l:remotes.output)
+  let l:remote_names = filter(map(split(l:remotes.output, '\n'), 'trim(v:val)'), '!empty(v:val)')
+  if empty(l:remote_names)
     call plugin_manager#ui#complete_operation(a:op_id, 'warn', 'No remotes')
     call plugin_manager#core#throw('backup', 'NO_REMOTES', 'No remote repositories configured')
   endif
 
-  let l:result = plugin_manager#git#execute('git push origin HEAD', l:vim_dir, 0, 0)
+  " Push to every configured remote, matching the documented behavior.
+  let l:failures = []
+  for l:remote in l:remote_names
+    let l:result = plugin_manager#git#execute(
+          \ 'git push ' . shellescape(l:remote) . ' HEAD', l:vim_dir, 0, 0)
+    if !l:result.success
+      call add(l:failures, 'push to ' . l:remote . ' failed: ' . l:result.output)
+    endif
+  endfor
 
-  if l:result.success
+  if empty(l:failures)
     call plugin_manager#ui#complete_operation(a:op_id, 'ok', 'Pushed')
   else
-    call plugin_manager#ui#complete_operation(a:op_id, 'fail', 'Push failed')
-    call plugin_manager#ui#log_detail('backup', l:result.output)
+    call plugin_manager#ui#log_detail('backup', join(l:failures, "\n"))
+    if len(l:failures) == len(l:remote_names)
+      call plugin_manager#ui#complete_operation(a:op_id, 'fail', 'Push failed')
+    else
+      call plugin_manager#ui#complete_operation(a:op_id, 'warn',
+            \ 'Partial push: ' . (len(l:remote_names) - len(l:failures))
+            \ . '/' . len(l:remote_names) . ' remotes')
+    endif
   endif
 endfunction

@@ -50,8 +50,12 @@ function! s:find_module(module_name) abort
       let l:exact = {'name': l:sn, 'path': l:path, 'url': get(l:module, 'url', '')}
       break
     endif
-    " Partial match
-    if l:sn =~? a:module_name || l:path =~? a:module_name || l:name =~? a:module_name
+    " Partial match: literal (case-insensitive) substring. User input is
+    " never interpreted as a regex (same contract as git#find_module): a
+    " malformed pattern must not throw mid-discovery.
+    if s:contains_ci(l:sn, a:module_name)
+          \ || s:contains_ci(l:path, a:module_name)
+          \ || s:contains_ci(l:name, a:module_name)
       call add(l:partials, l:sn)
     endif
   endfor
@@ -119,6 +123,11 @@ function! s:find_in_filesystem(name) abort
   endfor
 
   return {}
+endfunction
+
+" Case-insensitive literal substring test (user input is not a regex).
+function! s:contains_ci(haystack, needle) abort
+  return stridx(tolower(a:haystack), tolower(a:needle)) != -1
 endfunction
 
 " ------------------------------------------------------------------------------

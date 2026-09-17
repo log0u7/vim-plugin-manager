@@ -464,13 +464,16 @@ function! s:finalize_update_all(ctx) abort
   if !empty(a:ctx.updated_modules)
     if plugin_manager#core#util#should_auto_commit()
       let l:vd = plugin_manager#core#util#get_config('vim_dir', '')
-      call plugin_manager#git#execute('git add .gitmodules', l:vd, 0, 0)
+      call s:log_silent_failure('git add .gitmodules',
+            \ plugin_manager#git#execute('git add .gitmodules', l:vd, 0, 0))
       for l:module in a:ctx.updated_modules
-        call plugin_manager#git#execute(
-              \ 'git add ' . shellescape(l:module.path), l:vd, 0, 0)
+        call s:log_silent_failure('git add ' . l:module.path,
+              \ plugin_manager#git#execute(
+              \   'git add ' . shellescape(l:module.path), l:vd, 0, 0))
       endfor
-      call plugin_manager#git#execute(
-            \ 'git commit -m "Update Modules"', l:vd, 0, 0)
+      call s:log_silent_failure('commit',
+            \ plugin_manager#git#execute(
+            \   'git commit -m "Update Modules"', l:vd, 0, 0))
     endif
     for l:module in a:ctx.updated_modules
       call plugin_manager#cmd#helptags#execute(0, l:module.short_name, 1)
@@ -490,14 +493,25 @@ endfunction
 " HELPERS
 " ------------------------------------------------------------------------------
 
+" Log silent git failures (git#execute with throw_on_error=0): a failed
+" pointer add/commit must leave a trace in the log, not vanish.
+function! s:log_silent_failure(step, res) abort
+  if !a:res.success
+    call plugin_manager#ui#log_detail('update',
+          \ 'auto-commit ' . a:step . ' failed: ' . a:res.output)
+  endif
+endfunction
+
 " Stash local changes if any exist. Returns 1 if a stash was created, 0 otherwise.
 " Only creates a stash when there are actual tracked or untracked changes to save.
+" -u includes untracked files: an untracked file that the incoming pull
+" wants to write would otherwise abort the pull after the "protected" stash.
 function! s:stash_if_needed(module_path) abort
   let l:status = plugin_manager#git#execute('git status -s', a:module_path, 0, 0)
   if !l:status.success || empty(trim(l:status.output))
     return 0
   endif
-  call plugin_manager#git#execute('git stash -q', a:module_path, 0, 0)
+  call plugin_manager#git#execute('git stash push -u -q', a:module_path, 0, 0)
   return 1
 endfunction
 
@@ -522,9 +536,13 @@ function! s:commit_update_async(module_name, module_path) abort
   " Three separate calls (mirrors s:finalize_update_all): a compound command
   " would only scope the first git -C, and the module name must stay escaped
   " so it can never break out of the commit message quoting.
-  call plugin_manager#git#execute('git add .gitmodules', l:vim_dir, 0, 0)
-  call plugin_manager#git#execute('git add ' . shellescape(a:module_path), l:vim_dir, 0, 0)
-  call plugin_manager#git#execute(
-        \ 'git commit -m ' . shellescape('Update Module: ' . a:module_name),
-        \ l:vim_dir, 0, 0)
+  call s:log_silent_failure('git add .gitmodules',
+        \ plugin_manager#git#execute('git add .gitmodules', l:vim_dir, 0, 0))
+  call s:log_silent_failure('git add ' . a:module_path,
+        \ plugin_manager#git#execute(
+        \   'git add ' . shellescape(a:module_path), l:vim_dir, 0, 0))
+  call s:log_silent_failure('commit',
+        \ plugin_manager#git#execute(
+        \   'git commit -m ' . shellescape('Update Module: ' . a:module_name),
+        \   l:vim_dir, 0, 0))
 endfunction

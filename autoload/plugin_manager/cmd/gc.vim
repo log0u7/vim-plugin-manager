@@ -85,9 +85,12 @@ function! plugin_manager#cmd#gc#execute(...) abort
     endif
 
     call plugin_manager#ui#open_header('Orphaned plugins (not declared in vimrc):')
+    " Render the list in the sidebar like everything else, not via :messages
+    let l:lines = []
     for l:orphan in l:orphans
-      echomsg '  - ' . l:orphan.name . ' (' . l:orphan.path . ')'
+      call add(l:lines, '  - ' . l:orphan.name . ' (' . l:orphan.path . ')')
     endfor
+    call plugin_manager#ui#update_sidebar(l:lines, 1)
 
     if !l:force
       let l:response = input('Remove ' . len(l:orphans) . ' orphaned plugin(s)? [y/N] ')

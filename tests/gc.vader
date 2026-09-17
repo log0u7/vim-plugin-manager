@@ -157,8 +157,32 @@ Execute (gc refuses to run without any vimrc declaration):
   unlet g:_pm_gc_ret
 
 Execute (gc removes undeclared submodules with -f):
+  " Mock the removal so the listing is still on screen when we assert:
+  " each real removal re-renders the sidebar with its own header.
+  function! plugin_manager#cmd#remove#_force_remove(name, path) abort
+    let g:_pm_gc_mocked = get(g:, '_pm_gc_mocked', 0) + 1
+    return 1
+  endfunction
+  call plugin_manager#cmd#gc#execute('-f')
+  let g:_pm_gc_sb = join(getbufline(bufnr('PluginManager'), 1, '$'), "\n")
+  Assert g:_pm_gc_sb =~# 'orphanme (',
+        \ 'the orphan list must be rendered in the sidebar, got: ' . g:_pm_gc_sb
+  AssertEqual 1, g:_pm_gc_mocked, 'exactly one orphan must be sent to removal'
+  runtime! autoload/plugin_manager/cmd/remove.vim
+  unlet g:_pm_gc_sb g:_pm_gc_mocked
+
+Execute (gc -f really removes the orphan and records it):
   call plugin_manager#cmd#gc#execute('-f')
   Assert !isdirectory(g:_pm_gc_start . '/orphanme'), 'orphanme must be removed'
+  Assert isdirectory(g:_pm_gc_start . '/keepme'), 'keepme must survive'
+  let g:_pm_gc_gm = readfile(g:_pm_gc_vim . '/.gitmodules')
+  let g:_pm_gc_joined = join(g:_pm_gc_gm, "\n")
+  Assert g:_pm_gc_joined !~# 'orphanme', '.gitmodules must not reference orphanme anymore'
+  Assert g:_pm_gc_joined =~# 'keepme', '.gitmodules must keep keepme'
+  let g:_pm_gc_msg = system('git -C ' . shellescape(g:_pm_gc_vim) . ' log --format=%s -1')
+  Assert g:_pm_gc_msg =~# 'Remove orphanme',
+        \ 'removal must be committed, got: ' . g:_pm_gc_msg
+  unlet g:_pm_gc_gm g:_pm_gc_joined g:_pm_gc_msg
   Assert isdirectory(g:_pm_gc_start . '/keepme'), 'keepme must survive'
   let g:_pm_gc_gm = readfile(g:_pm_gc_vim . '/.gitmodules')
   let g:_pm_gc_joined = join(g:_pm_gc_gm, "\n")

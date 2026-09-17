@@ -103,13 +103,16 @@ function! plugin_manager#lazy#invoke(cmd, name, mods, count, line1, line2, bang,
     return
   endif
   let l:range = a:count != -1 ? (a:line1 . ',' . a:line2) : ''
-  try
-    execute a:mods . ' ' . l:range . ' ' . a:cmd . (a:bang ? '!' : '') . ' ' . a:args
-  catch
+  " The package is loaded: when the command still does not exist, report
+  " that. A catch-all here would mislabel any real runtime error inside
+  " the plugin as 'command not provided'.
+  if !exists(':' . a:cmd)
     echohl ErrorMsg
     echomsg 'PluginManager: command ' . a:cmd . ' is not provided by plugin ' . a:name
     echohl None
-  endtry
+    return
+  endif
+  execute a:mods . ' ' . l:range . ' ' . a:cmd . (a:bang ? '!' : '') . ' ' . a:args
 endfunction
 
 function! s:register_command_triggers(name, cmds) abort

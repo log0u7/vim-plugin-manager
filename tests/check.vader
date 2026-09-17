@@ -60,3 +60,30 @@ Execute (check silent mode still writes the update-check cache):
   Assert !empty(c_after), 'cache should be populated after silent check'
   Assert has_key(c_after, 'timestamp'), 'cache should carry a timestamp'
   Assert has_key(c_after, 'plugins'),   'cache should carry a plugins list'
+
+Execute (a failed fetch is reported, never faked as up-to-date):
+  " Regression: '2>/dev/null || true' masked fetch failures and the stale
+  " ref comparison then reported a fake Up-to-date.
+  call writefile([
+        \ '[submodule "myplugin"]',
+        \ '  path = pack/plugins/start/myplugin',
+        \ '  url = https://github.com/user/myplugin.git',
+        \ '[submodule "broken"]',
+        \ '  path = pack/plugins/start/broken',
+        \ '  url = /definitely/not/a/repo',
+        \ ], g:_pm_chk_tmp . '/.gitmodules')
+  call mkdir(g:_pm_chk_tmp . '/pack/plugins/start/broken', 'p')
+  call system('git init -q ' . shellescape(g:_pm_chk_tmp . '/pack/plugins/start/broken'))
+  call system('git -C ' . shellescape(g:_pm_chk_tmp . '/pack/plugins/start/broken') . ' -c user.email=t@t -c user.name=t commit -q --allow-empty -m init')
+  call system('git -C ' . shellescape(g:_pm_chk_tmp . '/pack/plugins/start/broken') . ' remote add origin /definitely/not/a/repo')
+  call plugin_manager#git#refresh_modules_cache()
+  let g:plugin_manager_enable_logging = 1
+  let g:plugin_manager_debug_mode = 1
+  " Bypass the update-check cache: a fresh cached 'all up-to-date' would
+  " skip the fetch entirely.
+  call delete(plugin_manager#core#cache#get_path())
+  call plugin_manager#cmd#check#execute({'force': 1})
+  let g:_pm_chk_log = join(readfile(g:_pm_chk_tmp . '/logs/plugin_manager.log'), "\n")
+  Assert g:_pm_chk_log =~# '\cfetch failed',
+        \ 'a fetch failure must be reported, got: ' . g:_pm_chk_log
+  unlet g:_pm_chk_log

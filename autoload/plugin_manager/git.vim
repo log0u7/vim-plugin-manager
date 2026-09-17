@@ -237,7 +237,7 @@ function! plugin_manager#git#submodule_exists(plugin_path_or_name) abort
       if l:abs_mod_path ==# l:search
         return 1
       endif
-      let l:rel_search = substitute(l:search, '^' . escape(l:vim_dir_norm, '/.\') . '/', '', '')
+      let l:rel_search = substitute(l:search, '^' . escape(l:vim_dir_norm, '/.\*[]^$~') . '/', '', '')
       if l:rel_search ==# l:norm_mod_path
         return 1
       endif

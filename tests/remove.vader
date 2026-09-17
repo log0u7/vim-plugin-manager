@@ -114,3 +114,14 @@ Execute (remove unknown plugin shows error and removes nothing):
   " Both plugins must still be intact
   Assert isdirectory(g:_pm_rm_vim . '/pack/plugins/start/vim-fugitive'),
         \ 'vim-fugitive should still exist after failed remove'
+
+Execute (partial matching treats user input literally):
+  " 'fugitive\(' is an unterminated vim regex group: module matching must
+  " be literal (stridx), never throw E866/E874 mid-discovery.
+  call plugin_manager#cmd#remove#execute('fugitive\(', '-f')
+  let g:_pm_rm_sb = join(getbufline(bufnr('PluginManager'), 1, '$'), "\n")
+  Assert g:_pm_rm_sb !~# '\cE866\|E874\|E55\|regex',
+        \ 'malformed input must not raise a regex error, got: ' . g:_pm_rm_sb
+  Assert isdirectory(g:_pm_rm_vim . '/pack/plugins/start/vim-fugitive'),
+        \ 'nothing matching must be removed'
+  unlet g:_pm_rm_sb

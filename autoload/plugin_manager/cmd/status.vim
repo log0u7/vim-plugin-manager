@@ -68,7 +68,7 @@ function! s:fetch_status_async(ctx) abort
       call s:maybe_finalize_status(a:ctx)
     else
       call plugin_manager#async#git(
-            \ 'git -C ' . shellescape(l:mpath) . ' fetch -q origin 2>/dev/null || true', {
+            \ 'git -C ' . shellescape(l:mpath) . ' fetch -q origin', {
             \ 'callback': function('s:on_status_fetched', [a:ctx, l:module])
             \ })
     endif
@@ -76,6 +76,17 @@ function! s:fetch_status_async(ctx) abort
 endfunction
 
 function! s:on_status_fetched(ctx, module, result) abort
+  if a:result.status != 0
+    " A failed fetch must surface, never masquerade as Up-to-date.
+    call s:complete_status_op(a:ctx, a:module,
+          \ {'name': a:module.short_name, 'status': 'Fetch failed', 'details': ''})
+    call plugin_manager#ui#log_detail('status',
+          \ 'fetch failed for ' . a:module.short_name . ': '
+          \ . (empty(a:result.errors) ? a:result.output : a:result.errors))
+    let a:ctx.pending -= 1
+    call s:maybe_finalize_status(a:ctx)
+    return
+  endif
   let l:info = s:get_module_status_info(a:module, 1)
   call s:complete_status_op(a:ctx, a:module, l:info)
   let a:ctx.pending -= 1

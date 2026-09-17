@@ -228,3 +228,36 @@ Execute (auto-commit message survives a module name containing shell quotes):
   Assert g:_pm_msg =~# 'Update Module: my"plugin',
         \ 'pointer commit message must contain the literal name, got: ' . g:_pm_msg
   unlet g:_pm_before g:_pm_after g:_pm_msg g:_pm_upd_quoted
+
+Execute (untracked conflicting files are stashed so the pull succeeds):
+  " Upstream adds new.txt while the submodule holds an UNTRACKED new.txt:
+  " the stash must include untracked files or the pull fails.
+  call writefile(['upstream'], g:_pm_upd_tmp_src . '/new.txt')
+  call system('git -C ' . shellescape(g:_pm_upd_tmp_src) . ' add new.txt')
+  call system('git -C ' . shellescape(g:_pm_upd_tmp_src) . ' commit -m "add new.txt"')
+  call system('git -C ' . shellescape(g:_pm_upd_tmp_src) . ' push -q origin HEAD:main')
+  call writefile(['local untracked'], g:_pm_upd_plug . '/new.txt')
+  call plugin_manager#cmd#update#execute('all')
+  let g:_pm_upd_sb = join(getbufline(bufnr('PluginManager'), 1, '$'), "\n")
+  Assert g:_pm_upd_sb =~# '1 of 1 plugins updated',
+        \ 'pull must succeed thanks to a untracked-aware stash, got: ' . g:_pm_upd_sb
+  let g:_pm_upd_new = join(readfile(g:_pm_upd_plug . '/new.txt'), "\n")
+  AssertEqual 'upstream', g:_pm_upd_new, 'the pulled content must win'
+  unlet g:_pm_upd_sb g:_pm_upd_new
+
+Execute (auto-commit failures are logged, never silent):
+  " A failing pre-commit hook makes the pointer auto-commit fail
+  " deterministically; the failure must be visible in the log.
+  call writefile(['v2'], g:_pm_upd_tmp_src . '/file.txt')
+  call system('git -C ' . shellescape(g:_pm_upd_tmp_src) . ' add file.txt')
+  call system('git -C ' . shellescape(g:_pm_upd_tmp_src) . ' commit -m "v2"')
+  call system('git -C ' . shellescape(g:_pm_upd_tmp_src) . ' push -q origin HEAD:main')
+  call writefile(['#!/bin/sh', 'exit 1'], g:_pm_upd_vim . '/.git/hooks/pre-commit')
+  call system('chmod +x ' . shellescape(g:_pm_upd_vim . '/.git/hooks/pre-commit'))
+  let g:plugin_manager_enable_logging = 1
+  let g:plugin_manager_debug_mode = 1
+  call plugin_manager#cmd#update#execute('all')
+  let g:_pm_upd_logtext = join(readfile(g:_pm_upd_vim . '/logs/plugin_manager.log'), "\n")
+  Assert g:_pm_upd_logtext =~# '\cauto-commit',
+        \ 'auto-commit failure must be logged, got: ' . g:_pm_upd_logtext
+  unlet g:_pm_upd_logtext
