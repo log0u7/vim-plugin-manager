@@ -56,6 +56,10 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
   own `~/.vim` pack plugins (`packpath` isolation), which also unblocks
   `quit!` on developer machines.
 - `tests/dispatch.vader` completion count updated for the `gc` sub-command.
+- Test fixtures point the bare repo HEAD at `refs/heads/main` at setup:
+  git >= 2.52 does not infer the default branch of a local bare clone, so
+  `git submodule add` failed with "does not have a commit checked out"
+  (found in an AlmaLinux 9 / Vim 8.2 / git 2.52 E2E pass).
 
 ### Documentation
 - README and `:help`: declarative options (`on`/`for`/`commit`), pinning
