@@ -152,14 +152,19 @@ is the Git tag and the CHANGELOG entry.
 2. Link any relevant issues using GitHub keywords (e.g., "Fixes #123").
 3. Ensure all CI checks are green (`ci-green` aggregates the whole suite) -
    the ruleset on `main` blocks the merge until they are.
-4. A Copilot code review runs automatically when enabled in the repository
-   settings; otherwise comment `@copilot review` on the PR to request it.
-   Address or justify its findings, then wait for a maintainer review.
-5. Be responsive to feedback and make necessary changes (push to the same
-   branch, stale conversations get dismissed).
-6. All review threads must be resolved. The maintainer **squash-merges**:
+4. Wait for a maintainer review; address or justify findings (push to the
+   same branch, stale conversations get dismissed).
+5. All review threads must be resolved. The maintainer **squash-merges**:
    your PR becomes a single commit on `main` (use the PR title as the
    Conventional Commit message), and your branch is deleted automatically.
+
+## Dependency updates (Dependabot)
+
+GitHub Actions versions are kept current by Dependabot (weekly, grouped).
+The bot only prepares the PRs - they are handled **human-in-the-loop**: a
+maintainer reviews, approves, then squash-merges. There is no auto-merge
+anywhere in this repository. Review the workflow diff (action refs and
+permissions) with the same care as any code change.
 
 ## Coding Standards
 

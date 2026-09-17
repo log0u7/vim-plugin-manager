@@ -1,0 +1,17 @@
+# Dependabot keeps GitHub Actions pinned to their latest major version.
+# PRs are prepared by the bot and handled human-in-the-loop: review, approve,
+# then squash-merge (no auto-merge anywhere in this repository).
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+    labels: ["dependencies"]
+    groups:
+      actions:
+        patterns:
+          - "*"
+    open-pull-requests-limit: 5

@@ -6,14 +6,19 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 
 ### Added
 - Contributor workflow: GitHub issue forms (bug report, feature request),
-  pull request template, `copilot-instructions.md` for the automatic Copilot
-  code review, and a stable `ci-green` CI check aggregating the whole suite.
+  pull request template, and a stable `ci-green` CI check aggregating the
+  whole suite.
+- `.github/dependabot.yml`: GitHub Actions bumps grouped weekly
+  (`ci` commit prefix, `dependencies` label); PRs are handled
+  human-in-the-loop (review, approve, squash-merge), no auto-merge.
 
 ### Changed
 - CONTRIBUTING.md documents GitHub Flow + tags: one protected `main`
   (required checks, resolved conversations, no force push, squash merges),
   fork + PR for external contributors, `--no-ff` direct merges for
-  maintainers, and an explicit test-first (TDD) guidance section.
+  maintainers, and an explicit test-first (TDD) guidance section. The
+  automated AI review is left aside for now; dependency PRs come from
+  Dependabot and are merged by a human.
 
 ## [2.2.5] - 2026-09-17
 
