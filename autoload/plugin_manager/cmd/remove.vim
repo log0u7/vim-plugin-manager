@@ -132,6 +132,13 @@ function! s:confirm_removal(module_name, module_path) abort
   return l:response =~? '^y\(es\)\?$'
 endfunction
 
+" Internal entry point for batch consumers (e.g. gc): remove an already
+" resolved module without discovery or confirmation. Follows the ui.vim
+" _purge_stale_test precedent for underscore-prefixed internal functions.
+function! plugin_manager#cmd#remove#_force_remove(module_name, module_path) abort
+  call s:remove_module(a:module_name, a:module_path)
+endfunction
+
 function! s:remove_module(module_name, module_path) abort
   call plugin_manager#ui#open_header('Removing plugin:')
 

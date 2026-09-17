@@ -11,6 +11,7 @@ Before:
         \ 'vim_dir':     get(g:, 'plugin_manager_vim_dir', ''),
         \ 'cwd':         getcwd(),
         \ 'plugins_dir': get(g:, 'plugin_manager_plugins_dir', ''),
+        \ 'vimrc':       get(g:, 'plugin_manager_vimrc_path', ''),
         \ 'logging':     get(g:, 'plugin_manager_enable_logging', 0),
         \ }
 
@@ -24,6 +25,7 @@ Before:
 
   " 1. Bare repo (upstream remote)
   call system('git init --bare ' . shellescape(g:_pm_upd_bare))
+  call system('git -C ' . shellescape(g:_pm_upd_bare) . ' symbolic-ref HEAD refs/heads/main')
 
   " 2. Source working tree: initial commit + push to bare
   call mkdir(g:_pm_upd_tmp_src, 'p')
@@ -60,6 +62,9 @@ Before:
   let g:plugin_manager_vim_dir     = g:_pm_upd_vim
   let g:plugin_manager_plugins_dir = g:_pm_upd_vim . '/pack/plugins'
   let g:plugin_manager_enable_logging = 0
+  " No vimrc declarations in this fixture: point the path at a file that
+  " does not exist so the pin parser never reads the developer's real vimrc.
+  let g:plugin_manager_vimrc_path = g:_pm_upd_root . '/absent.vimrc'
 
   " Force the synchronous code path via the test override flag.
   let g:plugin_manager_test_force_sync = 1
@@ -80,6 +85,7 @@ After:
   endif
   let g:plugin_manager_vim_dir        = g:_pm_upd_saved.vim_dir
   let g:plugin_manager_plugins_dir    = g:_pm_upd_saved.plugins_dir
+  let g:plugin_manager_vimrc_path     = g:_pm_upd_saved.vimrc
   let g:plugin_manager_enable_logging = g:_pm_upd_saved.logging
   unlet g:plugin_manager_test_force_sync
   unlet g:_pm_upd_saved g:_pm_upd_root g:_pm_upd_bare g:_pm_upd_vim
@@ -189,3 +195,36 @@ Execute (update unknown plugin shows MODULE_NOT_FOUND and handles gracefully):
   call plugin_manager#cmd#update#execute('nonexistentplugin')
   " Error is handled by handle_error; no unhandled exception
   Assert 1
+
+Execute (auto-commit message survives a module name containing shell quotes):
+  " Regression: the single-plugin auto-commit interpolated the module name
+  " into a double-quoted shell string. A name containing '"' broke the
+  " quoting, so the pointer commit silently failed.
+  let g:_pm_upd_quoted = g:_pm_upd_vim . '/pack/plugins/start/my"plugin'
+  call system('git -C ' . shellescape(g:_pm_upd_vim) .
+        \ ' -c protocol.file.allow=always submodule add ' .
+        \ shellescape(g:_pm_upd_bare) . ' ''pack/plugins/start/my"plugin''')
+  call system('git -C ' . shellescape(g:_pm_upd_vim) . ' commit -m "add quoted submodule"')
+  call plugin_manager#git#refresh_modules_cache()
+
+  " Clone is at bare/main; push a new commit and let the update pick it up
+  call system('git -C ' . shellescape(g:_pm_upd_tmp_src) . ' commit --allow-empty -m "v3"')
+  call system('git -C ' . shellescape(g:_pm_upd_tmp_src) . ' push origin HEAD:main')
+
+  " Fetch so the sync update path sees the new commit behind
+  call system('git -C ' . shellescape(g:_pm_upd_quoted) . ' fetch origin')
+  let g:_pm_before = substitute(
+        \ system('git -C ' . shellescape(g:_pm_upd_quoted) . ' rev-parse HEAD'),
+        \ '\n', '', 'g')
+
+  call plugin_manager#cmd#update#execute('my"plugin')
+
+  let g:_pm_after = substitute(
+        \ system('git -C ' . shellescape(g:_pm_upd_quoted) . ' rev-parse HEAD'),
+        \ '\n', '', 'g')
+  Assert g:_pm_before !=# g:_pm_after, 'submodule HEAD should have advanced'
+
+  let g:_pm_msg = system('git -C ' . shellescape(g:_pm_upd_vim) . ' log --format=%s -1')
+  Assert g:_pm_msg =~# 'Update Module: my"plugin',
+        \ 'pointer commit message must contain the literal name, got: ' . g:_pm_msg
+  unlet g:_pm_before g:_pm_after g:_pm_msg g:_pm_upd_quoted

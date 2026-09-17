@@ -547,9 +547,13 @@ function! plugin_manager#git#add_submodule(url, install_dir, options) abort
   " Execute the command (must run at the repo root so git knows the repo)
   let l:result = plugin_manager#git#execute(l:cmd, l:vim_dir, 1, 1)
 
-  " Process version options (branch or tag) if needed
-  if !empty(a:options.tag) && empty(a:options.branch)
+  " Process version options if needed (precedence: branch > commit > tag;
+  " a branch is tracked by .gitmodules via -b, commit/tag pin a revision).
+  if empty(a:options.branch) && !empty(a:options.commit)
     " abs_path for checkout: vim_dir/relative_path
+    let l:abs_path = empty(l:vim_dir) ? l:relative_path : (l:vim_dir . '/' . l:relative_path)
+    call s:checkout_version(l:abs_path, a:options.commit)
+  elseif empty(a:options.branch) && !empty(a:options.tag)
     let l:abs_path = empty(l:vim_dir) ? l:relative_path : (l:vim_dir . '/' . l:relative_path)
     call s:checkout_version(l:abs_path, a:options.tag)
   endif
@@ -650,14 +654,14 @@ function! plugin_manager#git#add_remote(url, name) abort
 
   if l:remote_exists
     let l:result = plugin_manager#git#execute(
-          \ 'git remote set-url ' . l:remote_name . ' ' . shellescape(a:url),
+          \ 'git remote set-url ' . shellescape(l:remote_name) . ' ' . shellescape(a:url),
           \ l:vim_dir, 0, 1)
     call plugin_manager#git#execute(
-          \ 'git remote set-url --add --push ' . l:remote_name . ' ' . shellescape(a:url),
+          \ 'git remote set-url --add --push ' . shellescape(l:remote_name) . ' ' . shellescape(a:url),
           \ l:vim_dir, 0, 0)
   else
     let l:result = plugin_manager#git#execute(
-          \ 'git remote add ' . l:remote_name . ' ' . shellescape(a:url),
+          \ 'git remote add ' . shellescape(l:remote_name) . ' ' . shellescape(a:url),
           \ l:vim_dir, 0, 1)
   endif
 
@@ -673,7 +677,14 @@ endfunction
 " PRIVATE HELPER FUNCTIONS
 " ------------------------------------------------------------------------------
 
-" Helper function to checkout a specific version
+" Helper function to checkout a specific version (tag or commit pin)
 function! s:checkout_version(module_path, version) abort
-  return plugin_manager#git#execute('git checkout ' . shellescape(a:version), a:module_path, 1, 0)
+  let l:result = plugin_manager#git#execute(
+        \ 'git checkout ' . shellescape(a:version), a:module_path, 1, 0)
+  if !l:result.success
+    call plugin_manager#core#throw('git', 'CHECKOUT_FAILED',
+          \ 'Failed to checkout "' . a:version . '" in ' . a:module_path
+          \ . ': ' . l:result.output)
+  endif
+  return l:result
 endfunction

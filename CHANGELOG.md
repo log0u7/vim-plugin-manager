@@ -4,6 +4,70 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-09-17
+
+### Security
+- **Escaped remote names in `git#add_remote`**: the remote name was
+  interpolated unescaped into `git remote add/set-url` commands; a name
+  containing shell operators executed arbitrary commands. Remote names are
+  now `shellescape`d like every other argument (regression test in
+  `tests/remote.vader`).
+- **Escaped module names in the single-plugin auto-commit**: the
+  `update all` path committed pointer changes with three separate escaped
+  calls, but the single-plugin path built one compound `&&` command with the
+  module name interpolated raw into a double-quoted commit message. A module
+  name containing `"` broke the quoting and the pointer commit silently
+  failed; the name is now escaped and the compound command is gone
+  (regression test in `tests/update.vader`).
+
+### Added
+- **Version pinning re-asserted on update**: `tag` and `commit` declarations
+  in the vimrc are the source of truth. `:PluginManager update` fetches tags
+  and checks out the declared revision for pinned plugins instead of pulling
+  (stash/restore and pointer commit included); bumping the tag in the vimrc
+  moves the submodule on the next update. New `commit` option (SHA pin) on
+  `:PluginManager add` and in the declarative block. Version precedence:
+  branch > commit > tag. Unresolvable pins now fail the install loudly
+  (`CHECKOUT_FAILED`) instead of silently staying on the default branch.
+  (`tests/pin.vader`)
+- **On-demand (lazy) loading**: new `on` (command triggers) and `for`
+  (filetype triggers) options, vim-plug style, on top of Vim 8 native
+  packages. Placeholders `packadd` the plugin on first use and re-dispatch
+  the invocation; both options imply `load: 'opt'`. (`tests/lazy.vader`)
+- **Parallel background install**: the declarative block installs missing
+  plugins with parallel `git clone` jobs through the existing concurrency
+  queue; `PluginEnd` no longer blocks the first run. Each completed clone is
+  registered as a submodule (pointer committed) from its callback;
+  re-entrant `PluginEnd` runs skip in-flight installs. Sequential fallback
+  without +job/+channel and under `g:plugin_manager_test_force_sync`.
+  (`tests/install_smoke.vim`, new `make test-install-smoke` pty target)
+- **`file://` remotes**: local bare repositories are accepted as plugin URLs
+  (testing, air-gapped installs). The file-transport restriction is lifted
+  for these trusted vimrc URLs on clone.
+- **`:PluginManager gc`**: collects registered submodules that are no longer
+  declared in the vimrc, with a single confirmation (`-f` to skip). Refuses
+  to run when the vimrc has no Plugin declarations; never collects the
+  manager itself or `g:plugin_manager_gc_exclude` entries. (`tests/gc.vader`)
+- New `vimrc.vim` module: parses `Plugin` declarations from the vimrc
+  (shared by update pin re-assertion and gc). (`tests/vimrc.vader`)
+
+### Changed
+- Tests: the async and install smoke sessions no longer load the developer's
+  own `~/.vim` pack plugins (`packpath` isolation), which also unblocks
+  `quit!` on developer machines.
+- `tests/dispatch.vader` completion count updated for the `gc` sub-command.
+- Test fixtures point the bare repo HEAD at `refs/heads/main` at setup:
+  git >= 2.52 does not infer the default branch of a local bare clone, so
+  `git submodule add` failed with "does not have a commit checked out"
+  (found in an AlmaLinux 9 / Vim 8.2 / git 2.52 E2E pass).
+
+### Documentation
+- README and `:help`: declarative options (`on`/`for`/`commit`), pinning
+  semantics, lazy loading, `gc`, parallel install; fixed the `dir`/`tag`
+  usage examples that copied vim-plug semantics (`{'dir': '~/.fzf'}` would
+  create a literal `~` directory, `{'tag': '*'}` would run
+  `git checkout '*'`).
+
 ## [2.1.8] - 2026-09-16
 
 ### Changed

@@ -55,6 +55,7 @@ function! s:create_update_context(module_name, modules) abort
         \ 'modules':            a:modules,
         \ 'is_specific_plugin': l:is_specific,
         \ 'valid_modules':      l:valid,
+        \ 'pins':               s:build_pins(),
         \ }
 endfunction
 
@@ -87,7 +88,7 @@ function! s:update_specific_plugin_async(ctx) abort
 
   " Step 1: Fetch first, stash only if a pull turns out to be needed
   call plugin_manager#ui#update_operation(l:op_id, 'Fetching updates')
-  call plugin_manager#async#git('git -C ' . shellescape(a:ctx.module_path) . ' fetch origin', {
+  call plugin_manager#async#git('git -C ' . shellescape(a:ctx.module_path) . ' fetch --tags origin', {
         \ 'callback': function('s:on_fetch_complete', [a:ctx])
         \ })
 endfunction
@@ -100,6 +101,15 @@ function! s:on_fetch_complete(ctx, result) abort
 
   " Fast local analysis now that fetch is done
   let l:update_status = plugin_manager#git#collect_status_local(l:module_path)
+  let a:ctx.current_commit = l:update_status.current_commit
+
+  " A declared tag/commit pin replaces the pull flow entirely
+  let l:pin = s:pin_for(a:ctx.pins, get(a:ctx, 'current_module', {}))
+  if !empty(l:pin) && (has_key(l:pin, 'tag') || has_key(l:pin, 'commit'))
+    call s:sync_pinned(a:ctx, a:ctx.current_module, l:pin,
+          \ l:update_status.current_commit, l:op_id)
+    return
+  endif
 
   if l:update_status.different_branch && l:update_status.branch !=# 'detached'
     call plugin_manager#ui#complete_operation(l:op_id, 'skip', 'On custom branch')
@@ -169,6 +179,129 @@ function! s:report_job_errors(result) abort
 endfunction
 
 " ------------------------------------------------------------------------------
+" PIN RE-ASSERTION (tag/commit declared in the vimrc)
+" ------------------------------------------------------------------------------
+
+" Build the pin map from the vimrc Plugin declarations.
+" Precedence: branch > commit > tag. A branch pin needs no special update
+" handling (the pull flow tracks it via .gitmodules), so only commit/tag
+" entries enter the map. Keyed by plugin short name (declared name or
+" 'dir' option) and by normalized URL.
+function! s:build_pins() abort
+  let l:pins = {}
+  for l:decl in plugin_manager#vimrc#parse_declarations()
+    let l:pin = {}
+    if !empty(l:decl.options.branch)
+      let l:pin.branch = l:decl.options.branch
+    elseif !empty(l:decl.options.commit)
+      let l:pin.commit = l:decl.options.commit
+    elseif !empty(l:decl.options.tag)
+      let l:pin.tag = l:decl.options.tag
+    endif
+    if empty(l:pin)
+      continue
+    endif
+    let l:pins['name:' . plugin_manager#core#util#extract_plugin_name(l:decl.url)] = l:pin
+    if !empty(get(l:decl.options, 'dir', ''))
+      let l:pins['name:' . l:decl.options.dir] = l:pin
+    endif
+    let l:url = plugin_manager#core#util#convert_to_full_url(l:decl.url)
+    if !empty(l:url)
+      let l:pins['url:' . l:url] = l:pin
+    endif
+  endfor
+  return l:pins
+endfunction
+
+function! s:pin_for(pins, module) abort
+  if empty(a:pins) || empty(a:module)
+    return {}
+  endif
+  return get(a:pins, 'name:' . get(a:module, 'short_name', ''),
+        \ get(a:pins, 'url:' . get(a:module, 'url', ''), {}))
+endfunction
+
+" Resolve the pin target and checkout it when HEAD differs. Replaces the
+" pull flow for pinned modules: a detached-at-tag submodule must never be
+" pulled.
+function! s:sync_pinned(ctx, module, pin, current_commit, op_id) abort
+  let l:module_path = get(a:module, 'abs_path', a:module.path)
+  let l:ref = has_key(a:pin, 'commit') ? a:pin.commit : a:pin.tag
+  let l:res = plugin_manager#git#execute(
+        \ 'git rev-parse ' . shellescape(l:ref . '^{commit}'), l:module_path, 0, 0)
+  if !l:res.success
+    call plugin_manager#ui#complete_operation(a:op_id, 'fail',
+          \ 'Pin target not found: ' . l:ref)
+    call s:pin_done(a:ctx, a:module, 0)
+    return
+  endif
+
+  let l:target = substitute(l:res.output, '\n', '', 'g')
+  if a:current_commit ==# l:target
+    call plugin_manager#ui#complete_operation(a:op_id, 'info', 'Up-to-date')
+    call s:pin_done(a:ctx, a:module, 0)
+    return
+  endif
+
+  call plugin_manager#ui#update_operation(a:op_id, 'Checking out ' . l:ref)
+  let l:had_stash = s:stash_if_needed(l:module_path)
+  call plugin_manager#async#git('git -C ' . shellescape(l:module_path) . ' checkout ' . shellescape(l:ref), {
+        \ 'callback': function('s:on_pin_checkout', [a:ctx, a:module, l:had_stash])
+        \ })
+endfunction
+
+function! s:on_pin_checkout(ctx, module, had_stash, result) abort
+  let l:op_id = s:op_id_for(a:ctx, a:module)
+  let l:module_path = get(a:module, 'abs_path', a:module.path)
+
+  if a:had_stash
+    call s:stash_pop(l:module_path, l:op_id)
+  endif
+
+  if a:result.status != 0
+    call plugin_manager#ui#complete_operation(l:op_id, 'fail', 'Pin checkout failed')
+    call s:report_job_errors(a:result)
+    call s:pin_done(a:ctx, a:module, 0)
+    return
+  endif
+
+  let l:before = has_key(a:ctx, 'ops')
+        \ ? get(get(a:ctx, 'pre_commits', {}), a:module.short_name, '')
+        \ : get(a:ctx, 'current_commit', '')
+  let l:changed = plugin_manager#git#head_changed(l:module_path, l:before)
+  if l:changed
+    call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Updated')
+  else
+    call plugin_manager#ui#complete_operation(l:op_id, 'info', 'Up-to-date')
+  endif
+  call s:pin_done(a:ctx, a:module, l:changed)
+endfunction
+
+" Completion bookkeeping for the pin path: the all-plugins run tracks
+" pending modules and batches helptags/commits in the finalize step; the
+" single-plugin run does both inline, mirroring the pull path.
+function! s:pin_done(ctx, module, changed) abort
+  if has_key(a:ctx, 'pending')
+    if a:changed
+      call add(a:ctx.updated_modules, a:module)
+    endif
+    let a:ctx.pending -= 1
+    call s:maybe_finalize(a:ctx)
+  elseif a:changed
+    call plugin_manager#cmd#helptags#execute(0, a:module.short_name, 1)
+    let l:module_path = get(get(a:ctx, 'current_module', {}), 'path', '')
+    call s:commit_update_async(a:module.short_name, l:module_path)
+  endif
+endfunction
+
+function! s:op_id_for(ctx, module) abort
+  if has_key(a:ctx, 'ops')
+    return a:ctx.ops[a:module.short_name]
+  endif
+  return a:ctx.op_id
+endfunction
+
+" ------------------------------------------------------------------------------
 " ALL PLUGINS UPDATE
 " ------------------------------------------------------------------------------
 
@@ -199,7 +332,7 @@ function! s:update_all_plugins_async(ctx) abort
   for l:module in a:ctx.valid_modules
     let l:module_path = get(l:module, 'abs_path', l:module.path)
     call plugin_manager#async#git(
-          \ 'git -C ' . shellescape(l:module_path) . ' fetch origin', {
+          \ 'git -C ' . shellescape(l:module_path) . ' fetch --tags origin', {
           \ 'callback': function('s:on_module_fetched', [a:ctx])
           \ })
   endfor
@@ -233,6 +366,14 @@ function! s:analyze_and_update(ctx, module) abort
   call plugin_manager#ui#update_operation(l:op_id, 'Analyzing')
 
   let l:update_status = plugin_manager#git#collect_status_local(l:module_path)
+
+  " A declared tag/commit pin replaces the pull flow entirely
+  let l:pin = s:pin_for(get(a:ctx, 'pins', {}), a:module)
+  if !empty(l:pin) && (has_key(l:pin, 'tag') || has_key(l:pin, 'commit'))
+    call s:sync_pinned(a:ctx, a:module, l:pin,
+          \ l:update_status.current_commit, l:op_id)
+    return
+  endif
 
   if l:update_status.different_branch && l:update_status.branch !=# 'detached'
     call plugin_manager#ui#complete_operation(l:op_id, 'skip', 'On custom branch')
@@ -359,10 +500,12 @@ function! s:commit_update_async(module_name, module_path) abort
     return
   endif
   let l:vim_dir = plugin_manager#core#util#get_config('vim_dir', '')
-  let l:stage_cmd = 'git -C ' . shellescape(l:vim_dir) .
-        \ ' add .gitmodules && git -C ' . shellescape(l:vim_dir) .
-        \ ' add ' . shellescape(a:module_path) .
-        \ ' && git -C ' . shellescape(l:vim_dir) .
-        \ ' commit -m "Update Module: ' . a:module_name . '"'
-  call plugin_manager#async#git(l:stage_cmd, {})
+  " Three separate calls (mirrors s:finalize_update_all): a compound command
+  " would only scope the first git -C, and the module name must stay escaped
+  " so it can never break out of the commit message quoting.
+  call plugin_manager#git#execute('git add .gitmodules', l:vim_dir, 0, 0)
+  call plugin_manager#git#execute('git add ' . shellescape(a:module_path), l:vim_dir, 0, 0)
+  call plugin_manager#git#execute(
+        \ 'git commit -m ' . shellescape('Update Module: ' . a:module_name),
+        \ l:vim_dir, 0, 0)
 endfunction

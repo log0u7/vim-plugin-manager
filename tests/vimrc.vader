@@ -1,0 +1,80 @@
+Before:
+  let g:_pm_vrc_saved = {
+        \ 'vimrc': get(g:, 'plugin_manager_vimrc_path', ''),
+        \ 'deprecation': get(g:, 'plugin_manager_show_deprecation_warnings', 1),
+        \ }
+  let g:_pm_vrc_root = tempname()
+  call mkdir(g:_pm_vrc_root, 'p')
+  let g:plugin_manager_show_deprecation_warnings = 0
+
+After:
+  if isdirectory(g:_pm_vrc_root)
+    call delete(g:_pm_vrc_root, 'rf')
+  endif
+  let g:plugin_manager_vimrc_path = g:_pm_vrc_saved.vimrc
+  let g:plugin_manager_show_deprecation_warnings = g:_pm_vrc_saved.deprecation
+  unlet g:_pm_vrc_saved g:_pm_vrc_root
+
+Execute (missing vimrc parses to an empty list):
+  let g:plugin_manager_vimrc_path = g:_pm_vrc_root . '/does-not-exist.vim'
+  AssertEqual [], plugin_manager#vimrc#parse_declarations()
+  AssertEqual 0, plugin_manager#vimrc#declarations_present()
+
+Execute (plain declarations are parsed in order with options):
+  call writefile([
+        \ '" leading comment',
+        \ '',
+        \ 'set nocompatible',
+        \ "Plugin 'tpope/vim-fugitive'",
+        \ "  Plugin 'tpope/vim-surround'",
+        \ "Plugin 'junegunn/fzf', {'dir': 'fzf', 'tag': 'v0.24.0'}",
+        \ ], g:_pm_vrc_root . '/plain.vim')
+  let g:plugin_manager_vimrc_path = g:_pm_vrc_root . '/plain.vim'
+  let g:_pm_vrc_decls = plugin_manager#vimrc#parse_declarations()
+  AssertEqual 3, len(g:_pm_vrc_decls)
+  AssertEqual 'tpope/vim-fugitive', g:_pm_vrc_decls[0].url
+  AssertEqual 'start', g:_pm_vrc_decls[0].options.load
+  AssertEqual 'tpope/vim-surround', g:_pm_vrc_decls[1].url
+  AssertEqual 'junegunn/fzf', g:_pm_vrc_decls[2].url
+  AssertEqual 'fzf', g:_pm_vrc_decls[2].options.dir
+  AssertEqual 'v0.24.0', g:_pm_vrc_decls[2].options.tag
+  AssertEqual 1, plugin_manager#vimrc#declarations_present()
+  unlet g:_pm_vrc_decls
+
+Execute (trailing comments are stripped and commented-out Plugins ignored):
+  call writefile([
+        \ "Plugin 'a/b' \" inline comment",
+        \ "\" Plugin 'evil/commented'",
+        \ "Plugin 'c/d', {'load': 'opt'} \" another",
+        \ ], g:_pm_vrc_root . '/comments.vim')
+  let g:plugin_manager_vimrc_path = g:_pm_vrc_root . '/comments.vim'
+  let g:_pm_vrc_decls = plugin_manager#vimrc#parse_declarations()
+  AssertEqual 2, len(g:_pm_vrc_decls)
+  AssertEqual 'a/b', g:_pm_vrc_decls[0].url
+  AssertEqual 'c/d', g:_pm_vrc_decls[1].url
+  AssertEqual 'opt', g:_pm_vrc_decls[1].options.load
+  unlet g:_pm_vrc_decls
+
+Execute (malformed lines are skipped without crashing):
+  call writefile([
+        \ "Plugin 'unclosed-string",
+        \ "Plugin 'ok/one'",
+        \ "Plugin 'x/y', not-a-dict-here",
+        \ ], g:_pm_vrc_root . '/bad.vim')
+  let g:plugin_manager_vimrc_path = g:_pm_vrc_root . '/bad.vim'
+  let g:_pm_vrc_decls = plugin_manager#vimrc#parse_declarations()
+  AssertEqual 1, len(g:_pm_vrc_decls)
+  AssertEqual 'ok/one', g:_pm_vrc_decls[0].url
+  unlet g:_pm_vrc_decls
+
+Execute (PluginBegin/PluginEnd are not mistaken for declarations):
+  call writefile([
+        \ 'PluginBegin',
+        \ "Plugin 'inside/one'",
+        \ 'PluginEnd',
+        \ ], g:_pm_vrc_root . '/block.vim')
+  let g:plugin_manager_vimrc_path = g:_pm_vrc_root . '/block.vim'
+  let g:_pm_vrc_decls = plugin_manager#vimrc#parse_declarations()
+  AssertEqual 1, len(g:_pm_vrc_decls)
+  AssertEqual 'inside/one', g:_pm_vrc_decls[0].url
+  unlet g:_pm_vrc_decls

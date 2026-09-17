@@ -1,0 +1,152 @@
+Before:
+  " Fixture: bare repo, vim config repo, two submodules (one declared in the
+  " fixture vimrc, one orphaned) - modeled on tests/update.vader.
+
+  let g:_pm_gc_saved = {
+        \ 'vim_dir':     get(g:, 'plugin_manager_vim_dir', ''),
+        \ 'cwd':         getcwd(),
+        \ 'plugins_dir': get(g:, 'plugin_manager_plugins_dir', ''),
+        \ 'vimrc':       get(g:, 'plugin_manager_vimrc_path', ''),
+        \ 'logging':     get(g:, 'plugin_manager_enable_logging', 0),
+        \ 'gc_exclude':  get(g:, 'plugin_manager_gc_exclude', ''),
+        \ }
+
+  let g:_pm_gc_root   = tempname()
+  let g:_pm_gc_bare   = g:_pm_gc_root . '/bare'
+  let g:_pm_gc_vim    = g:_pm_gc_root . '/vim'
+  let g:_pm_gc_vimrc  = g:_pm_gc_root . '/vimrc'
+  let g:_pm_gc_start  = g:_pm_gc_vim . '/pack/plugins/start'
+
+  call mkdir(g:_pm_gc_root, 'p')
+
+  " Bare repo with one commit (HEAD must point at the pushed branch: git
+  " >= 2.52 does not infer it from a local clone)
+  call system('git init --bare ' . shellescape(g:_pm_gc_bare))
+  call system('git -C ' . shellescape(g:_pm_gc_bare) . ' symbolic-ref HEAD refs/heads/main')
+  call system('git init ' . shellescape(g:_pm_gc_root . '/seed'))
+  call system('git -C ' . shellescape(g:_pm_gc_root . '/seed') . ' config user.email "test@test.com"')
+  call system('git -C ' . shellescape(g:_pm_gc_root . '/seed') . ' config user.name "Test"')
+  call writefile(['seed'], g:_pm_gc_root . '/seed/f.txt')
+  call system('git -C ' . shellescape(g:_pm_gc_root . '/seed') . ' add .')
+  call system('git -C ' . shellescape(g:_pm_gc_root . '/seed') . ' commit -m "seed"')
+  call system('git -C ' . shellescape(g:_pm_gc_root . '/seed') . ' push ' . shellescape(g:_pm_gc_bare) . ' HEAD:main')
+
+  " Vim config repo
+  call mkdir(g:_pm_gc_vim, 'p')
+  call system('git init ' . shellescape(g:_pm_gc_vim))
+  call system('git -C ' . shellescape(g:_pm_gc_vim) . ' config user.email "test@test.com"')
+  call system('git -C ' . shellescape(g:_pm_gc_vim) . ' config user.name "Test"')
+  call writefile(['# vimrc'], g:_pm_gc_vimrc)
+  call system('git -C ' . shellescape(g:_pm_gc_vim) . ' add .')
+  call system('git -C ' . shellescape(g:_pm_gc_vim) . ' commit -m "init"')
+
+  " Two submodules: declared + orphan
+  call mkdir(g:_pm_gc_start, 'p')
+  for s:_pm_gc_name in ['keepme', 'orphanme']
+    call system('git -C ' . shellescape(g:_pm_gc_vim) .
+          \ ' -c protocol.file.allow=always submodule add ' .
+          \ shellescape(g:_pm_gc_bare) . ' pack/plugins/start/' . s:_pm_gc_name)
+  endfor
+  call system('git -C ' . shellescape(g:_pm_gc_vim) . ' commit -m "add submodules"')
+
+  " Declare only keepme in the fixture vimrc
+  call writefile(["Plugin '" . g:_pm_gc_bare . "', {'dir': 'keepme'}"], g:_pm_gc_vimrc)
+
+  let g:plugin_manager_vim_dir        = g:_pm_gc_vim
+  let g:plugin_manager_plugins_dir    = g:_pm_gc_vim . '/pack/plugins'
+  let g:plugin_manager_vimrc_path     = g:_pm_gc_vimrc
+  let g:plugin_manager_enable_logging = 0
+
+  execute 'cd ' . fnameescape(g:_pm_gc_vim)
+
+  let s:_pm_gc_sbuf = bufnr('PluginManager')
+  if s:_pm_gc_sbuf != -1
+    execute 'bwipeout! ' . s:_pm_gc_sbuf
+  endif
+
+  call plugin_manager#git#refresh_modules_cache()
+
+After:
+  execute 'cd ' . fnameescape(g:_pm_gc_saved.cwd)
+  if isdirectory(g:_pm_gc_root)
+    call delete(g:_pm_gc_root, 'rf')
+  endif
+  let g:plugin_manager_vim_dir        = g:_pm_gc_saved.vim_dir
+  let g:plugin_manager_plugins_dir    = g:_pm_gc_saved.plugins_dir
+  let g:plugin_manager_vimrc_path     = g:_pm_gc_saved.vimrc
+  let g:plugin_manager_enable_logging = g:_pm_gc_saved.logging
+  if g:_pm_gc_saved.gc_exclude !=# ''
+    let g:plugin_manager_gc_exclude = g:_pm_gc_saved.gc_exclude
+  else
+    silent! unlet g:plugin_manager_gc_exclude
+  endif
+  unlet g:_pm_gc_saved g:_pm_gc_root g:_pm_gc_bare g:_pm_gc_vim g:_pm_gc_vimrc
+  unlet g:_pm_gc_start
+  let s:_pm_gc_sbuf2 = bufnr('PluginManager')
+  if s:_pm_gc_sbuf2 != -1
+    execute 'bwipeout! ' . s:_pm_gc_sbuf2
+  endif
+  call plugin_manager#git#refresh_modules_cache()
+
+Execute (orphans computation is pure and correct):
+  let g:_pm_gc_decls = [
+        \ {'url': 'tpope/vim-fugitive', 'options': {'dir': ''}},
+        \ {'url': g:_pm_gc_bare, 'options': {'dir': 'keepme'}},
+        \ ]
+  let g:_pm_gc_mods = {
+        \ 'pack/plugins/start/keepme': {'is_valid': 1, 'short_name': 'keepme', 'path': 'pack/plugins/start/keepme', 'url': g:_pm_gc_bare},
+        \ 'pack/plugins/start/orphanme': {'is_valid': 1, 'short_name': 'orphanme', 'path': 'pack/plugins/start/orphanme', 'url': g:_pm_gc_bare},
+        \ 'pack/plugins/start/vim-fugitive': {'is_valid': 1, 'short_name': 'vim-fugitive', 'path': 'pack/plugins/start/vim-fugitive', 'url': 'https://github.com/tpope/vim-fugitive.git'},
+        \ }
+  let g:_pm_gc_orph = plugin_manager#cmd#gc#orphans(g:_pm_gc_decls, g:_pm_gc_mods)
+  AssertEqual 1, len(g:_pm_gc_orph), 'only orphanme must be collected'
+  AssertEqual 'orphanme', g:_pm_gc_orph[0].name
+  unlet g:_pm_gc_decls g:_pm_gc_mods g:_pm_gc_orph
+
+Execute (the manager itself and gc_exclude entries are never collected):
+  let g:plugin_manager_self_path = '/x/pack/plugins/start/vim-plugin-manager'
+  let g:plugin_manager_gc_exclude = ['precious']
+  let g:_pm_gc_decls = [{'url': 'a/b', 'options': {'dir': ''}}]
+  let g:_pm_gc_mods = {
+        \ 'p1': {'is_valid': 1, 'short_name': 'vim-plugin-manager', 'path': 'p1', 'url': 'u1'},
+        \ 'p2': {'is_valid': 1, 'short_name': 'precious', 'path': 'p2', 'url': 'u2'},
+        \ 'p3': {'is_valid': 1, 'short_name': 'junk', 'path': 'p3', 'url': 'u3'},
+        \ }
+  let g:_pm_gc_orph = plugin_manager#cmd#gc#orphans(g:_pm_gc_decls, g:_pm_gc_mods)
+  AssertEqual 1, len(g:_pm_gc_orph)
+  AssertEqual 'junk', g:_pm_gc_orph[0].name
+  unlet g:plugin_manager_self_path
+  unlet g:_pm_gc_decls g:_pm_gc_mods g:_pm_gc_orph
+
+Execute (invalid modules are skipped):
+  let g:_pm_gc_decls = [{'url': 'a/b', 'options': {'dir': ''}}]
+  let g:_pm_gc_mods = {
+        \ 'p1': {'is_valid': 0, 'short_name': 'broken', 'path': 'p1', 'url': 'u1'},
+        \ }
+  AssertEqual [], plugin_manager#cmd#gc#orphans(g:_pm_gc_decls, g:_pm_gc_mods)
+  unlet g:_pm_gc_decls g:_pm_gc_mods
+
+Execute (gc refuses to run without any vimrc declaration):
+  call writefile(['" no declarations here'], g:_pm_gc_vimrc)
+  let g:_pm_gc_ret = plugin_manager#cmd#gc#execute('-f')
+  AssertEqual 0, g:_pm_gc_ret, 'gc must refuse to act'
+  Assert isdirectory(g:_pm_gc_start . '/orphanme'), 'nothing must be removed'
+  unlet g:_pm_gc_ret
+
+Execute (gc removes undeclared submodules with -f):
+  call plugin_manager#cmd#gc#execute('-f')
+  Assert !isdirectory(g:_pm_gc_start . '/orphanme'), 'orphanme must be removed'
+  Assert isdirectory(g:_pm_gc_start . '/keepme'), 'keepme must survive'
+  let g:_pm_gc_gm = readfile(g:_pm_gc_vim . '/.gitmodules')
+  let g:_pm_gc_joined = join(g:_pm_gc_gm, "\n")
+  Assert g:_pm_gc_joined !~# 'orphanme', '.gitmodules must not reference orphanme anymore'
+  Assert g:_pm_gc_joined =~# 'keepme', '.gitmodules must keep keepme'
+  let g:_pm_gc_msg = system('git -C ' . shellescape(g:_pm_gc_vim) . ' log --format=%s -1')
+  Assert g:_pm_gc_msg =~# 'Remove orphanme',
+        \ 'removal must be committed, got: ' . g:_pm_gc_msg
+  unlet g:_pm_gc_gm g:_pm_gc_joined g:_pm_gc_msg
+
+Execute (gc with nothing to collect reports success):
+  " orphanme was already removed by the previous test
+  call plugin_manager#cmd#gc#execute('-f')
+  Assert isdirectory(g:_pm_gc_start . '/keepme'), 'keepme must survive'

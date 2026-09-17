@@ -1,0 +1,118 @@
+Before:
+  let g:_pm_lzy_saved = {
+        \ 'vim_dir':     get(g:, 'plugin_manager_vim_dir', ''),
+        \ 'plugins_dir': get(g:, 'plugin_manager_plugins_dir', ''),
+        \ 'deprecation': get(g:, 'plugin_manager_show_deprecation_warnings', 1),
+        \ 'logging':     get(g:, 'plugin_manager_enable_logging', 0),
+        \ }
+  let g:_pm_lzy_root = tempname()
+  let g:_pm_lzy_opt = g:_pm_lzy_root . '/pack/plugins/opt'
+  call mkdir(g:_pm_lzy_opt . '/pmlazytest/plugin', 'p')
+  call mkdir(g:_pm_lzy_opt . '/pmlazyft/plugin', 'p')
+  call writefile([
+        \ 'let g:_pm_lzytest_loaded = 1',
+        \ 'command! -nargs=* PmLazyTestCmd call add(g:_pm_lzy_fired, <q-args>)',
+        \ ], g:_pm_lzy_opt . '/pmlazytest/plugin/pmlazytest.vim')
+  call writefile([
+        \ 'let g:_pm_lzyft_loaded = 1',
+        \ ], g:_pm_lzy_opt . '/pmlazyft/plugin/pmlazyft.vim')
+  let g:plugin_manager_vim_dir = g:_pm_lzy_root
+  let g:plugin_manager_plugins_dir = g:_pm_lzy_root . '/pack/plugins'
+  let g:plugin_manager_show_deprecation_warnings = 0
+  let g:plugin_manager_enable_logging = 0
+  let g:_pm_lzy_fired = []
+  let g:_pm_lzytest_loaded = 0
+  let g:_pm_lzyft_loaded = 0
+
+  " The manager requires vim_dir to be a git repository
+  call system('git init ' . shellescape(g:_pm_lzy_root))
+  call system('git -C ' . shellescape(g:_pm_lzy_root) . ' config user.email "t@t.com"')
+  call system('git -C ' . shellescape(g:_pm_lzy_root) . ' config user.name "T"')
+
+  " :packadd searches 'packpath'; the fixture root must be on it
+  execute 'set packpath^=' . fnameescape(g:_pm_lzy_root)
+
+After:
+  silent! autocmd! plugin_manager_lazy
+  silent! delcommand PmLazyTestCmd
+  silent! delcommand PmLazyGhostCmd
+  if exists('#PmLazyFtCmd')
+    silent! delcommand PmLazyFtCmd
+  endif
+  call plugin_manager#lazy#_reset()
+  if isdirectory(g:_pm_lzy_root)
+    call delete(g:_pm_lzy_root, 'rf')
+  endif
+  let g:plugin_manager_vim_dir = g:_pm_lzy_saved.vim_dir
+  let g:plugin_manager_plugins_dir = g:_pm_lzy_saved.plugins_dir
+  let g:plugin_manager_show_deprecation_warnings = g:_pm_lzy_saved.deprecation
+  let g:plugin_manager_enable_logging = g:_pm_lzy_saved.logging
+  unlet g:_pm_lzy_saved g:_pm_lzy_root g:_pm_lzy_opt g:_pm_lzy_fired
+  unlet g:_pm_lzytest_loaded g:_pm_lzyft_loaded
+
+Execute (on and for options force load opt):
+  let g:_pm_lzy_o = plugin_manager#core#util#process_plugin_options([{'on': ['Foo']}])
+  AssertEqual 'opt', g:_pm_lzy_o.load
+  AssertEqual ['Foo'], g:_pm_lzy_o.on
+  let g:_pm_lzy_o2 = plugin_manager#core#util#process_plugin_options([{'for': ['md'], 'load': 'start'}])
+  AssertEqual 'opt', g:_pm_lzy_o2.load
+  let g:_pm_lzy_o3 = plugin_manager#core#util#process_plugin_options([{'load': 'start'}])
+  AssertEqual 'start', g:_pm_lzy_o3.load
+  unlet g:_pm_lzy_o g:_pm_lzy_o2 g:_pm_lzy_o3
+
+Execute (on: registers a placeholder command that loads the package on first use):
+  call plugin_manager#api#begin()
+  call plugin_manager#api#plugin('x/pmlazytest', {'dir': 'pmlazytest', 'on': ['PmLazyTestCmd']})
+  call plugin_manager#api#end()
+
+  AssertEqual 2, exists(':PmLazyTestCmd'), 'placeholder command must exist'
+  AssertEqual 0, g:_pm_lzytest_loaded, 'package must not load at declaration time'
+
+  PmLazyTestCmd hello world
+
+  AssertEqual 1, g:_pm_lzytest_loaded, 'package must load on first invocation'
+  AssertEqual ['hello world'], g:_pm_lzy_fired,
+        \ 'the real command must receive the original arguments'
+
+Execute (re-declaring is idempotent and does not load early):
+  call plugin_manager#api#begin()
+  call plugin_manager#api#plugin('x/pmlazytest', {'dir': 'pmlazytest', 'on': ['PmLazyTestCmd']})
+  call plugin_manager#api#end()
+  call plugin_manager#api#begin()
+  call plugin_manager#api#plugin('x/pmlazytest', {'dir': 'pmlazytest', 'on': ['PmLazyTestCmd']})
+  call plugin_manager#api#end()
+  AssertEqual 2, exists(':PmLazyTestCmd')
+  AssertEqual 0, g:_pm_lzytest_loaded
+
+Execute (for: loads the package on the FileType event):
+  call plugin_manager#api#begin()
+  call plugin_manager#api#plugin('x/pmlazyft', {'dir': 'pmlazyft', 'for': ['markdown']})
+  call plugin_manager#api#end()
+
+  AssertEqual 0, g:_pm_lzyft_loaded, 'package must not load at declaration time'
+  Assert exists('#plugin_manager_lazy#FileType'), 'FileType trigger must be registered'
+
+  new
+  setfiletype markdown
+  AssertEqual 1, g:_pm_lzyft_loaded, 'package must load on the FileType event'
+  bwipeout!
+
+Execute (a buffer already showing the filetype loads immediately):
+  new
+  setfiletype markdown
+  call plugin_manager#api#begin()
+  call plugin_manager#api#plugin('x/pmlazyft', {'dir': 'pmlazyft', 'for': ['markdown']})
+  call plugin_manager#api#end()
+  AssertEqual 1, g:_pm_lzyft_loaded,
+        \ 'pre-existing buffers with a matching filetype must trigger the load'
+  bwipeout!
+
+Execute (a placeholder for a not-yet-installed plugin degrades gracefully):
+  call plugin_manager#api#begin()
+  call plugin_manager#api#plugin('~/definitely/not/here', {'dir': 'pmlazyghost', 'on': ['PmLazyGhostCmd']})
+  call plugin_manager#api#end()
+
+  AssertEqual 2, exists(':PmLazyGhostCmd'), 'placeholder must exist even if the plugin is absent'
+  PmLazyGhostCmd
+  AssertEqual 2, exists(':PmLazyGhostCmd'),
+        \ 'placeholder must survive a failed load so it can fire again later'

@@ -154,7 +154,7 @@ endfunction
 " URL AND PLUGIN NAME UTILITIES
 " ------------------------------------------------------------------------------
 
-let s:url_regexp = '^https\?://.\+\|^git@.\+:.\+$'
+let s:url_regexp = '^https\?://.\+\|^git@.\+:.\+\|^file://.\+'
 let s:short_name_regexp = '^[a-zA-Z0-9_.-]\+/[a-zA-Z0-9_.-]\+$'
 
 function! plugin_manager#core#util#convert_to_full_url(shortname) abort
@@ -243,7 +243,10 @@ function! plugin_manager#core#util#process_plugin_options(args) abort
   \ 'load': 'start',
   \ 'branch': '',
   \ 'tag': '',
-  \ 'exec': ''
+  \ 'commit': '',
+  \ 'exec': '',
+  \ 'on': [],
+  \ 'for': []
   \ }
 
   if empty(a:args)
@@ -253,7 +256,11 @@ function! plugin_manager#core#util#process_plugin_options(args) abort
   if type(a:args[0]) == v:t_dict
     for [l:key, l:val] in items(a:args[0])
       if has_key(l:options, l:key)
-        if l:key ==# 'load' && l:val !=# 'start' && l:val !=# 'opt'
+        if (l:key ==# 'on' || l:key ==# 'for') && type(l:val) != v:t_list
+          echohl WarningMsg
+          echomsg "Invalid '" . l:key . "' value: must be a list. Ignored."
+          echohl None
+        elseif l:key ==# 'load' && l:val !=# 'start' && l:val !=# 'opt'
           echohl WarningMsg
           echomsg "Invalid 'load' value: " . l:val . ". Using default: 'start'"
           echohl None
@@ -277,6 +284,12 @@ function! plugin_manager#core#util#process_plugin_options(args) abort
       echomsg "Please use dictionary format: {'dir':'name', 'load':'start|opt', ...}"
       echohl None
     endif
+  endif
+
+  " On-demand options imply optional loading: a 'start' plugin would load
+  " at startup and the lazy triggers would never be the entry point.
+  if !empty(l:options.on) || !empty(l:options.for)
+    let l:options.load = 'opt'
   endif
 
   return l:options

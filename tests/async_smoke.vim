@@ -12,7 +12,10 @@
 "   script -qec "vim -N -u tests/async_smoke.vim" /dev/null
 
 set nocompatible
-let &rtp = expand('<sfile>:p:h:h') . ',' . &rtp
+" Isolation: never load the developer's own ~/.vim pack plugins; on a
+" developer machine they would race the smoke session and block quit!.
+set packpath=
+let &rtp = expand('<sfile>:p:h:h') . ',' . $VIMRUNTIME
 
 runtime! autoload/plugin_manager/core.vim
 runtime! autoload/plugin_manager/async.vim
