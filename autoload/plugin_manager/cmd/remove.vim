@@ -20,9 +20,7 @@ function! plugin_manager#cmd#remove#execute(module_name, force_flag) abort
     endif
     
     " Remove module
-    call s:remove_module(l:module.name, l:module.path)
-    
-    return 1
+    return s:remove_module(l:module.name, l:module.path)
   catch
     call plugin_manager#core#handle_error(v:exception, "remove")
     return 0
@@ -133,10 +131,18 @@ function! s:confirm_removal(module_name, module_path) abort
 endfunction
 
 " Internal entry point for batch consumers (e.g. gc): remove an already
-" resolved module without discovery or confirmation. Follows the ui.vim
+" resolved module without discovery or confirmation. Returns 1 only when
+" the module directory is really gone. Follows the ui.vim
 " _purge_stale_test precedent for underscore-prefixed internal functions.
 function! plugin_manager#cmd#remove#_force_remove(module_name, module_path) abort
-  call s:remove_module(a:module_name, a:module_path)
+  " Batch entry point: refuse empty values before any git call. An empty
+  " module path would resolve to the vim dir itself in the removal
+  " fallback and delete the whole config repository.
+  if empty(a:module_name) || empty(a:module_path)
+    call plugin_manager#core#throw('remove', 'INVALID_ARGS',
+          \ 'Refusing to remove an empty module name or path')
+  endif
+  return s:remove_module(a:module_name, a:module_path)
 endfunction
 
 function! s:remove_module(module_name, module_path) abort
@@ -167,12 +173,22 @@ function! s:remove_module(module_name, module_path) abort
     call plugin_manager#core#util#remove_path(l:git_modules_path)
   endif
 
-  call s:commit_removal(a:module_name, l:module_info)
-  
-  call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Removed')
-  call plugin_manager#ui#footer([plugin_manager#ui#success('Plugin removed')])
+  " Removal outcome: the working tree directory must be gone. Report the
+  " truth instead of an unconditional 'ok'.
+  let l:abs_module = empty(l:vim_dir) ? a:module_path : (l:vim_dir . '/' . a:module_path)
+  let l:success = !plugin_manager#core#util#dir_exists(l:abs_module)
+
+  if l:success
+    call s:commit_removal(a:module_name, l:module_info)
+    call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Removed')
+    call plugin_manager#ui#footer([plugin_manager#ui#success('Plugin removed')])
+  else
+    call plugin_manager#ui#complete_operation(l:op_id, 'fail',
+          \ 'Removal incomplete: ' . l:abs_module . ' still exists (see log)')
+  endif
 
   call plugin_manager#git#refresh_modules_cache()
+  return l:success
 endfunction
 
 " ------------------------------------------------------------------------------

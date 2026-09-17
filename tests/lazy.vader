@@ -116,3 +116,19 @@ Execute (a placeholder for a not-yet-installed plugin degrades gracefully):
   PmLazyGhostCmd
   AssertEqual 2, exists(':PmLazyGhostCmd'),
         \ 'placeholder must survive a failed load so it can fire again later'
+
+Execute (invalid trigger names are skipped with a warning, never thrown):
+  " One malformed 'on' entry must not abort the whole declare batch: the
+  " invalid name is ignored, valid ones still register.
+  call plugin_manager#lazy#_reset()
+  let g:_pm_lzy_ok = 0
+  try
+    call plugin_manager#lazy#register('pmlazyinvalid', {'on': ['Not-A-Cmd', 'PmLazyValid9Cmd'], 'for': ['']})
+    let g:_pm_lzy_ok = 1
+  catch
+  endtry
+  Assert g:_pm_lzy_ok, 'register must not throw on invalid trigger names'
+  AssertEqual 2, exists(':PmLazyValid9Cmd'), 'valid trigger must be registered'
+  Assert !exists(':Not-A-Cmd'), 'invalid trigger must not be registered'
+  call plugin_manager#lazy#_reset()
+  unlet g:_pm_lzy_ok

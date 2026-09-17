@@ -15,6 +15,37 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
   fork + PR for external contributors, `--no-ff` direct merges for
   maintainers, and an explicit test-first (TDD) guidance section.
 
+## [2.2.2] - 2026-09-17
+
+### Fixed
+- **Local installs with `on`/`for` are reachable again**: `:PluginAdd
+  <path> {'on': [...]}` copied the plugin to `opt/` but never registered
+  the lazy placeholders, leaving it silently unreachable. The local path
+  now calls `lazy#register` like the remote path (regression test in
+  `tests/add.vader`).
+- **One malformed lazy trigger no longer aborts the declare batch**:
+  invalid `on`/`for` entries (wrong type, bad command name) were
+  interpolated raw into `:command!`/`:autocmd!` and the resulting throw
+  killed installation of every remaining plugin in the block. Invalid
+  triggers are now skipped with a warning; valid ones still register
+  (regression test in `tests/lazy.vader`).
+- **Detached submodules are skipped, never pulled**: a detached HEAD
+  without a tag/commit declaration fell through to the pull flow, which
+  failed noisily or could fast-forward the pin away (the doc already
+  claimed "skipped"). Both update paths now skip detached modules with an
+  explicit message; regression test in `tests/pin.vader`.
+- **GC can no longer aim the removal at the vim dir**: a corrupt
+  `.gitmodules` entry with an empty `path` produced an orphan with an
+  empty path, whose removal fallback resolved to the vim dir itself.
+  Orphan collection skips empty name/path values and the batch removal
+  entry point refuses empty arguments (`tests/gc.vader`).
+- **Removal reports the truth**: `remove_module` completed with "ok"
+  regardless of the actual outcome (failures were neither thrown nor
+  logged), so batch summaries could count removals that never happened.
+  The removal now verifies the directory is gone, returns the outcome,
+  and only commits on success; GC counts real removals
+  (`tests/gc.vader`).
+
 ## [2.2.1] - 2026-09-17
 
 ### Fixed

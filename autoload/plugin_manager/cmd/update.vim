@@ -111,8 +111,14 @@ function! s:on_fetch_complete(ctx, result) abort
     return
   endif
 
-  if l:update_status.different_branch && l:update_status.branch !=# 'detached'
-    call plugin_manager#ui#complete_operation(l:op_id, 'skip', 'On custom branch')
+  " A custom branch or a detached HEAD without a declaration is never
+  " pulled: the pull would fail noisily on the detached HEAD or destroy a
+  " manually checked out revision. Declare a tag/commit to pin it instead.
+  if l:update_status.different_branch || l:update_status.branch ==# 'detached'
+    call plugin_manager#ui#complete_operation(l:op_id, 'skip',
+          \ l:update_status.branch ==# 'detached'
+          \       ? 'Detached HEAD: skipped (declare a tag/commit to pin it)'
+          \       : 'On custom branch')
     return
   endif
 
@@ -385,8 +391,11 @@ function! s:analyze_and_update(ctx, module) abort
     return
   endif
 
-  if l:update_status.different_branch && l:update_status.branch !=# 'detached'
-    call plugin_manager#ui#complete_operation(l:op_id, 'skip', 'On custom branch')
+  if l:update_status.different_branch || l:update_status.branch ==# 'detached'
+    call plugin_manager#ui#complete_operation(l:op_id, 'skip',
+          \ l:update_status.branch ==# 'detached'
+          \       ? 'Detached HEAD: skipped (declare a tag/commit to pin it)'
+          \       : 'On custom branch')
     let a:ctx.pending -= 1
     call s:maybe_finalize(a:ctx)
     return

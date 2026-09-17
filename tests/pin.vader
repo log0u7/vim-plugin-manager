@@ -168,3 +168,19 @@ Execute (pin move in update all commits the gitlink pointer):
   Assert g:_pm_log =~# 'Update Modules',
         \ 'pin move must produce the Update Modules pointer commit, got: ' . g:_pm_log
   unlet g:_pm_status g:_pm_log
+
+Execute (detached submodule without a declaration is skipped, never pulled):
+  " Fresh fixture per case: submodule detached at v1, vimrc without pins.
+  " Pulling a detached HEAD would either fail noisily or destroy a manual
+  " pin; the documented behavior is to skip it.
+  call writefile(['" no plugin declarations'], g:_pm_pin_vimrc)
+  call plugin_manager#cmd#update#execute('all')
+  let g:_pm_pin_head = substitute(
+        \ system('git -C ' . shellescape(g:_pm_pin_plug) . ' rev-parse HEAD'),
+        \ '\n', '', 'g')
+  AssertEqual g:_pm_pin_c1, g:_pm_pin_head, 'detached module must not be pulled'
+  let g:_pm_sbuf = bufnr('PluginManager')
+  let g:_pm_content = join(getbufline(g:_pm_sbuf, 1, '$'), "\n")
+  Assert g:_pm_content !~# '\cupdate failed',
+        \ 'skipping a detached module must not surface as a failed update, got: ' . g:_pm_content
+  unlet g:_pm_pin_head g:_pm_sbuf g:_pm_content

@@ -126,6 +126,29 @@ Execute (invalid modules are skipped):
   AssertEqual [], plugin_manager#cmd#gc#orphans(g:_pm_gc_decls, g:_pm_gc_mods)
   unlet g:_pm_gc_decls g:_pm_gc_mods
 
+Execute (modules with empty name or path are never collected):
+  " A corrupt .gitmodules entry can yield empty values: the removal
+  " machinery must never be aimed at an empty path.
+  let g:_pm_gc_decls = [{'url': 'a/b', 'options': {'dir': ''}}]
+  let g:_pm_gc_mods = {
+        \ 'bad': {'is_valid': 1, 'short_name': '', 'path': '', 'url': ''},
+        \ 'junk': {'is_valid': 1, 'short_name': 'junk', 'path': 'pack/plugins/start/junk', 'url': 'u3'},
+        \ }
+  let g:_pm_gc_orph = plugin_manager#cmd#gc#orphans(g:_pm_gc_decls, g:_pm_gc_mods)
+  AssertEqual 1, len(g:_pm_gc_orph), 'only the valid orphan is collected'
+  AssertEqual 'junk', g:_pm_gc_orph[0].name
+  unlet g:_pm_gc_decls g:_pm_gc_mods g:_pm_gc_orph
+
+Execute (batch removal refuses empty name or path):
+  let g:_pm_gc_threw = 0
+  try
+    call plugin_manager#cmd#remove#_force_remove('', '')
+  catch
+    let g:_pm_gc_threw = 1
+  endtry
+  Assert g:_pm_gc_threw, 'empty module name/path must be refused, never resolved to the vim dir'
+  unlet g:_pm_gc_threw
+
 Execute (gc refuses to run without any vimrc declaration):
   call writefile(['" no declarations here'], g:_pm_gc_vimrc)
   let g:_pm_gc_ret = plugin_manager#cmd#gc#execute('-f')
@@ -150,3 +173,13 @@ Execute (gc with nothing to collect reports success):
   " orphanme was already removed by the previous test
   call plugin_manager#cmd#gc#execute('-f')
   Assert isdirectory(g:_pm_gc_start . '/keepme'), 'keepme must survive'
+
+Execute (batch removal reports its outcome honestly):
+  " A non-submodule orphan dir (not in .gitmodules): the removal falls back
+  " to deleting the working tree, and _force_remove must return 1 when the
+  " directory is really gone.
+  call mkdir(g:_pm_gc_start . '/ghost', 'p')
+  call writefile(['x'], g:_pm_gc_start . '/ghost/f.txt')
+  AssertEqual 1, plugin_manager#cmd#remove#_force_remove('ghost', 'pack/plugins/start/ghost'),
+        \ 'successful removal must return 1'
+  Assert !isdirectory(g:_pm_gc_start . '/ghost'), 'ghost must be gone'
