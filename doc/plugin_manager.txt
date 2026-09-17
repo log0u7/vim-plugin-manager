@@ -11,9 +11,11 @@ CONTENTS                                                *plugin-manager-contents
     6. Usage Examples .......................... |plugin-manager-examples|
     7. Keyboard Shortcuts ...................... |plugin-manager-shortcuts|
     8. Tips & Tricks ........................... |plugin-manager-tips|
-    9. Troubleshooting ......................... |plugin-manager-troubleshooting|
-    10. License ................................ |plugin-manager-license|
-    11. About .................................. |plugin-manager-about|
+    9. Version Pinning ......................... |plugin-manager-pinning|
+    10. Lazy Loading ........................... |plugin-manager-lazy|
+    11. Troubleshooting ........................ |plugin-manager-troubleshooting|
+    12. License ................................ |plugin-manager-license|
+    13. About .................................. |plugin-manager-about|
 
 ===============================================================================
 1. INTRODUCTION                                     *plugin-manager-introduction*
@@ -277,13 +279,20 @@ The plugin provides the following commands:
 
 :PluginManager add <plugin> [options]
                                 Install a new plugin
-                                <plugin> can be a URL or 'username/repo'
+                                <plugin> can be a URL, 'username/repo' or a
+                                file:// URL for a local bare repository
                                 [options] can be a dictionary with these keys:
                                   'dir': custom directory name (default: plugin name)
                                   'load': 'start' or 'opt' (default: 'start')
                                   'branch': git branch to checkout
                                   'tag': git tag to checkout
+                                  'commit': git commit to checkout (SHA pin)
                                   'exec': command to execute after installation
+                                  'on': list of commands triggering lazy load
+                                  'for': list of filetypes triggering lazy load
+
+                                Version precedence: 'branch' > 'commit' > 'tag'.
+                                'on'/'for' imply 'load': 'opt'.
 
                                 For backward compatibility:
                                 PluginManager add <plugin> [modulename] [opt]
@@ -296,11 +305,26 @@ The plugin provides the following commands:
                                 Remove a plugin
                                 Use -f to force removal without confirmation
 
+:PluginManager gc [-f]          Collect orphaned plugins: registered
+                                submodules that are no longer declared in
+                                the vimrc Plugin lines. Lists them, then
+                                removes them after a single confirmation
+                                (skipped with -f). Refuses to run when the
+                                vimrc contains no Plugin declaration at all.
+                                The manager itself and the entries of
+                                g:plugin_manager_gc_exclude (list of plugin
+                                names) are never collected.
+
 :PluginManager list              List all installed plugins
 
 :PluginManager status            Show status of installed plugins
 
-:PluginManager update [plugin]   Update all plugins or a specific one
+:PluginManager update [plugin]   Update all plugins or a specific one.
+                                 Plugins pinned by 'tag' or 'commit' in the
+                                 vimrc are not pulled: update re-asserts the
+                                 declared pin instead (fetch --tags, then
+                                 checkout of the pinned revision when HEAD
+                                 differs). See |plugin-manager-pinning|.
 
 :PluginManager check             Check for available updates without installing
                                  them. Reports plugins that are behind their
@@ -342,13 +366,27 @@ The plugin provides the following commands:
 
 :PluginBegin                    Start a plugin declaration block
 :Plugin <plugin> [options]      Declare a plugin to install
-                                <plugin> can be a URL or 'username/repo'
+                                <plugin> can be a URL, 'username/repo' or a
+                                file:// URL for a local bare repository
                                 [options] can be a dictionary with these keys:
                                   'dir': custom directory name
                                   'branch': git branch to checkout
                                   'tag': git tag to checkout
+                                  'commit': git commit to checkout (SHA pin)
                                   'exec': command to execute after installation
                                   'load': 'start' or 'opt' for plugin loading
+                                  'on': list of commands that load the plugin
+                                        on first use (implies load 'opt')
+                                  'for': list of filetypes that load the
+                                        plugin on first open (implies opt)
+
+                                Missing plugins are installed automatically
+                                when the block is processed: clones run in
+                                parallel in the background through the async
+                                queue, and each completed clone is registered
+                                as a submodule. Builds without +job/+channel
+                                (and tests forcing g:plugin_manager_test_
+                                force_sync) fall back to sequential installs.
 :PluginEnd                      Process and install all declared plugins
 
 :PluginManagerViewLog           View the error log file
@@ -419,8 +457,8 @@ Declare multiple plugins at once:
     Plugin 'tpope/vim-fugitive'
     Plugin 'preservim/nerdtree', {'load': 'opt'}
     Plugin 'tpope/vim-surround'
-    Plugin 'junegunn/fzf', {'dir': '~/.fzf', 'exec': './install --all'}
-    Plugin 'fatih/vim-go', {'tag': '*'} 
+    Plugin 'junegunn/fzf', {'dir': 'fzf', 'exec': './install --all'}
+    Plugin 'fatih/vim-go', {'tag': 'v1.29'}
     Plugin 'neoclide/coc.nvim', {'branch': 'release'}
     Plugin '~/projects/my-vim-plugin'  " Local plugin from filesystem
     PluginEnd
@@ -529,7 +567,69 @@ Then in each file, use the PluginBegin/End blocks to organize by category:
 This keeps your vimrc cleaner and makes it easier to manage plugins by category.
 
 ===============================================================================
-9. TROUBLESHOOTING                             *plugin-manager-troubleshooting*
+9. VERSION PINNING                                 *plugin-manager-pinning*
+
+A declared 'tag' or 'commit' pins the plugin to an exact revision. The vimrc
+is the single source of truth: the declared pin is re-asserted on every
+':PluginManager update'.
+
+Version precedence when several are declared: 'branch' > 'commit' > 'tag'.
+A branch is tracked by .gitmodules (via 'git submodule add -b'), so a branch
+pin needs no extra handling; 'commit' and 'tag' pin a revision.
+
+Install time:
+    Plugin 'fatih/vim-go', {'tag': 'v1.29'}
+    clones the submodule, then checks out the tag (detached HEAD).
+    An unresolvable tag or commit fails the installation loudly
+    (CHECKOUT_FAILED) instead of silently leaving the default branch.
+
+Update time:
+    ':PluginManager update' fetches tags for every module, then:
+    - 'tag'/'commit' pinned: HEAD is compared to the declared revision.
+      Identical: reported Up-to-date. Different (for example after bumping
+      the tag in the vimrc): the pinned revision is checked out, local
+      changes are stashed and restored around it, and the submodule pointer
+      is committed. A pinned plugin is never pulled from its branch.
+    - not pinned: the regular pull flow (pull strategy applies).
+    - detached HEAD without a declaration: skipped as before.
+
+Local remotes:
+    A file:// URL pins against a local bare repository, which is handy for
+    testing:
+        Plugin 'file:///srv/git/vim-fugitive.git'
+    git >= 2.38.1 restricts the file transport; the manager lifts the
+    restriction for these trusted vimrc URLs (clone) and for the submodule
+    registration, which runs inside your .vim repository (set
+    'git config protocol.file.allow always' there if you register file://
+    submodules by hand).
+
+==============================================================================
+10. LAZY LOADING                                      *plugin-manager-lazy*
+
+On-demand loading follows the vim-plug model on top of Vim 8 native packages:
+the plugin is installed into pack/plugins/opt/ and loaded at first use.
+
+    Plugin 'preservim/nerdtree', {'on': ['NERDTreeToggle', 'NERDTreeFind']}
+    Plugin 'vimwiki/vimwiki', {'for': ['markdown']}
+
+'on' registers placeholder commands. The first invocation loads the package
+(:packadd), drops the placeholder, and re-dispatches the original invocation
+(modifiers, range, bang and arguments included) against the real command.
+A placeholder for a not-yet-installed plugin reports it and survives so it
+can fire again later.
+
+'for' registers a FileType autocmd per filetype; buffers already showing a
+matching filetype when the block is processed load immediately.
+
+Both options imply 'load': 'opt'. Keep 'load': 'start' only if you really
+want the plugin loaded at startup despite the triggers.
+
+Limitation: ftdetect rules of a lazily loaded plugin apply to buffers opened
+after the load; re-open (':e') a buffer opened before the plugin was
+installed if its filetype detection looks stale.
+
+==============================================================================
+11. TROUBLESHOOTING                            *plugin-manager-troubleshooting*
 
 Issues with Plugin Installation:
 - Make sure your Vim configuration directory is a Git repository
@@ -557,7 +657,7 @@ Permission Issues:
 - Ensure you have write access to the plugin directories
 
 ===============================================================================
-10. LICENSE                                             *plugin-manager-license*
+12. LICENSE                                             *plugin-manager-license*
 
 PluginManager is released under the MIT License.
 Copyright (c) 2018 - 2026 G.K.E. <gke@6admin.io>
@@ -565,7 +665,7 @@ Copyright (c) 2018 - 2026 G.K.E. <gke@6admin.io>
 See LICENSE file or plugin header for full license text.
 
 ===============================================================================
-11. ABOUT                                                *plugin-manager-about*
+13. ABOUT                                                *plugin-manager-about*
 
 Maintained by: G.K.E. <gke@6admin.io>
 Source: https://github.com/log0u7/vim-plugin-manager

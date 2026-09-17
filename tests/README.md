@@ -31,6 +31,12 @@ Layer conventions:
 | cmd/check.vim | check.vader | integration |
 | cmd/health.vim | health.vader | integration |
 | cmd.vim (remotes) | remote.vader | integration |
+| cmd/gc.vim | gc.vader | unit + integration |
+| cmd/remove.vim (_force_remove) | gc.vader | integration |
+| vimrc.vim (declarations parser) | vimrc.vader | unit |
+| lazy.vim (on/for triggers) | lazy.vader | unit + integration |
+| pin re-assertion (update + vimrc) | pin.vader | integration |
+| declare.vim (parallel install) | install_smoke.vim | smoke |
 | cmd/list, cmd/helptags, cmd/reload | exercised via dispatch/health/basic tests | integration (indirect) |
 
 Known indirect coverage (no dedicated file, acceptable): cmd/list,

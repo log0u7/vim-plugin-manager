@@ -28,6 +28,12 @@ A lightweight Vim plugin manager that uses Git submodules and Vim 8's native pac
 
 - Manage plugins through Git submodules
 - Easy installation, removal, and updating of plugins
+- Declarative block (`PluginBegin`/`Plugin`/`PluginEnd`) with automatic
+  background parallel install of missing plugins
+- Version pinning: `branch`, `tag` and `commit` options, with the declared
+  pin re-asserted on every update (the vimrc is the source of truth)
+- On-demand (lazy) loading: `on` command triggers and `for` filetype triggers
+- Orphan cleanup: `:PluginManager gc` collects submodules no longer declared
 - Automatic generation of helptags
 - Backup your entire Vim configuration to multiple remote repositories
 - Works with Vim 8's native package loading system
@@ -267,6 +273,12 @@ This approach keeps your personal configurations organized and separate from the
 
 " Install a plugin from a custom URL (non-GitHub)
 :PluginManager add https://gitlab.com/user/repo.git
+
+" Install pinned to an exact commit (detached HEAD, re-asserted on update)
+:PluginManager add tpope/vim-commentary {'commit': 'c0e2fbd'}
+
+" Install from a local bare repository (file:// remote, handy for testing)
+:PluginManager add file:///srv/git/vim-fugitive.git
 ```
 
 ### Declarative Plugin Configuration in vimrc
@@ -281,17 +293,24 @@ PluginBegin
   Plugin 'tpope/vim-surround'
 
   " With options:
-  Plugin 'preservim/nerdtree', {'load': 'opt'}
+  Plugin 'preservim/nerdtree', {'on': ['NERDTreeToggle']}
+  Plugin 'vimwiki/vimwiki', {'for': ['markdown']}
   Plugin 'junegunn/fzf', {'dir': 'fzf', 'exec': './install --all'}
   Plugin 'fatih/vim-go', {'tag': 'v1.28'}
   Plugin 'neoclide/coc.nvim', {'branch': 'release'}
+  Plugin 'tpope/vim-commentary', {'commit': 'c0e2fbd'}
 
   " Local plugin (from filesystem):
   Plugin '~/projects/my-vim-plugin'
 PluginEnd
 ```
 
-When Vim loads your vimrc, all these plugins will be installed automatically if they don't exist yet. This allows you to easily manage your plugin collection and share your configuration with others.
+When Vim loads your vimrc, all these plugins will be installed automatically
+if they don't exist yet: clones run in parallel in the background through the
+async queue (sequential fallback without +job/+channel), and each completed
+clone is registered as a submodule with its pointer committed. This allows
+you to easily manage your plugin collection and share your configuration
+with others.
 
 ### Real-world example
 
@@ -349,6 +368,12 @@ walkthrough.
 
 " Run a health diagnostic (checks git, Vim version, async, encoding, etc.)
 :PluginManager health
+
+" Collect submodules that are no longer declared in the vimrc
+:PluginManager gc
+
+" Same, without the confirmation prompt
+:PluginManager gc -f
 ```
 
 ### Backup and Restore
@@ -525,20 +550,29 @@ let g:plugin_manager_show_deprecation_warnings = 1
 
 ## Tips & Tricks
 
-### Loading Optional Plugins
+### Lazy Loading (on-demand plugins)
 
-Optional plugins installed with the 'opt' parameter can be loaded with:
+Use the `on` and `for` options to install a plugin into `pack/plugins/opt/`
+and load it at first use, exactly like vim-plug's `on:`/`for:`:
+
+```vim
+PluginBegin
+  " Loads on the first NERDTreeToggle or NERDTreeFind invocation
+  Plugin 'preservim/nerdtree', {'on': ['NERDTreeToggle', 'NERDTreeFind']}
+  " Loads when a markdown buffer is opened
+  Plugin 'vimwiki/vimwiki', {'for': ['markdown']}
+PluginEnd
+```
+
+The first command invocation runs `:packadd`, then re-dispatches the command
+(with range, bang and arguments) against the real one. Buffers already
+showing a matching filetype when the block is processed load immediately.
+Both options imply `load: 'opt'`.
+
+Optional plugins without triggers are loaded manually:
 
 ```vim
 :packadd plugin-name
-```
-
-You can also load them conditionally in your vimrc:
-
-```vim
-if has('feature')
-  packadd plugin-name
-endif
 ```
 
 ### Using Plugin Options
@@ -552,13 +586,24 @@ The options system allows for flexible plugin installation almost like [junegunn
 " Install a plugin to a specific directory and specific tag
 :PluginManager add junegunn/fzf {'dir': 'myfzf', 'tag': 'v0.24.0'}
 
+" Pin an exact commit
+:PluginManager add fatih/vim-go {'commit': '47694979'}
+
 " Install a plugin and execute a command after installation
 :PluginManager add junegunn/fzf {'exec': './install --all'}
 ```
 
+Version precedence when several are declared: `branch` > `commit` > `tag`.
+
 ### Managing Plugin Updates
 
 When updating plugins, PluginManager will stash any local changes in the plugin repositories. If you've made custom modifications to plugins, consider using a different approach like git patches.
+
+Plugins pinned with `tag` or `commit` in the vimrc are not pulled: update
+re-asserts the declared pin instead. Bump the tag in your vimrc, run
+`:PluginManager update`, and the submodule moves to the new revision
+(local changes are stashed and restored around the checkout, and the
+submodule pointer is committed). See `:help plugin-manager-pinning`.
 
 ## Troubleshooting
 
