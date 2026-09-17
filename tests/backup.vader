@@ -129,6 +129,7 @@ Execute (backup commits untracked files too):
 
 Execute (backup pushes to every configured remote):
   call system('git init --bare ' . shellescape(g:_pm_bkp_root . '/remote2'))
+  call system('git -C ' . shellescape(g:_pm_bkp_root . '/remote2') . ' symbolic-ref HEAD refs/heads/main')
   call system('git -C ' . shellescape(g:_pm_bkp_vim) . ' -c protocol.file.allow=always remote add second ' . shellescape(g:_pm_bkp_root . '/remote2'))
   call writefile(['pushme'], g:_pm_bkp_vim . '/pushme.txt')
   call system('git -C ' . shellescape(g:_pm_bkp_vim) . ' add pushme.txt')
