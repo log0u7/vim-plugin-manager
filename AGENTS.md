@@ -207,13 +207,22 @@ tags created before the merge strategy was known (a squash merge orphaned
 them), and a PR merged while the other session was still planning its own
 push.
 
-- **Single-writer rule**: one session owns the working tree at a time.
-  Parallel work requires separate worktrees (`git worktree add`) or
-  separate clones; integration happens only through PRs.
+- **Worktree by default**: any session whose work will produce commits
+  starts in its own worktree:
+  ```bash
+  git worktree add ~/projets/wt/vim-plugin-manager/<topic> -b <topic>
+  ```
+  (run from the main clone; branch naming per CONTRIBUTING: `fix/*`,
+  `feat/*`, `chore/*`). All work, commits and pushes happen there. The
+  main clone stays on `main` and is never mutated by sessions. One
+  worktree = one session.
+- **Worktree lifecycle**: push and PR integration happen from the
+  worktree; when the work is merged, clean up with
+  `git worktree remove ~/projets/wt/vim-plugin-manager/<topic>` and
+  delete the branch.
 - **Verify before acting**: before any commit, run
-  `git branch --show-current`, `git status` and `git reflog -5`. A branch
-  switch by another session between two of your commands is possible:
-  re-verify after every pause.
+  `git branch --show-current`, `git status` and `git reflog -5`. Re-verify
+  after every pause.
 - **Tags only after merge**: release tags are created on the exact `main`
   commit AFTER the merge lands, never before. A squash merge rewrites
   history: tags created on pre-merge commits become orphans.
