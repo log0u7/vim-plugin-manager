@@ -15,6 +15,33 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
   fork + PR for external contributors, `--no-ff` direct merges for
   maintainers, and an explicit test-first (TDD) guidance section.
 
+## [2.2.4] - 2026-09-17
+
+### Removed
+- **Dead code sweep** (all verified with zero call sites):
+  `git#update_submodule` and `git#check_updates` (the latter also contained
+  an invalid `git fetch origin --all` invocation, exit 128); the
+  unreachable `local_only=0` branch in `status.vim`; `async#on_complete`;
+  the dead `NOT_GIT_REPO` tips branch in `core#handle_error`; a duplicate
+  `current_commit` assignment in the single-plugin update flow; a
+  redundant `test_force_sync` check in `declare.vim` (already covered by
+  `async#supported()`); a duplicated non-force `git submodule update` in
+  `restore.vim`; and 26 error codes that no `core#throw` site ever used
+  (the `s:error_types` table now reflects the codes actually raised;
+  dynamically thrown `NOT_VIM_DIR` entries are all kept).
+
+### Changed
+- **Timed-out jobs are force-killed**: the timeout path stopped at
+  SIGTERM, which a stuck git process can ignore; the watchdog now
+  escalates to SIGKILL when the process is still running.
+
+### Deferred (documented, not done)
+- Merging the single/all update pipelines into one state machine, the
+  list-driven `health#execute` split, and batching the per-module git
+  status fan-out (`git status -sb` + `rev-list --left-right --count`):
+  behavior-neutral or perf refactors with real regression risk; the audit
+  notes stay as the design entry point.
+
 ## [2.2.3] - 2026-09-17
 
 ### Fixed

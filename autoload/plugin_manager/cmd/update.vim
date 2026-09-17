@@ -128,7 +128,6 @@ function! s:on_fetch_complete(ctx, result) abort
   endif
 
   " Step 2: Stash local changes only now that we know a pull is needed
-  let a:ctx.current_commit = l:update_status.current_commit
   let a:ctx.had_stash = s:stash_if_needed(l:module_path)
 
   " Step 3: Pull

@@ -67,7 +67,7 @@ function! s:process_declarations() abort
     " submodule. The synchronous loop below remains the fallback for
     " builds without +job/+channel and for deterministic tests
     " (g:plugin_manager_test_force_sync).
-    if plugin_manager#async#supported() && !get(g:, 'plugin_manager_test_force_sync', 0)
+    if plugin_manager#async#supported()
       call s:process_declarations_async()
       return
     endif
