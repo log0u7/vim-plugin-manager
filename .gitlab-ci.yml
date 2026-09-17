@@ -91,3 +91,4 @@ test_async_smoke:
         && echo "+job +channel OK" || { echo "+job and +channel required"; exit 1; }
   script:
     - make test-async
+    - make test-install-smoke

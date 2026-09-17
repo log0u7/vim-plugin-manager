@@ -140,3 +140,6 @@ jobs:
 
       - name: Run async smoke test (pty)
         run: make test-async
+
+      - name: Run parallel install smoke test (pty)
+        run: make test-install-smoke
