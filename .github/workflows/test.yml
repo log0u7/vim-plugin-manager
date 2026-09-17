@@ -143,3 +143,24 @@ jobs:
 
       - name: Run parallel install smoke test (pty)
         run: make test-install-smoke
+
+  # --------------------------------------------------------------------------
+  # ci-green: stable single check aggregating every suite. The matrix jobs
+  # above produce one check per distro (e.g. "test (almalinux:9)"), which
+  # cannot be pinned as a required status check; this job gives branch
+  # protection one fixed name ("ci-green") to require.
+  # --------------------------------------------------------------------------
+  ci-green:
+    needs: [test, test-async]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify all suites passed
+        run: |
+          if [ "${{ contains(needs.*.result, 'failure') }}" = "true" ] || \
+             [ "${{ contains(needs.*.result, 'cancelled') }}" = "true" ]; then
+            echo "One or more suites failed"
+            exit 1
+          fi
+          echo "All suites green"

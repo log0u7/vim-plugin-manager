@@ -1,0 +1,36 @@
+name: Feature request
+description: Suggest an idea or improvement for the plugin manager
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What are you trying to do, and what does not work today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: The behavior you would like, with an example of the vimrc or command interface if relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other plugins, workarounds, or interface designs you evaluated.
+    validations:
+      required: false
+  - type: dropdown
+    id: willingness
+    attributes:
+      label: Would you like to implement this yourself?
+      description: Pull requests are welcome - see CONTRIBUTING.md.
+      options:
+        - "Yes"
+        - "Yes, with maintainer guidance"
+        - "No"
+    validations:
+      required: true

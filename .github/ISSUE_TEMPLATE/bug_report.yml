@@ -1,0 +1,74 @@
+name: Bug report
+description: Report a problem with the plugin manager
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Exact commands or vimrc snippet reproducing the issue.
+      placeholder: |
+        1. Add `Plugin 'x/y'` to the PluginBegin block
+        2. Run `:PluginManager update`
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the exact sidebar output and any `PM_ERROR:...` line from `:PluginManagerViewLog`.
+    validations:
+      required: true
+  - type: input
+    id: vim-version
+    attributes:
+      label: Vim version
+      description: Output of `vim --version | head -1` (Neovim is not supported).
+      placeholder: "VIM - Vi IMproved 8.2.2637"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Distribution / OS
+      description: Linux only (Debian, Ubuntu, Arch, Gentoo, RHEL/AlmaLinux/Rocky).
+      placeholder: "AlmaLinux 9.5"
+    validations:
+      required: true
+  - type: input
+    id: git-version
+    attributes:
+      label: Git version
+      description: Output of `git --version` (floor is 2.39).
+      placeholder: "git version 2.43.0"
+    validations:
+      required: true
+  - type: input
+    id: manager-version
+    attributes:
+      label: Plugin manager version
+      description: Git tag or commit of the installed manager.
+      placeholder: "v2.2.0 (35e6df9)"
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Relevant vimrc extract, plugin list, screenshots.
+    validations:
+      required: false
