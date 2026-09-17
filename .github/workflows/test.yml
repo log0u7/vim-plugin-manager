@@ -46,7 +46,7 @@ jobs:
       - name: Install system packages
         run: ${{ matrix.install }}
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Verify Vim version and features
         run: |
@@ -57,7 +57,7 @@ jobs:
 
       - name: Restore cached Vader.vim
         id: cache-vader
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: vader.vim
           key: vader-429b669e6158be3a9fc110799607c232e6ed8e29
@@ -87,7 +87,7 @@ jobs:
           emerge-webrsync
           emerge --getbinpkg --quiet-build app-editors/vim dev-vcs/git dev-build/make
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Verify Vim version and features
         run: |
@@ -131,7 +131,7 @@ jobs:
       - name: Install system packages
         run: ${{ matrix.install }}
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Verify +job and +channel
         run: |
