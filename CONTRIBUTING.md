@@ -152,8 +152,9 @@ is the Git tag and the CHANGELOG entry.
 2. Link any relevant issues using GitHub keywords (e.g., "Fixes #123").
 3. Ensure all CI checks are green (`ci-green` aggregates the whole suite) -
    the ruleset on `main` blocks the merge until they are.
-4. A Copilot code review runs automatically; address or justify its findings,
-   then wait for a maintainer review.
+4. A Copilot code review runs automatically when enabled in the repository
+   settings; otherwise comment `@copilot review` on the PR to request it.
+   Address or justify its findings, then wait for a maintainer review.
 5. Be responsive to feedback and make necessary changes (push to the same
    branch, stale conversations get dismissed).
 6. All review threads must be resolved. The maintainer **squash-merges**:
