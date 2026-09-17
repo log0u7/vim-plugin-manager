@@ -1,0 +1,144 @@
+Before:
+  " Fixture: bare repo with two tagged commits, a vim config repo holding a
+  " submodule pinned to v1 (detached HEAD), and a vimrc declaring the pin.
+  " Force the synchronous update path via g:plugin_manager_test_force_sync.
+
+  let g:_pm_pin_saved = {
+        \ 'vim_dir':     get(g:, 'plugin_manager_vim_dir', ''),
+        \ 'cwd':         getcwd(),
+        \ 'plugins_dir': get(g:, 'plugin_manager_plugins_dir', ''),
+        \ 'vimrc':       get(g:, 'plugin_manager_vimrc_path', ''),
+        \ 'logging':     get(g:, 'plugin_manager_enable_logging', 0),
+        \ }
+
+  let g:_pm_pin_root    = tempname()
+  let g:_pm_pin_bare    = g:_pm_pin_root . '/bare'
+  let g:_pm_pin_vim     = g:_pm_pin_root . '/vim'
+  let g:_pm_pin_plug    = g:_pm_pin_vim  . '/pack/plugins/start/myplugin'
+  let g:_pm_pin_src     = g:_pm_pin_root . '/src'
+  let g:_pm_pin_vimrc   = g:_pm_pin_root . '/vimrc'
+
+  call mkdir(g:_pm_pin_root, 'p')
+
+  " 1. Bare repo (upstream remote)
+  call system('git init --bare ' . shellescape(g:_pm_pin_bare))
+
+  " 2. Source working tree: two commits, each tagged
+  call mkdir(g:_pm_pin_src, 'p')
+  call system('git init ' . shellescape(g:_pm_pin_src))
+  call system('git -C ' . shellescape(g:_pm_pin_src) . ' config user.email "test@test.com"')
+  call system('git -C ' . shellescape(g:_pm_pin_src) . ' config user.name "Test"')
+  call system('git -C ' . shellescape(g:_pm_pin_src) . ' remote add origin ' . shellescape(g:_pm_pin_bare))
+  call writefile(['v1'], g:_pm_pin_src . '/file.txt')
+  call system('git -C ' . shellescape(g:_pm_pin_src) . ' add .')
+  call system('git -C ' . shellescape(g:_pm_pin_src) . ' commit -m "v1"')
+  call system('git -C ' . shellescape(g:_pm_pin_src) . ' push -u origin HEAD:main')
+  call system('git -C ' . shellescape(g:_pm_pin_src) . ' tag v1')
+  call writefile(['v2'], g:_pm_pin_src . '/file.txt')
+  call system('git -C ' . shellescape(g:_pm_pin_src) . ' add .')
+  call system('git -C ' . shellescape(g:_pm_pin_src) . ' commit -m "v2"')
+  call system('git -C ' . shellescape(g:_pm_pin_src) . ' push origin HEAD:main')
+  call system('git -C ' . shellescape(g:_pm_pin_src) . ' tag v2')
+  call system('git -C ' . shellescape(g:_pm_pin_src) . ' push origin --tags')
+  let g:_pm_pin_c1 = substitute(system('git -C ' . shellescape(g:_pm_pin_bare) . ' rev-parse v1'), '\n', '', 'g')
+  let g:_pm_pin_c2 = substitute(system('git -C ' . shellescape(g:_pm_pin_bare) . ' rev-parse v2'), '\n', '', 'g')
+
+  " 3. Vim config dir as a git repo
+  call mkdir(g:_pm_pin_vim, 'p')
+  call system('git init ' . shellescape(g:_pm_pin_vim))
+  call system('git -C ' . shellescape(g:_pm_pin_vim) . ' config user.email "test@test.com"')
+  call system('git -C ' . shellescape(g:_pm_pin_vim) . ' config user.name "Test"')
+  call writefile(['# vimrc'], g:_pm_pin_vimrc)
+  call system('git -C ' . shellescape(g:_pm_pin_vim) . ' add .')
+  call system('git -C ' . shellescape(g:_pm_pin_vim) . ' commit -m "init vimrc"')
+
+  " 4. Submodule added at the tip then checked out at v1 (detached)
+  call mkdir(g:_pm_pin_vim . '/pack/plugins/start', 'p')
+  call system('git -C ' . shellescape(g:_pm_pin_vim) .
+        \ ' -c protocol.file.allow=always submodule add ' .
+        \ shellescape(g:_pm_pin_bare) . ' pack/plugins/start/myplugin')
+  call system('git -C ' . shellescape(g:_pm_pin_plug) . ' checkout v1')
+  call system('git -C ' . shellescape(g:_pm_pin_vim) . ' add .')
+  call system('git -C ' . shellescape(g:_pm_pin_vim) . ' commit -m "add submodule at v1"')
+
+  " 5. Point the manager at the fixture
+  let g:plugin_manager_vim_dir        = g:_pm_pin_vim
+  let g:plugin_manager_plugins_dir    = g:_pm_pin_vim . '/pack/plugins'
+  let g:plugin_manager_vimrc_path     = g:_pm_pin_vimrc
+  let g:plugin_manager_enable_logging = 0
+  let g:plugin_manager_test_force_sync = 1
+
+  execute 'cd ' . fnameescape(g:_pm_pin_vim)
+
+  let s:_pm_pin_sbuf = bufnr('PluginManager')
+  if s:_pm_pin_sbuf != -1
+    execute 'bwipeout! ' . s:_pm_pin_sbuf
+  endif
+
+  call plugin_manager#git#refresh_modules_cache()
+
+After:
+  execute 'cd ' . fnameescape(g:_pm_pin_saved.cwd)
+  if isdirectory(g:_pm_pin_root)
+    call delete(g:_pm_pin_root, 'rf')
+  endif
+  let g:plugin_manager_vim_dir        = g:_pm_pin_saved.vim_dir
+  let g:plugin_manager_plugins_dir    = g:_pm_pin_saved.plugins_dir
+  let g:plugin_manager_vimrc_path     = g:_pm_pin_saved.vimrc
+  let g:plugin_manager_enable_logging = g:_pm_pin_saved.logging
+  unlet g:plugin_manager_test_force_sync
+  unlet g:_pm_pin_saved g:_pm_pin_root g:_pm_pin_bare g:_pm_pin_vim g:_pm_pin_plug
+  unlet g:_pm_pin_src g:_pm_pin_vimrc g:_pm_pin_c1 g:_pm_pin_c2
+  let s:_pm_pin_sbuf2 = bufnr('PluginManager')
+  if s:_pm_pin_sbuf2 != -1
+    execute 'bwipeout! ' . s:_pm_pin_sbuf2
+  endif
+  call plugin_manager#git#refresh_modules_cache()
+
+Execute (tag pin declared in the vimrc is re-asserted by update):
+  " Submodule is detached at v1; the vimrc pins tag v2. Update must move
+  " HEAD to v2 without attempting a pull from the detached HEAD.
+  call writefile(["Plugin '" . g:_pm_pin_bare . "', {'dir': 'myplugin', 'tag': 'v2'}"],
+        \ g:_pm_pin_vimrc)
+  call plugin_manager#cmd#update#execute('all')
+  let g:_pm_pin_head = substitute(
+        \ system('git -C ' . shellescape(g:_pm_pin_plug) . ' rev-parse HEAD'),
+        \ '\n', '', 'g')
+  AssertEqual g:_pm_pin_c2, g:_pm_pin_head,
+        \ 'update must re-assert the declared tag pin (v2)'
+  unlet g:_pm_pin_head
+
+Execute (satisfied tag pin reports up-to-date without moving HEAD):
+  call writefile(["Plugin '" . g:_pm_pin_bare . "', {'dir': 'myplugin', 'tag': 'v2'}"],
+        \ g:_pm_pin_vimrc)
+  call plugin_manager#cmd#update#execute('all')
+  let g:_pm_pin_head = substitute(
+        \ system('git -C ' . shellescape(g:_pm_pin_plug) . ' rev-parse HEAD'),
+        \ '\n', '', 'g')
+  AssertEqual g:_pm_pin_c2, g:_pm_pin_head
+  let g:_pm_sbuf = bufnr('PluginManager')
+  let g:_pm_content = join(getbufline(g:_pm_sbuf, 1, '$'), "\n")
+  Assert g:_pm_content =~# '\cUp-to-date',
+        \ 'satisfied pin must report up-to-date, got: ' . g:_pm_content
+  unlet g:_pm_pin_head g:_pm_sbuf g:_pm_content
+
+Execute (commit pin is honored, including moving to an older commit):
+  call writefile(["Plugin '" . g:_pm_pin_bare . "', {'dir': 'myplugin', 'commit': '" . g:_pm_pin_c1 . "'}"],
+        \ g:_pm_pin_vimrc)
+  call plugin_manager#cmd#update#execute('all')
+  let g:_pm_pin_head = substitute(
+        \ system('git -C ' . shellescape(g:_pm_pin_plug) . ' rev-parse HEAD'),
+        \ '\n', '', 'g')
+  AssertEqual g:_pm_pin_c1, g:_pm_pin_head,
+        \ 'update must re-assert the declared commit pin'
+  unlet g:_pm_pin_head
+
+Execute (unresolvable pin target fails the operation without crashing):
+  call writefile(["Plugin '" . g:_pm_pin_bare . "', {'dir': 'myplugin', 'tag': 'v9-does-not-exist'}"],
+        \ g:_pm_pin_vimrc)
+  call plugin_manager#cmd#update#execute('all')
+  let g:_pm_sbuf = bufnr('PluginManager')
+  let g:_pm_content = join(getbufline(g:_pm_sbuf, 1, '$'), "\n")
+  Assert g:_pm_content =~# '\cnot found\|fail\|error',
+        \ 'unresolvable pin must fail visibly, got: ' . g:_pm_content
+  unlet g:_pm_sbuf g:_pm_content
