@@ -16,8 +16,16 @@ Before:
 
   call mkdir(g:_pm_rmt_root, 'p')
 
-  " Bare repo (valid remote target)
+  " Bare repo (valid remote target; needs at least one commit so that
+  " repository_exists 'git ls-remote --exit-code HEAD' succeeds)
   call system('git init --bare ' . shellescape(g:_pm_rmt_bare))
+  call system('git init ' . shellescape(g:_pm_rmt_root . '/seed'))
+  call system('git -C ' . shellescape(g:_pm_rmt_root . '/seed') . ' config user.email "t@t.com"')
+  call system('git -C ' . shellescape(g:_pm_rmt_root . '/seed') . ' config user.name "T"')
+  call writefile(['seed'], g:_pm_rmt_root . '/seed/seed.txt')
+  call system('git -C ' . shellescape(g:_pm_rmt_root . '/seed') . ' add .')
+  call system('git -C ' . shellescape(g:_pm_rmt_root . '/seed') . ' commit -m "seed"')
+  call system('git -C ' . shellescape(g:_pm_rmt_root . '/seed') . ' push ' . shellescape(g:_pm_rmt_bare) . ' HEAD:main')
 
   " Vim config repo
   call mkdir(g:_pm_rmt_vim, 'p')
@@ -84,3 +92,31 @@ Execute (remote add with non-existent repo shows error gracefully):
     unlet g:_pm_rmt_content
   endif
   unlet g:_pm_rmt_caught g:_pm_rmt_sbuf3
+
+Execute (remote name is never interpreted by the shell):
+  " Regression: the remote name was interpolated unescaped into
+  " 'git remote add <name> <url>'. A name containing shell operators
+  " executed arbitrary commands instead of failing with ADD_FAILED.
+  let g:_pm_rmt_marker = '/tmp/pm_rmt_pwned_marker'
+  if filereadable(g:_pm_rmt_marker)
+    call delete(g:_pm_rmt_marker)
+  endif
+
+  let g:_pm_rmt_caught2 = ''
+  try
+    call plugin_manager#git#add_remote(g:_pm_rmt_bare, 'pwned; touch ' . g:_pm_rmt_marker)
+  catch
+    let g:_pm_rmt_caught2 = v:exception
+  endtry
+
+  Assert !filereadable(g:_pm_rmt_marker),
+        \ 'remote name must never be executed by the shell'
+  Assert g:_pm_rmt_caught2 !=# '',
+        \ 'invalid remote name must raise ADD_FAILED, got: ' . g:_pm_rmt_caught2
+
+  " Best-effort cleanup of any remote the pre-fix path may have created
+  call system('git -C ' . shellescape(g:_pm_rmt_vim) . ' remote remove pwned 2>/dev/null')
+  if filereadable(g:_pm_rmt_marker)
+    call delete(g:_pm_rmt_marker)
+  endif
+  unlet g:_pm_rmt_caught2 g:_pm_rmt_marker
