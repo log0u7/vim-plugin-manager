@@ -116,3 +116,28 @@ Execute (backup with no remote shows warning in sidebar):
     unlet g:_pm_bkp_content
   endif
   unlet g:_pm_bkp_sbuf
+
+Execute (backup commits untracked files too):
+  " git commit -am only covered tracked modifications: new config files
+  " were silently never backed up despite the documented claim.
+  call writefile(['new config'], g:_pm_bkp_vim . '/my-untracked-conf.vim')
+  call plugin_manager#cmd#backup#execute()
+  let g:_pm_bkp_ls = system('git -C ' . shellescape(g:_pm_bkp_vim) . ' ls-files')
+  Assert g:_pm_bkp_ls =~# 'my-untracked-conf.vim',
+        \ 'untracked files must be committed by backup, got: ' . g:_pm_bkp_ls
+  unlet g:_pm_bkp_ls
+
+Execute (backup pushes to every configured remote):
+  call system('git init --bare ' . shellescape(g:_pm_bkp_root . '/remote2'))
+  call system('git -C ' . shellescape(g:_pm_bkp_root . '/remote2') . ' symbolic-ref HEAD refs/heads/main')
+  call system('git -C ' . shellescape(g:_pm_bkp_vim) . ' -c protocol.file.allow=always remote add second ' . shellescape(g:_pm_bkp_root . '/remote2'))
+  call writefile(['pushme'], g:_pm_bkp_vim . '/pushme.txt')
+  call system('git -C ' . shellescape(g:_pm_bkp_vim) . ' add pushme.txt')
+  call system('git -C ' . shellescape(g:_pm_bkp_vim) . ' commit -m "pushme"')
+  call plugin_manager#cmd#backup#execute()
+  let g:_pm_bkp_r1 = system('git -C ' . shellescape(g:_pm_bkp_root . '/remote') . ' rev-parse HEAD')
+  let g:_pm_bkp_r2 = system('git -C ' . shellescape(g:_pm_bkp_root . '/remote2') . ' rev-parse HEAD')
+  Assert g:_pm_bkp_r1 =~# '\x\{40}', 'origin must receive the backup'
+  Assert g:_pm_bkp_r2 =~# '\x\{40}',
+        \ 'every configured remote must receive the backup (doc: configured remotes)'
+  unlet g:_pm_bkp_r1 g:_pm_bkp_r2

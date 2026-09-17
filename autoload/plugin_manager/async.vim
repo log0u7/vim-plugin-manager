@@ -68,8 +68,6 @@ function! plugin_manager#async#start_job(cmd, opts) abort
   " Initialize job state.
   " Promote opts.callback to the top-level 'callback' key so that
   " s:process_job_completion can find it without having to dig into opts.
-  " Callers that pass the callback via opts (start_job) and callers that
-  " register it later via on_complete() both land in the same place.
   let s:jobs[l:job_id] = {
     \ 'id': l:job_id,
     \ 'cmd': a:cmd,
@@ -158,12 +156,17 @@ function! s:on_job_timeout(job_id, timer) abort
   if !has_key(s:jobs, a:job_id) || s:jobs[a:job_id].finished
     return
   endif
-  " Best-effort stop; completion bookkeeping happens in stop_job/exit cb
+  " Best-effort stop; completion bookkeeping happens in stop_job/exit cb.
+  " A process that ignored SIGTERM for the whole timeout gets SIGKILL.
   try
     call plugin_manager#async#stop_job(a:job_id)
   catch
     " Ignore stop failures
   endtry
+  let l:handle = get(get(s:jobs, a:job_id, {}), 'job', v:null)
+  if l:handle isnot v:null && job_status(l:handle) ==# 'run'
+    silent! call job_stop(l:handle, 'kill')
+  endif
 endfunction
 
 " Stop a running job

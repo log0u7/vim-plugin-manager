@@ -31,7 +31,8 @@ function! plugin_manager#cmd#health#execute() abort
     "    in the CI matrix (Debian Bookworm ships 2.39.2).
     " ------------------------------------------------------------------
     if executable('git')
-      let l:git_ver_out = system('git --version 2>/dev/null')
+      " Route through git#execute like every other git invocation
+      let l:git_ver_out = plugin_manager#git#execute('git --version', '', 0, 0).output
       " Output is 'git version X.Y.Z'
       let l:git_ver_parts = matchlist(l:git_ver_out,
             \ 'git version \(\d\+\)\.\(\d\+\)')

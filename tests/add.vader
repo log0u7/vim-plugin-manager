@@ -106,3 +106,15 @@ Execute (add#exists returns true for already-installed plugin):
   Assert plugin_manager#cmd#add#exists(g:_pm_add_name, {}),
         \ 'add#exists should return true for installed plugin'
   unlet g:_pm_add_name
+
+Execute (local install with on triggers registers lazy loading):
+  " :PluginAdd <path> {'on': [...]} installs to opt/ and must register the
+  " placeholder commands, or the plugin is silently unreachable.
+  let g:_pm_add_opts = plugin_manager#core#util#process_plugin_options([{'dir': 'lazy-local', 'on': ['PmLazyLocalCmd']}])
+  let g:_pm_add_result = plugin_manager#cmd#add#execute(g:_pm_add_src, g:_pm_add_opts)
+  AssertEqual 1, g:_pm_add_result, 'install must succeed'
+  Assert isdirectory(g:_pm_add_vim . '/pack/plugins/opt/lazy-local'),
+        \ 'on/for plugins install under opt/'
+  AssertEqual 2, exists(':PmLazyLocalCmd'),
+        \ 'lazy placeholder command must be registered for local installs'
+  unlet g:_pm_add_result g:_pm_add_opts

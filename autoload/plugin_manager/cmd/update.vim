@@ -111,8 +111,14 @@ function! s:on_fetch_complete(ctx, result) abort
     return
   endif
 
-  if l:update_status.different_branch && l:update_status.branch !=# 'detached'
-    call plugin_manager#ui#complete_operation(l:op_id, 'skip', 'On custom branch')
+  " A custom branch or a detached HEAD without a declaration is never
+  " pulled: the pull would fail noisily on the detached HEAD or destroy a
+  " manually checked out revision. Declare a tag/commit to pin it instead.
+  if l:update_status.different_branch || l:update_status.branch ==# 'detached'
+    call plugin_manager#ui#complete_operation(l:op_id, 'skip',
+          \ l:update_status.branch ==# 'detached'
+          \       ? 'Detached HEAD: skipped (declare a tag/commit to pin it)'
+          \       : 'On custom branch')
     return
   endif
 
@@ -122,7 +128,6 @@ function! s:on_fetch_complete(ctx, result) abort
   endif
 
   " Step 2: Stash local changes only now that we know a pull is needed
-  let a:ctx.current_commit = l:update_status.current_commit
   let a:ctx.had_stash = s:stash_if_needed(l:module_path)
 
   " Step 3: Pull
@@ -217,8 +222,12 @@ function! s:pin_for(pins, module) abort
   if empty(a:pins) || empty(a:module)
     return {}
   endif
-  return get(a:pins, 'name:' . get(a:module, 'short_name', ''),
-        \ get(a:pins, 'url:' . get(a:module, 'url', ''), {}))
+  " URL first: exact per-module match, immune to short-name collisions
+  " across forges (orgA/vim-foo and orgB/vim-foo both extract to
+  " 'vim-foo'). The name key stays as fallback for URL drift (declared
+  " https, installed through ssh).
+  return get(a:pins, 'url:' . get(a:module, 'url', ''),
+        \ get(a:pins, 'name:' . get(a:module, 'short_name', ''), {}))
 endfunction
 
 " Resolve the pin target and checkout it when HEAD differs. Replaces the
@@ -370,13 +379,22 @@ function! s:analyze_and_update(ctx, module) abort
   " A declared tag/commit pin replaces the pull flow entirely
   let l:pin = s:pin_for(get(a:ctx, 'pins', {}), a:module)
   if !empty(l:pin) && (has_key(l:pin, 'tag') || has_key(l:pin, 'commit'))
+    " Record the pre-checkout commit: s:on_pin_checkout compares against it
+    " in the all-plugins path (the single-plugin path uses current_commit).
+    " Without it a pin move reports Up-to-date and skips the pointer commit.
+    if has_key(a:ctx, 'pre_commits')
+      let a:ctx.pre_commits[a:module.short_name] = l:update_status.current_commit
+    endif
     call s:sync_pinned(a:ctx, a:module, l:pin,
           \ l:update_status.current_commit, l:op_id)
     return
   endif
 
-  if l:update_status.different_branch && l:update_status.branch !=# 'detached'
-    call plugin_manager#ui#complete_operation(l:op_id, 'skip', 'On custom branch')
+  if l:update_status.different_branch || l:update_status.branch ==# 'detached'
+    call plugin_manager#ui#complete_operation(l:op_id, 'skip',
+          \ l:update_status.branch ==# 'detached'
+          \       ? 'Detached HEAD: skipped (declare a tag/commit to pin it)'
+          \       : 'On custom branch')
     let a:ctx.pending -= 1
     call s:maybe_finalize(a:ctx)
     return
@@ -445,13 +463,16 @@ function! s:finalize_update_all(ctx) abort
   if !empty(a:ctx.updated_modules)
     if plugin_manager#core#util#should_auto_commit()
       let l:vd = plugin_manager#core#util#get_config('vim_dir', '')
-      call plugin_manager#git#execute('git add .gitmodules', l:vd, 0, 0)
+      call s:log_silent_failure('git add .gitmodules',
+            \ plugin_manager#git#execute('git add .gitmodules', l:vd, 0, 0))
       for l:module in a:ctx.updated_modules
-        call plugin_manager#git#execute(
-              \ 'git add ' . shellescape(l:module.path), l:vd, 0, 0)
+        call s:log_silent_failure('git add ' . l:module.path,
+              \ plugin_manager#git#execute(
+              \   'git add ' . shellescape(l:module.path), l:vd, 0, 0))
       endfor
-      call plugin_manager#git#execute(
-            \ 'git commit -m "Update Modules"', l:vd, 0, 0)
+      call s:log_silent_failure('commit',
+            \ plugin_manager#git#execute(
+            \   'git commit -m "Update Modules"', l:vd, 0, 0))
     endif
     for l:module in a:ctx.updated_modules
       call plugin_manager#cmd#helptags#execute(0, l:module.short_name, 1)
@@ -471,14 +492,25 @@ endfunction
 " HELPERS
 " ------------------------------------------------------------------------------
 
+" Log silent git failures (git#execute with throw_on_error=0): a failed
+" pointer add/commit must leave a trace in the log, not vanish.
+function! s:log_silent_failure(step, res) abort
+  if !a:res.success
+    call plugin_manager#ui#log_detail('update',
+          \ 'auto-commit ' . a:step . ' failed: ' . a:res.output)
+  endif
+endfunction
+
 " Stash local changes if any exist. Returns 1 if a stash was created, 0 otherwise.
 " Only creates a stash when there are actual tracked or untracked changes to save.
+" -u includes untracked files: an untracked file that the incoming pull
+" wants to write would otherwise abort the pull after the "protected" stash.
 function! s:stash_if_needed(module_path) abort
   let l:status = plugin_manager#git#execute('git status -s', a:module_path, 0, 0)
   if !l:status.success || empty(trim(l:status.output))
     return 0
   endif
-  call plugin_manager#git#execute('git stash -q', a:module_path, 0, 0)
+  call plugin_manager#git#execute('git stash push -u -q', a:module_path, 0, 0)
   return 1
 endfunction
 
@@ -503,9 +535,13 @@ function! s:commit_update_async(module_name, module_path) abort
   " Three separate calls (mirrors s:finalize_update_all): a compound command
   " would only scope the first git -C, and the module name must stay escaped
   " so it can never break out of the commit message quoting.
-  call plugin_manager#git#execute('git add .gitmodules', l:vim_dir, 0, 0)
-  call plugin_manager#git#execute('git add ' . shellescape(a:module_path), l:vim_dir, 0, 0)
-  call plugin_manager#git#execute(
-        \ 'git commit -m ' . shellescape('Update Module: ' . a:module_name),
-        \ l:vim_dir, 0, 0)
+  call s:log_silent_failure('git add .gitmodules',
+        \ plugin_manager#git#execute('git add .gitmodules', l:vim_dir, 0, 0))
+  call s:log_silent_failure('git add ' . a:module_path,
+        \ plugin_manager#git#execute(
+        \   'git add ' . shellescape(a:module_path), l:vim_dir, 0, 0))
+  call s:log_silent_failure('commit',
+        \ plugin_manager#git#execute(
+        \   'git commit -m ' . shellescape('Update Module: ' . a:module_name),
+        \   l:vim_dir, 0, 0))
 endfunction

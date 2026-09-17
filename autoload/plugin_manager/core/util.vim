@@ -77,8 +77,8 @@ function! plugin_manager#core#util#make_relative_path(path) abort
   let l:vim_dir = plugin_manager#core#util#get_config('vim_dir', '')
   let l:norm_path = plugin_manager#core#util#normalize_path(a:path)
   let l:norm_vim_dir = plugin_manager#core#util#normalize_path(l:vim_dir)
-  if l:norm_path =~# '^' . escape(l:norm_vim_dir, '/.\') . '\/'
-    return substitute(l:norm_path, '^' . escape(l:norm_vim_dir, '/.\') . '\/', '', '')
+  if l:norm_path =~# '^' . escape(l:norm_vim_dir, '/.\*[]^$~') . '\/'
+    return substitute(l:norm_path, '^' . escape(l:norm_vim_dir, '/.\*[]^$~') . '\/', '', '')
   endif
   return l:norm_path
 endfunction

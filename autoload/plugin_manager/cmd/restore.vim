@@ -21,13 +21,11 @@ function! plugin_manager#cmd#restore#execute() abort
     call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Initialized')
 
     let l:op_id = plugin_manager#ui#start_operation('plugins', 'Restoring')
-    call plugin_manager#git#execute('git submodule update --init --recursive', l:vim_dir, 0, 1)
-    call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Restored')
-
-    let l:op_id = plugin_manager#ui#start_operation('sync', 'Syncing')
     call plugin_manager#git#execute('git submodule sync', l:vim_dir, 0, 1)
+    " One --force update covers init + restore of every submodule; the
+    " separate non-force update this replaces only duplicated the work.
     call plugin_manager#git#execute('git submodule update --init --recursive --force', l:vim_dir, 0, 1)
-    call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Synced')
+    call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Restored')
 
     call plugin_manager#ui#footer([plugin_manager#ui#info('Generating helptags')])
     call plugin_manager#cmd#helptags#execute(0)

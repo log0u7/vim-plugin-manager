@@ -7,23 +7,23 @@
 
 let s:error_types = {
     \ 'add': ['INVALID_URL', 'REPO_NOT_FOUND', 'TARGET_EXISTS', 'COPY_FAILED', 'MISSING_ARGS', 'INVALID_ARGS', 'INSTALLATION_FAILED', 'LOCAL_PATH_NOT_FOUND'],
-    \ 'remove': ['MODULE_NOT_FOUND', 'DELETE_FAILED', 'CONFIRMATION_REQUIRED', 'MISSING_ARGS', 'NOT_VIM_DIR', 'AMBIGUOUS_MATCH'],
-    \ 'update': ['MODULE_NOT_FOUND', 'FETCH_FAILED', 'UPDATE_FAILED', 'NO_PLUGINS', 'NOT_VIM_DIR', 'NOT_GIT_REPO', 'PATH_NOT_FOUND', 'AMBIGUOUS_MATCH'],
-    \ 'backup': ['GIT_ERROR', 'NO_REMOTES', 'NOT_VIM_DIR', 'VIMRC_NOT_FOUND', 'COMMIT_FAILED'],
-    \ 'restore': ['GITMODULES_NOT_FOUND', 'INIT_FAILED', 'NOT_VIM_DIR', 'UPDATE_FAILED'],
-    \ 'git': ['COMMAND_FAILED', 'REPO_NOT_FOUND', 'MERGE_CONFLICT', 'NOT_VIM_DIR', 'SUBMODULE_EXISTS', 'PATH_NOT_FOUND', 'MODULE_NOT_FOUND', 'AMBIGUOUS_MATCH', 'NOT_GIT_COMMAND', 'CHECKOUT_FAILED'],
-    \ 'core': ['NOT_VIM_DIR', 'NOT_GIT_REPO', 'PATH_NOT_FOUND', 'PERMISSION_DENIED', 'CONFIG_ERROR', 'INVALID_PATH'],
-    \ 'async': ['JOB_FAILED', 'TIMEOUT', 'NOT_SUPPORTED', 'INVALID_JOB_ID'],
-    \ 'ui': ['RENDER_FAILED', 'BUFFER_ERROR', 'WINDOW_ERROR'],
+    \ 'remove': ['MODULE_NOT_FOUND', 'MISSING_ARGS', 'INVALID_ARGS', 'NOT_VIM_DIR', 'AMBIGUOUS_MATCH'],
+    \ 'update': ['MODULE_NOT_FOUND', 'UPDATE_FAILED', 'NO_PLUGINS', 'NOT_VIM_DIR', 'PATH_NOT_FOUND', 'AMBIGUOUS_MATCH'],
+    \ 'backup': ['NO_REMOTES', 'NOT_VIM_DIR'],
+    \ 'restore': ['GITMODULES_NOT_FOUND', 'NOT_VIM_DIR', 'UPDATE_FAILED'],
+    \ 'git': ['COMMAND_FAILED', 'REPO_NOT_FOUND', 'NOT_VIM_DIR', 'SUBMODULE_EXISTS', 'PATH_NOT_FOUND', 'MODULE_NOT_FOUND', 'AMBIGUOUS_MATCH', 'NOT_GIT_COMMAND', 'CHECKOUT_FAILED'],
+    \ 'core': ['NOT_VIM_DIR', 'PATH_NOT_FOUND'],
+    \ 'async': ['INVALID_JOB_ID'],
+    \ 'ui': [],
     \ 'cmd': ['MISSING_ARGS', 'INVALID_COMMAND', 'EXECUTION_FAILED'],
-    \ 'list': ['NO_PLUGINS', 'DISPLAY_ERROR', 'NOT_VIM_DIR'],
-    \ 'helptags': ['DIRECTORY_NOT_FOUND', 'GENERATION_FAILED', 'NOT_VIM_DIR'],
-    \ 'reload': ['MODULE_NOT_FOUND', 'NOT_VIM_DIR', 'SCRIPT_ERROR', 'AMBIGUOUS_MATCH'],
-    \ 'status': ['NOT_VIM_DIR', 'NO_PLUGINS', 'MODULE_ERROR'],
+    \ 'list': ['NO_PLUGINS', 'NOT_VIM_DIR'],
+    \ 'helptags': ['NOT_VIM_DIR'],
+    \ 'reload': ['MODULE_NOT_FOUND', 'NOT_VIM_DIR', 'AMBIGUOUS_MATCH'],
+    \ 'status': ['NOT_VIM_DIR', 'NO_PLUGINS'],
     \ 'remote': ['INVALID_URL', 'REPO_NOT_FOUND', 'NOT_VIM_DIR', 'ADD_FAILED'],
-    \ 'declare': ['NOT_VIM_DIR', 'INVALID_DECLARATION', 'BLOCK_ERROR'],
-    \ 'check': ['NOT_VIM_DIR', 'NO_PLUGINS', 'FETCH_FAILED'],
-    \ 'gc': ['NO_DECLARATIONS', 'REMOVAL_FAILED', 'NOT_VIM_DIR']
+    \ 'declare': ['NOT_VIM_DIR', 'BLOCK_ERROR'],
+    \ 'check': ['NOT_VIM_DIR', 'NO_PLUGINS'],
+    \ 'gc': ['NO_DECLARATIONS', 'NOT_VIM_DIR']
     \ }
 
 " Create a standardized error with component and specific error code
@@ -102,10 +102,6 @@ function! plugin_manager#core#handle_error(error, component) abort
     elseif l:parsed.component ==# 'add' && l:parsed.code ==# 'REPO_NOT_FOUND'
       call add(l:tips, 'Check the repository URL for typos')
       call add(l:tips, 'Verify the repository exists and is publicly accessible')
-    elseif l:parsed.component ==# 'core' && l:parsed.code ==# 'NOT_GIT_REPO'
-      call add(l:tips, 'Initialize your Vim config as a Git repository first:')
-      call add(l:tips, '  cd ' . plugin_manager#core#util#get_config('vim_dir', '~/.vim'))
-      call add(l:tips, '  git init')
     endif
   else
     let l:title = 'Error in ' . a:component

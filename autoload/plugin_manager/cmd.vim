@@ -86,7 +86,7 @@ function! plugin_manager#cmd#complete(arglead, cmdline, cursorpos) abort
   if l:nwords <= 2
     let l:cmds = ['add', 'backup', 'check', 'gc', 'health', 'helptags', 'list',
           \        'reload', 'remove', 'restore', 'status', 'summary', 'update']
-    return filter(copy(l:cmds), {_, v -> v =~# '^' . a:arglead})
+    return filter(copy(l:cmds), {_, v -> stridx(v, a:arglead) == 0})
   endif
 
   " Completing a plugin name (position 2) for commands that accept one
@@ -98,7 +98,8 @@ function! plugin_manager#cmd#complete(arglead, cmdline, cursorpos) abort
     catch
       return []
     endtry
-    return filter(sort(l:names), {_, v -> v =~# '^' . a:arglead})
+    " Literal prefix match: the typed text is never a regex
+    return filter(sort(l:names), {_, v -> stridx(v, a:arglead) == 0})
   endif
 
   return []
@@ -128,7 +129,9 @@ function! plugin_manager#cmd#dispatch(...) abort
       call call('s:cmd_add', l:args)
     elseif l:command ==# 'add'
       call plugin_manager#core#throw('cmd', 'MISSING_ARGS', 'Missing plugin argument')
-    elseif l:command ==# 'remove' && a:0 >= 2
+    elseif l:command ==# 'remove'
+      " Route even with no args: the adapter raises MISSING_ARGS, which is
+      " far clearer than an INVALID_COMMAND fall-through.
       call call('s:cmd_remove', l:args)
     elseif l:command ==# 'list'
       call plugin_manager#api#list()

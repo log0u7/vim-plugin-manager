@@ -213,3 +213,25 @@ Execute (integration: sidebar opens at the configured width):
   let g:ui_w = winwidth(bufwinnr(bufnr('PluginManager')))
   AssertEqual 40, g:ui_w, 'sidebar window must honor sidebar_width (got ' . g:ui_w . ')'
   unlet g:plugin_manager_sidebar_width
+
+Execute (open_sidebar does not hijack a file buffer named PluginManager):
+  " 'vnew PluginManager' loads an existing FILE named PluginManager (cwd)
+  " into the sidebar, hijacking the user's buffer; a scratch must be used.
+  let g:_pm_ui_cwd = getcwd()
+  let g:_pm_ui_root = tempname()
+  call mkdir(g:_pm_ui_root, 'p')
+  call writefile(['USER FILE CONTENT'], g:_pm_ui_root . '/PluginManager')
+  execute 'cd ' . fnameescape(g:_pm_ui_root)
+  execute 'edit! ' . fnameescape(g:_pm_ui_root . '/PluginManager')
+  let g:_pm_ui_filebuf = bufnr('%')
+  call plugin_manager#ui#open_sidebar(['Header'])
+  let g:_pm_ui_sb = bufnr('^PluginManager$')
+  Assert g:_pm_ui_sb != -1, 'sidebar buffer must exist'
+  Assert g:_pm_ui_sb != g:_pm_ui_filebuf,
+        \ 'the user file buffer must not become the sidebar'
+  AssertEqual '', getbufvar(g:_pm_ui_filebuf, '&buftype'),
+        \ 'the user file buffer must keep its normal type'
+  execute 'cd ' . fnameescape(g:_pm_ui_cwd)
+  call delete(g:_pm_ui_root, 'rf')
+  execute 'bwipeout! ' . g:_pm_ui_filebuf
+  unlet g:_pm_ui_cwd g:_pm_ui_root g:_pm_ui_filebuf g:_pm_ui_sb

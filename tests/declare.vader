@@ -1,56 +1,115 @@
 Before:
-  let g:_pm_dec_saved = {
-        \ 'vim_dir': get(g:, 'plugin_manager_vim_dir', ''),
-        \ 'cwd': getcwd(),
-        \ 'logging': get(g:, 'plugin_manager_enable_logging', 0),
+  " Fixture: a local plugin dir (lazy), a bare repo (file:// upstream) and a
+  " vim config repo. Synchronous declare path (g:plugin_manager_test_force_sync).
+
+  let g:_pm_decl_saved = {
+        \ 'vim_dir':     get(g:, 'plugin_manager_vim_dir', ''),
+        \ 'cwd':         getcwd(),
         \ 'plugins_dir': get(g:, 'plugin_manager_plugins_dir', ''),
+        \ 'vimrc':       get(g:, 'plugin_manager_vimrc_path', ''),
+        \ 'logging':     get(g:, 'plugin_manager_enable_logging', 0),
         \ }
-  let g:_pm_dec_tmp = tempname()
-  call mkdir(g:_pm_dec_tmp, 'p')
-  call mkdir(g:_pm_dec_tmp . '/.git', 'p')
-  call mkdir(g:_pm_dec_tmp . '/pack/plugins/start/vim-fugitive', 'p')
-  call writefile([
-        \ '[submodule "vim-fugitive"]',
-        \ '  path = pack/plugins/start/vim-fugitive',
-        \ '  url = https://github.com/tpope/vim-fugitive.git',
-        \ ], g:_pm_dec_tmp . '/.gitmodules')
-  let g:plugin_manager_vim_dir = g:_pm_dec_tmp
-  let g:plugin_manager_plugins_dir = g:_pm_dec_tmp . '/pack/plugins'
-  let g:plugin_manager_enable_logging = 1
-  execute 'cd ' . fnameescape(g:_pm_dec_tmp)
+
+  call plugin_manager#lazy#_reset()
+
+  let g:_pm_decl_root  = tempname()
+  let g:_pm_decl_local = g:_pm_decl_root . '/localsrc'
+  let g:_pm_decl_src   = g:_pm_decl_root . '/src'
+  let g:_pm_decl_bare  = g:_pm_decl_root . '/bare'
+  let g:_pm_decl_vim   = g:_pm_decl_root . '/vim'
+  let g:_pm_decl_opt   = g:_pm_decl_vim . '/pack/plugins/opt/mylocal'
+
+  call mkdir(g:_pm_decl_root, 'p')
+
+  " 1. Local plugin source (plain dir, no git)
+  call mkdir(g:_pm_decl_local . '/plugin', 'p')
+  call writefile(["command! FooCmd echo 'foo'"], g:_pm_decl_local . '/plugin/foo.vim')
+
+  " 2. Bare repo with one commit (file:// upstream)
+  call mkdir(g:_pm_decl_src, 'p')
+  call system('git init -q --bare ' . shellescape(g:_pm_decl_bare))
+  call system('git -C ' . shellescape(g:_pm_decl_bare) . ' symbolic-ref HEAD refs/heads/main')
+  call system('git init -q ' . shellescape(g:_pm_decl_src))
+  call system('git -C ' . shellescape(g:_pm_decl_src) . ' config user.email "test@test.com"')
+  call system('git -C ' . shellescape(g:_pm_decl_src) . ' config user.name "Test"')
+  call system('git -C ' . shellescape(g:_pm_decl_src) . ' commit -q --allow-empty -m "init"')
+  call system('git -C ' . shellescape(g:_pm_decl_src) . ' push -q ' . shellescape(g:_pm_decl_bare) . ' HEAD:main')
+
+  " 3. Vim config repo
+  call mkdir(g:_pm_decl_vim, 'p')
+  call system('git init -q ' . shellescape(g:_pm_decl_vim))
+  call system('git -C ' . shellescape(g:_pm_decl_vim) . ' config user.email "test@test.com"')
+  call system('git -C ' . shellescape(g:_pm_decl_vim) . ' config user.name "Test"')
+  call system('git -C ' . shellescape(g:_pm_decl_vim) . ' commit -q --allow-empty -m "init vim repo"')
+
+  " 4. Point the manager at the fixture
+  let g:plugin_manager_vim_dir         = g:_pm_decl_vim
+  let g:plugin_manager_plugins_dir     = g:_pm_decl_vim . '/pack/plugins'
+  let g:plugin_manager_enable_logging  = 0
+  let g:plugin_manager_test_force_sync = 1
+
+  execute 'cd ' . fnameescape(g:_pm_decl_vim)
+  call plugin_manager#git#refresh_modules_cache()
 
 After:
-  execute 'cd ' . fnameescape(g:_pm_dec_saved.cwd)
-  if isdirectory(g:_pm_dec_tmp)
-    call delete(g:_pm_dec_tmp, 'rf')
+  execute 'cd ' . fnameescape(g:_pm_decl_saved.cwd)
+  if isdirectory(g:_pm_decl_root)
+    call delete(g:_pm_decl_root, 'rf')
   endif
-  let g:plugin_manager_vim_dir = g:_pm_dec_saved.vim_dir
-  let g:plugin_manager_plugins_dir = g:_pm_dec_saved.plugins_dir
-  let g:plugin_manager_enable_logging = g:_pm_dec_saved.logging
-  unlet g:_pm_dec_tmp g:_pm_dec_saved
+  let g:plugin_manager_vim_dir        = g:_pm_decl_saved.vim_dir
+  let g:plugin_manager_plugins_dir    = g:_pm_decl_saved.plugins_dir
+  let g:plugin_manager_vimrc_path     = g:_pm_decl_saved.vimrc
+  let g:plugin_manager_enable_logging = g:_pm_decl_saved.logging
+  if exists('g:plugin_manager_test_force_sync')
+    unlet g:plugin_manager_test_force_sync
+  endif
+  call plugin_manager#lazy#_reset()
+  unlet g:_pm_decl_saved g:_pm_decl_root g:_pm_decl_local g:_pm_decl_src
+  unlet g:_pm_decl_bare g:_pm_decl_vim g:_pm_decl_opt
+  let s:_pm_decl_sbuf = bufnr('PluginManager')
+  if s:_pm_decl_sbuf != -1
+    execute 'bwipeout! ' . s:_pm_decl_sbuf
+  endif
+  call plugin_manager#git#refresh_modules_cache()
 
-Execute (declare#plugin with url only does not raise E119):
+Execute (file:// declaration installs and registers the submodule):
+  " The clone succeeds and the registration must succeed too: the file
+  " transport lift applies to the whole install, not only the clone.
   call plugin_manager#cmd#declare#begin()
-  call plugin_manager#api#plugin('tpope/vim-fugitive')
-  Assert 1
-
-Execute (declare#plugin with url and options stores both):
-  call plugin_manager#cmd#declare#begin()
-  call plugin_manager#api#plugin('preservim/nerdtree', {'load': 'opt'})
-  Assert 1
-
-Execute (declarative skip does not log SUBMODULE_EXISTS for installed plugin):
-  call plugin_manager#cmd#declare#begin()
-  call plugin_manager#api#plugin('tpope/vim-fugitive')
+  call plugin_manager#cmd#declare#plugin('file://' . g:_pm_decl_bare, {'dir': 'fromfile'})
   call plugin_manager#cmd#declare#end()
-  let log_file = g:_pm_dec_tmp . '/logs/plugin_manager.log'
-  if filereadable(log_file)
-    let log_content = readfile(log_file)
-    for line in log_content
-      Assert line !~# 'SUBMODULE_EXISTS',
-            \ 'log should not contain SUBMODULE_EXISTS: ' . line
-    endfor
-  endif
-  " Sidebar is not opened when all plugins are skipped
-  AssertEqual -1, bufnr('PluginManager'),
-        \ 'sidebar should not exist when no work happened'
+  Assert isdirectory(g:_pm_decl_vim . '/pack/plugins/start/fromfile'),
+        \ 'file:// declaration must install the plugin dir'
+  Assert filereadable(g:_pm_decl_vim . '/.gitmodules'),
+        \ 'file:// install must register the submodule in .gitmodules'
+  let g:_pm_gm = join(readfile(g:_pm_decl_vim . '/.gitmodules'), "\n")
+  Assert g:_pm_gm =~# 'fromfile',
+        \ '.gitmodules must contain the registered submodule, got: ' . g:_pm_gm
+  unlet g:_pm_gm
+
+Execute (re-declaring an installed lazy local plugin is skipped without error):
+  " Local plugins are declared by path (is_local_path: ~/, / or existing dir)
+  call plugin_manager#cmd#declare#begin()
+  call plugin_manager#cmd#declare#plugin(g:_pm_decl_local, {'dir': 'mylocal', 'on': ['FooCmd']})
+  call plugin_manager#cmd#declare#end()
+  Assert isdirectory(g:_pm_decl_opt),
+        \ 'first declare must install the lazy local plugin under opt/'
+
+  call plugin_manager#cmd#declare#begin()
+  call plugin_manager#cmd#declare#plugin(g:_pm_decl_local, {'dir': 'mylocal', 'on': ['FooCmd']})
+  call plugin_manager#cmd#declare#end()
+  let g:_pm_sbuf = bufnr('PluginManager')
+  let g:_pm_content = join(getbufline(g:_pm_sbuf, 1, '$'), "\n")
+  Assert g:_pm_content !~# '\cinstallation failed\|already exists',
+        \ 're-declare of an installed lazy plugin must be skipped, got: ' . g:_pm_content
+  Assert isdirectory(g:_pm_decl_opt), 'plugin must remain installed after re-declare'
+  unlet g:_pm_sbuf g:_pm_content
+
+Execute (PluginBegin preserves in-flight installs across a reload):
+  " A re-source of the vimrc runs PluginBegin while clones may still be
+  " in flight; wiping the pending map would double-clone them.
+  call plugin_manager#cmd#declare#_pending_test_set(['inflightplugin'])
+  call plugin_manager#cmd#declare#begin()
+  AssertEqual ['inflightplugin'], sort(plugin_manager#cmd#declare#_pending_names()),
+        \ 'PluginBegin must keep in-flight installs pending'
+  call plugin_manager#cmd#declare#_pending_test_set([])

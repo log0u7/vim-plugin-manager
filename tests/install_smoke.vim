@@ -72,6 +72,7 @@ function! s:setup() abort
     call system('git -C ' . shellescape(l:src . '_w') . ' commit -m v1')
     call system('git -C ' . shellescape(l:src . '_w') . ' tag v1')
     call system('git -C ' . shellescape(l:src . '_w') . ' push ' . shellescape(l:src) . ' HEAD:main')
+    call system('git -C ' . shellescape(l:src . '_w') . ' push ' . shellescape(l:src) . ' --tags')
     call system('git -C ' . shellescape(l:src) . ' symbolic-ref HEAD refs/heads/main')
   endfor
 
@@ -127,10 +128,13 @@ function! s:finish(timer) abort
       call s:fail('.gitmodules was never written')
     endif
 
-    " The tag pin declared for smokeplug2 was applied at install time
+    " The tag pin declared for smokeplug2 was applied at install time:
+    " HEAD must carry the tag (not merely the same commit as the branch tip)
     let l:wanted = substitute(system('git -C ' . shellescape(g:_smoke_src2 . '_w') . ' rev-parse v1'), '\n$', '', '')
     let l:got = substitute(system('git -C ' . shellescape(l:p2) . ' rev-parse HEAD'), '\n$', '', '')
     call s:assert_eq('tag pin checked out at install', l:wanted, l:got)
+    call s:assert_eq('HEAD is detached at the pinned tag', 'v1',
+          \ substitute(system('git -C ' . shellescape(l:p2) . ' tag --points-at HEAD'), '\n$', '', ''))
   endif
 
   let l:total = g:_smoke_pass + g:_smoke_fail
@@ -152,7 +156,9 @@ function! s:finish(timer) abort
   if g:_smoke_fail > 0
     cquit 1
   else
-    quit!
+    " qa! (not quit!): the sidebar window may be open, and :quit! would
+    " only close the current window, leaving vim running (CI job hang).
+    qa!
   endif
 endfunction
 

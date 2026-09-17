@@ -147,9 +147,17 @@ function! plugin_manager#ui#open_sidebar(lines) abort
   endif
 
   " Create the sidebar window. This is an explicit user-facing open, so it is
-  " acceptable to create/focus the window here.
+  " acceptable to create/focus the window here. The buffer is a scratch:
+  " never pass a filename to vnew, an existing FILE named PluginManager in
+  " cwd would be loaded and its buffer hijacked.
   let l:width = plugin_manager#core#util#get_config('sidebar_width', 80)
-  execute 'silent! rightbelow ' . l:width . 'vnew ' . s:buffer_name
+  let l:existing = bufnr('^' . s:buffer_name . '$')
+  execute 'silent! rightbelow ' . l:width . 'vnew'
+  if l:existing != -1
+    execute 'buffer ' . l:existing
+  else
+    execute 'file ' . fnameescape(s:buffer_name)
+  endif
   setlocal filetype=pluginmanager
   setlocal buftype=nofile bufhidden=hide noswapfile nobuflisted
   setlocal nomodifiable
@@ -271,14 +279,15 @@ function! plugin_manager#ui#complete_operation_symbol(op_id, symbol, final_messa
 endfunction
 
 " Log a detail message (routed to the debug log, never to the sidebar)
-" Accepts a string or a list of strings (joined by newline)
+" Accepts a string or a list of strings (joined by newline).
+" NOTE: do not guard with exists('*plugin_manager#core#log#debug'): on an
+" autoload function it returns 0 until the file is loaded, silently
+" disabling all detail logging. Calling it directly triggers autoload.
 function! plugin_manager#ui#log_detail(component, detail) abort
-  if exists('*plugin_manager#core#log#debug')
-    if type(a:detail) == v:t_list
-      call plugin_manager#core#log#debug(a:component, join(a:detail, "\n"))
-    else
-      call plugin_manager#core#log#debug(a:component, a:detail)
-    endif
+  if type(a:detail) == v:t_list
+    call plugin_manager#core#log#debug(a:component, join(a:detail, "\n"))
+  else
+    call plugin_manager#core#log#debug(a:component, a:detail)
   endif
 endfunction
 

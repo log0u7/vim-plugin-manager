@@ -1,0 +1,119 @@
+Before:
+  " Fixture: two bare repos from two different orgs sharing the same plugin
+  " basename (vim-foo), installed under two different paths. Pins declared
+  " per URL must apply to the matching module, not collide on the name.
+
+  let g:_pm_pc_saved = {
+        \ 'vim_dir':     get(g:, 'plugin_manager_vim_dir', ''),
+        \ 'cwd':         getcwd(),
+        \ 'plugins_dir': get(g:, 'plugin_manager_plugins_dir', ''),
+        \ 'vimrc':       get(g:, 'plugin_manager_vimrc_path', ''),
+        \ 'logging':     get(g:, 'plugin_manager_enable_logging', 0),
+        \ }
+
+  let g:_pm_pc_root  = tempname()
+  let g:_pm_pc_vim   = g:_pm_pc_root . '/vim'
+  let g:_pm_pc_vimrc = g:_pm_pc_root . '/vimrc'
+  " Both bare repos share the plugin basename vim-foo: extract_plugin_name
+  " returns 'vim-foo' for both file:// URLs, which is the collision setup.
+  let g:_pm_pc_b1    = g:_pm_pc_root . '/orgA/vim-foo.git'
+  let g:_pm_pc_b2    = g:_pm_pc_root . '/orgB/vim-foo.git'
+  let g:_pm_pc_u1    = 'file://' . g:_pm_pc_b1
+  let g:_pm_pc_u2    = 'file://' . g:_pm_pc_b2
+  let g:_pm_pc_s1    = g:_pm_pc_vim . '/pack/plugins/start/vim-foo'
+  let g:_pm_pc_s2    = g:_pm_pc_vim . '/pack/plugins/start/vim-foo2'
+
+  call mkdir(g:_pm_pc_root, 'p')
+
+  " 1. Two bare repos, each with two tagged commits (t1/t2 and u1/u2)
+  function! g:_pm_pc_make_repo(bare, t1, t2) abort
+    let l:src = a:bare . '-src'
+    call system('git init -q --bare ' . shellescape(a:bare))
+    call system('git -C ' . shellescape(a:bare) . ' symbolic-ref HEAD refs/heads/main')
+    call mkdir(l:src, 'p')
+    call system('git init -q ' . shellescape(l:src))
+    call system('git -C ' . shellescape(l:src) . ' config user.email "test@test.com"')
+    call system('git -C ' . shellescape(l:src) . ' config user.name "Test"')
+    call system('git -C ' . shellescape(l:src) . ' remote add origin ' . shellescape(a:bare))
+    call writefile([a:t1], l:src . '/file.txt')
+    call system('git -C ' . shellescape(l:src) . ' add .')
+    call system('git -C ' . shellescape(l:src) . ' commit -q -m "' . a:t1 . '"')
+    call system('git -C ' . shellescape(l:src) . ' push -q origin HEAD:main')
+    call system('git -C ' . shellescape(l:src) . ' tag ' . a:t1)
+    call writefile([a:t2], l:src . '/file.txt')
+    call system('git -C ' . shellescape(l:src) . ' add .')
+    call system('git -C ' . shellescape(l:src) . ' commit -q -m "' . a:t2 . '"')
+    call system('git -C ' . shellescape(l:src) . ' push -q origin HEAD:main')
+    call system('git -C ' . shellescape(l:src) . ' tag ' . a:t2)
+    call system('git -C ' . shellescape(l:src) . ' push -q origin --tags')
+  endfunction
+  call g:_pm_pc_make_repo(g:_pm_pc_b1, 't1', 't2')
+  call g:_pm_pc_make_repo(g:_pm_pc_b2, 'u1', 'u2')
+
+  " 2. Vim config repo with both submodules (orgA at t1, orgB at tip u2)
+  call mkdir(g:_pm_pc_vim . '/pack/plugins/start', 'p')
+  call system('git init -q ' . shellescape(g:_pm_pc_vim))
+  call system('git -C ' . shellescape(g:_pm_pc_vim) . ' config user.email "test@test.com"')
+  call system('git -C ' . shellescape(g:_pm_pc_vim) . ' config user.name "Test"')
+  call system('git -C ' . shellescape(g:_pm_pc_vim) .
+        \ ' -c protocol.file.allow=always submodule add ' .
+        \ shellescape(g:_pm_pc_u1) . ' pack/plugins/start/vim-foo')
+  call system('git -C ' . shellescape(g:_pm_pc_s1) . ' checkout t1')
+  call system('git -C ' . shellescape(g:_pm_pc_vim) .
+        \ ' -c protocol.file.allow=always submodule add ' .
+        \ shellescape(g:_pm_pc_u2) . ' pack/plugins/start/vim-foo2')
+  call system('git -C ' . shellescape(g:_pm_pc_vim) . ' add .')
+  call system('git -C ' . shellescape(g:_pm_pc_vim) . ' commit -q -m "add submodules"')
+
+  " 3. Point the manager at the fixture
+  let g:plugin_manager_vim_dir         = g:_pm_pc_vim
+  let g:plugin_manager_plugins_dir     = g:_pm_pc_vim . '/pack/plugins'
+  let g:plugin_manager_vimrc_path      = g:_pm_pc_vimrc
+  let g:plugin_manager_enable_logging  = 0
+  let g:plugin_manager_test_force_sync = 1
+
+  execute 'cd ' . fnameescape(g:_pm_pc_vim)
+  call plugin_manager#git#refresh_modules_cache()
+
+After:
+  execute 'cd ' . fnameescape(g:_pm_pc_saved.cwd)
+  if isdirectory(g:_pm_pc_root)
+    call delete(g:_pm_pc_root, 'rf')
+  endif
+  let g:plugin_manager_vim_dir        = g:_pm_pc_saved.vim_dir
+  let g:plugin_manager_plugins_dir    = g:_pm_pc_saved.plugins_dir
+  let g:plugin_manager_vimrc_path     = g:_pm_pc_saved.vimrc
+  let g:plugin_manager_enable_logging = g:_pm_pc_saved.logging
+  if exists('g:plugin_manager_test_force_sync')
+    unlet g:plugin_manager_test_force_sync
+  endif
+  if exists('g:_pm_pc_make_repo')
+    unlet g:_pm_pc_make_repo
+  endif
+  unlet g:_pm_pc_saved g:_pm_pc_root g:_pm_pc_vim g:_pm_pc_vimrc
+  unlet g:_pm_pc_b1 g:_pm_pc_b2 g:_pm_pc_u1 g:_pm_pc_u2 g:_pm_pc_s1 g:_pm_pc_s2
+  let s:_pm_pc_sbuf = bufnr('PluginManager')
+  if s:_pm_pc_sbuf != -1
+    execute 'bwipeout! ' . s:_pm_pc_sbuf
+  endif
+  call plugin_manager#git#refresh_modules_cache()
+
+Execute (same-basename pins from different orgs apply to their own module):
+  " orgA/vim-foo pinned t2 (move up from t1); orgB/vim-foo2 (dir option)
+  " pinned u1 (move down from u2). The short name of BOTH declarations
+  " extracts to 'vim-foo', so a name-keyed pin map makes the second
+  " declaration's pin shadow the first.
+  call writefile([
+        \ "Plugin '" . g:_pm_pc_u1 . "', {'tag': 't2'}",
+        \ "Plugin '" . g:_pm_pc_u2 . "', {'dir': 'vim-foo2', 'tag': 'u1'}",
+        \ ], g:_pm_pc_vimrc)
+  call plugin_manager#cmd#update#execute('all')
+  let g:_pm_h1 = substitute(system('git -C ' . shellescape(g:_pm_pc_s1) . ' rev-parse HEAD'), '\n', '', 'g')
+  let g:_pm_h2 = substitute(system('git -C ' . shellescape(g:_pm_pc_s2) . ' rev-parse HEAD'), '\n', '', 'g')
+  let g:_pm_t2 = substitute(system('git -C ' . shellescape(g:_pm_pc_b1) . ' rev-parse t2'), '\n', '', 'g')
+  let g:_pm_u1 = substitute(system('git -C ' . shellescape(g:_pm_pc_b2) . ' rev-parse u1'), '\n', '', 'g')
+  AssertEqual g:_pm_t2, g:_pm_h1,
+        \ 'orgA/vim-foo must honor its own tag pin (t2), got: ' . g:_pm_h1
+  AssertEqual g:_pm_u1, g:_pm_h2,
+        \ 'orgB/vim-foo2 must honor its own tag pin (u1), got: ' . g:_pm_h2
+  unlet g:_pm_h1 g:_pm_h2 g:_pm_t2 g:_pm_u1

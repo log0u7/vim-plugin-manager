@@ -9,6 +9,8 @@ Before:
   let g:_pm_lzy_opt = g:_pm_lzy_root . '/pack/plugins/opt'
   call mkdir(g:_pm_lzy_opt . '/pmlazytest/plugin', 'p')
   call mkdir(g:_pm_lzy_opt . '/pmlazyft/plugin', 'p')
+  call mkdir(g:_pm_lzy_opt . '/pmlazyerr/plugin', 'p')
+  call mkdir(g:_pm_lzy_opt . '/pmlazynocmd/plugin', 'p')
   call writefile([
         \ 'let g:_pm_lzytest_loaded = 1',
         \ 'command! -nargs=* PmLazyTestCmd call add(g:_pm_lzy_fired, <q-args>)',
@@ -16,6 +18,12 @@ Before:
   call writefile([
         \ 'let g:_pm_lzyft_loaded = 1',
         \ ], g:_pm_lzy_opt . '/pmlazyft/plugin/pmlazyft.vim')
+  call writefile([
+        \ 'command! PmLazyErrCmd throw ' . "'boom-from-plugin'",
+        \ ], g:_pm_lzy_opt . '/pmlazyerr/plugin/pmlazyerr.vim')
+  call writefile([
+        \ 'let g:_pm_lzynocmd_loaded = 1',
+        \ ], g:_pm_lzy_opt . '/pmlazynocmd/plugin/pmlazynocmd.vim')
   let g:plugin_manager_vim_dir = g:_pm_lzy_root
   let g:plugin_manager_plugins_dir = g:_pm_lzy_root . '/pack/plugins'
   let g:plugin_manager_show_deprecation_warnings = 0
@@ -23,6 +31,7 @@ Before:
   let g:_pm_lzy_fired = []
   let g:_pm_lzytest_loaded = 0
   let g:_pm_lzyft_loaded = 0
+  let g:_pm_lzynocmd_loaded = 0
 
   " The manager requires vim_dir to be a git repository
   call system('git init ' . shellescape(g:_pm_lzy_root))
@@ -36,6 +45,8 @@ After:
   silent! autocmd! plugin_manager_lazy
   silent! delcommand PmLazyTestCmd
   silent! delcommand PmLazyGhostCmd
+  silent! delcommand PmLazyErrCmd
+  silent! delcommand PmLazyNoCmd
   if exists('#PmLazyFtCmd')
     silent! delcommand PmLazyFtCmd
   endif
@@ -48,7 +59,7 @@ After:
   let g:plugin_manager_show_deprecation_warnings = g:_pm_lzy_saved.deprecation
   let g:plugin_manager_enable_logging = g:_pm_lzy_saved.logging
   unlet g:_pm_lzy_saved g:_pm_lzy_root g:_pm_lzy_opt g:_pm_lzy_fired
-  unlet g:_pm_lzytest_loaded g:_pm_lzyft_loaded
+  unlet g:_pm_lzytest_loaded g:_pm_lzyft_loaded g:_pm_lzynocmd_loaded
 
 Execute (on and for options force load opt):
   let g:_pm_lzy_o = plugin_manager#core#util#process_plugin_options([{'on': ['Foo']}])
@@ -116,3 +127,47 @@ Execute (a placeholder for a not-yet-installed plugin degrades gracefully):
   PmLazyGhostCmd
   AssertEqual 2, exists(':PmLazyGhostCmd'),
         \ 'placeholder must survive a failed load so it can fire again later'
+
+Execute (invalid trigger names are skipped with a warning, never thrown):
+  " One malformed 'on' entry must not abort the whole declare batch: the
+  " invalid name is ignored, valid ones still register.
+  call plugin_manager#lazy#_reset()
+  let g:_pm_lzy_ok = 0
+  try
+    call plugin_manager#lazy#register('pmlazyinvalid', {'on': ['Not-A-Cmd', 'PmLazyValid9Cmd'], 'for': ['']})
+    let g:_pm_lzy_ok = 1
+  catch
+  endtry
+  Assert g:_pm_lzy_ok, 'register must not throw on invalid trigger names'
+  AssertEqual 2, exists(':PmLazyValid9Cmd'), 'valid trigger must be registered'
+  Assert !exists(':Not-A-Cmd'), 'invalid trigger must not be registered'
+  call plugin_manager#lazy#_reset()
+  unlet g:_pm_lzy_ok
+
+Execute (a plugin command runtime error propagates, not mislabeled):
+  " The catch-all used to report ANY error from the re-dispatched command
+  " as 'command is not provided by plugin'.
+  call plugin_manager#api#begin()
+  call plugin_manager#api#plugin('x/pmlazyerr', {'dir': 'pmlazyerr', 'on': ['PmLazyErrCmd']})
+  call plugin_manager#api#end()
+  let g:_pm_lzy_caught = ''
+  try
+    PmLazyErrCmd
+  catch
+    let g:_pm_lzy_caught = v:exception
+  endtry
+  Assert g:_pm_lzy_caught =~# 'boom-from-plugin',
+        \ 'real plugin errors must propagate, got: ' . g:_pm_lzy_caught
+  unlet g:_pm_lzy_caught
+
+Execute (a loaded plugin that lacks the command reports it):
+  call plugin_manager#api#begin()
+  call plugin_manager#api#plugin('x/pmlazynocmd', {'dir': 'pmlazynocmd', 'on': ['PmLazyNoCmd']})
+  call plugin_manager#api#end()
+  redir => g:_pm_lzy_msgs
+  call plugin_manager#lazy#invoke('PmLazyNoCmd', 'pmlazynocmd', '', -1, 1, 1, 0, '')
+  redir END
+  Assert g:_pm_lzy_msgs =~# 'not provided by plugin',
+        \ 'missing command must be reported, got: ' . g:_pm_lzy_msgs
+  AssertEqual 1, g:_pm_lzynocmd_loaded, 'the plugin itself must have loaded'
+  unlet g:_pm_lzy_msgs

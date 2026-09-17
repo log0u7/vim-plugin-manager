@@ -62,13 +62,13 @@ function! s:fetch_status_async(ctx) abort
   for l:module in a:ctx.valid_modules
     let l:mpath = get(l:module, 'abs_path', l:module.path)
     if !isdirectory(l:mpath)
-      let l:info = s:get_module_status_info(l:module, 1)
+      let l:info = s:get_module_status_info(l:module)
       call s:complete_status_op(a:ctx, l:module, l:info)
       let a:ctx.pending -= 1
       call s:maybe_finalize_status(a:ctx)
     else
       call plugin_manager#async#git(
-            \ 'git -C ' . shellescape(l:mpath) . ' fetch -q origin 2>/dev/null || true', {
+            \ 'git -C ' . shellescape(l:mpath) . ' fetch -q origin', {
             \ 'callback': function('s:on_status_fetched', [a:ctx, l:module])
             \ })
     endif
@@ -76,7 +76,18 @@ function! s:fetch_status_async(ctx) abort
 endfunction
 
 function! s:on_status_fetched(ctx, module, result) abort
-  let l:info = s:get_module_status_info(a:module, 1)
+  if a:result.status != 0
+    " A failed fetch must surface, never masquerade as Up-to-date.
+    call s:complete_status_op(a:ctx, a:module,
+          \ {'name': a:module.short_name, 'status': 'Fetch failed', 'details': ''})
+    call plugin_manager#ui#log_detail('status',
+          \ 'fetch failed for ' . a:module.short_name . ': '
+          \ . (empty(a:result.errors) ? a:result.output : a:result.errors))
+    let a:ctx.pending -= 1
+    call s:maybe_finalize_status(a:ctx)
+    return
+  endif
+  let l:info = s:get_module_status_info(a:module)
   call s:complete_status_op(a:ctx, a:module, l:info)
   let a:ctx.pending -= 1
   call s:maybe_finalize_status(a:ctx)
@@ -126,10 +137,8 @@ endfunction
 " STATUS INFO EXTRACTION
 " ------------------------------------------------------------------------------
 
-" @param local_only: when 1, assume a fetch already happened and only run
-"   fast local analysis (non-blocking flow). When 0, do a blocking fetch.
-function! s:get_module_status_info(module, ...) abort
-  let l:local_only = a:0 > 0 ? a:1 : 0
+" Analyze a module AFTER a fetch (local-only fast analysis, no network).
+function! s:get_module_status_info(module) abort
   let l:short_name = a:module.short_name
   let l:path = get(a:module, 'abs_path', a:module.path)
 
@@ -146,9 +155,7 @@ function! s:get_module_status_info(module, ...) abort
     return l:info
   endif
 
-  let l:update_status = l:local_only
-        \ ? plugin_manager#git#collect_status_local(l:path)
-        \ : plugin_manager#git#check_updates(l:path)
+  let l:update_status = plugin_manager#git#collect_status_local(l:path)
 
   if l:update_status.different_branch && l:update_status.branch !=# 'detached'
     let l:info.status = 'Custom branch'

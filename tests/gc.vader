@@ -8,7 +8,7 @@ Before:
         \ 'plugins_dir': get(g:, 'plugin_manager_plugins_dir', ''),
         \ 'vimrc':       get(g:, 'plugin_manager_vimrc_path', ''),
         \ 'logging':     get(g:, 'plugin_manager_enable_logging', 0),
-        \ 'gc_exclude':  get(g:, 'plugin_manager_gc_exclude', ''),
+        \ 'gc_exclude':  get(g:, 'plugin_manager_gc_exclude', []),
         \ }
 
   let g:_pm_gc_root   = tempname()
@@ -75,7 +75,7 @@ After:
   let g:plugin_manager_plugins_dir    = g:_pm_gc_saved.plugins_dir
   let g:plugin_manager_vimrc_path     = g:_pm_gc_saved.vimrc
   let g:plugin_manager_enable_logging = g:_pm_gc_saved.logging
-  if g:_pm_gc_saved.gc_exclude !=# ''
+  if type(g:_pm_gc_saved.gc_exclude) == v:t_list && !empty(g:_pm_gc_saved.gc_exclude)
     let g:plugin_manager_gc_exclude = g:_pm_gc_saved.gc_exclude
   else
     silent! unlet g:plugin_manager_gc_exclude
@@ -126,6 +126,29 @@ Execute (invalid modules are skipped):
   AssertEqual [], plugin_manager#cmd#gc#orphans(g:_pm_gc_decls, g:_pm_gc_mods)
   unlet g:_pm_gc_decls g:_pm_gc_mods
 
+Execute (modules with empty name or path are never collected):
+  " A corrupt .gitmodules entry can yield empty values: the removal
+  " machinery must never be aimed at an empty path.
+  let g:_pm_gc_decls = [{'url': 'a/b', 'options': {'dir': ''}}]
+  let g:_pm_gc_mods = {
+        \ 'bad': {'is_valid': 1, 'short_name': '', 'path': '', 'url': ''},
+        \ 'junk': {'is_valid': 1, 'short_name': 'junk', 'path': 'pack/plugins/start/junk', 'url': 'u3'},
+        \ }
+  let g:_pm_gc_orph = plugin_manager#cmd#gc#orphans(g:_pm_gc_decls, g:_pm_gc_mods)
+  AssertEqual 1, len(g:_pm_gc_orph), 'only the valid orphan is collected'
+  AssertEqual 'junk', g:_pm_gc_orph[0].name
+  unlet g:_pm_gc_decls g:_pm_gc_mods g:_pm_gc_orph
+
+Execute (batch removal refuses empty name or path):
+  let g:_pm_gc_threw = 0
+  try
+    call plugin_manager#cmd#remove#_force_remove('', '')
+  catch
+    let g:_pm_gc_threw = 1
+  endtry
+  Assert g:_pm_gc_threw, 'empty module name/path must be refused, never resolved to the vim dir'
+  unlet g:_pm_gc_threw
+
 Execute (gc refuses to run without any vimrc declaration):
   call writefile(['" no declarations here'], g:_pm_gc_vimrc)
   let g:_pm_gc_ret = plugin_manager#cmd#gc#execute('-f')
@@ -134,8 +157,32 @@ Execute (gc refuses to run without any vimrc declaration):
   unlet g:_pm_gc_ret
 
 Execute (gc removes undeclared submodules with -f):
+  " Mock the removal so the listing is still on screen when we assert:
+  " each real removal re-renders the sidebar with its own header.
+  function! plugin_manager#cmd#remove#_force_remove(name, path) abort
+    let g:_pm_gc_mocked = get(g:, '_pm_gc_mocked', 0) + 1
+    return 1
+  endfunction
+  call plugin_manager#cmd#gc#execute('-f')
+  let g:_pm_gc_sb = join(getbufline(bufnr('PluginManager'), 1, '$'), "\n")
+  Assert g:_pm_gc_sb =~# 'orphanme (',
+        \ 'the orphan list must be rendered in the sidebar, got: ' . g:_pm_gc_sb
+  AssertEqual 1, g:_pm_gc_mocked, 'exactly one orphan must be sent to removal'
+  runtime! autoload/plugin_manager/cmd/remove.vim
+  unlet g:_pm_gc_sb g:_pm_gc_mocked
+
+Execute (gc -f really removes the orphan and records it):
   call plugin_manager#cmd#gc#execute('-f')
   Assert !isdirectory(g:_pm_gc_start . '/orphanme'), 'orphanme must be removed'
+  Assert isdirectory(g:_pm_gc_start . '/keepme'), 'keepme must survive'
+  let g:_pm_gc_gm = readfile(g:_pm_gc_vim . '/.gitmodules')
+  let g:_pm_gc_joined = join(g:_pm_gc_gm, "\n")
+  Assert g:_pm_gc_joined !~# 'orphanme', '.gitmodules must not reference orphanme anymore'
+  Assert g:_pm_gc_joined =~# 'keepme', '.gitmodules must keep keepme'
+  let g:_pm_gc_msg = system('git -C ' . shellescape(g:_pm_gc_vim) . ' log --format=%s -1')
+  Assert g:_pm_gc_msg =~# 'Remove orphanme',
+        \ 'removal must be committed, got: ' . g:_pm_gc_msg
+  unlet g:_pm_gc_gm g:_pm_gc_joined g:_pm_gc_msg
   Assert isdirectory(g:_pm_gc_start . '/keepme'), 'keepme must survive'
   let g:_pm_gc_gm = readfile(g:_pm_gc_vim . '/.gitmodules')
   let g:_pm_gc_joined = join(g:_pm_gc_gm, "\n")
@@ -150,3 +197,13 @@ Execute (gc with nothing to collect reports success):
   " orphanme was already removed by the previous test
   call plugin_manager#cmd#gc#execute('-f')
   Assert isdirectory(g:_pm_gc_start . '/keepme'), 'keepme must survive'
+
+Execute (batch removal reports its outcome honestly):
+  " A non-submodule orphan dir (not in .gitmodules): the removal falls back
+  " to deleting the working tree, and _force_remove must return 1 when the
+  " directory is really gone.
+  call mkdir(g:_pm_gc_start . '/ghost', 'p')
+  call writefile(['x'], g:_pm_gc_start . '/ghost/f.txt')
+  AssertEqual 1, plugin_manager#cmd#remove#_force_remove('ghost', 'pack/plugins/start/ghost'),
+        \ 'successful removal must return 1'
+  Assert !isdirectory(g:_pm_gc_start . '/ghost'), 'ghost must be gone'

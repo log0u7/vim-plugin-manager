@@ -130,7 +130,7 @@ function! s:check_async(ctx) abort
       endif
     else
       call plugin_manager#async#git(
-            \ 'git -C ' . shellescape(l:mpath) . ' fetch -q origin 2>/dev/null || true', {
+            \ 'git -C ' . shellescape(l:mpath) . ' fetch -q origin', {
             \ 'callback': function('s:on_fetched', [a:ctx, l:module])
             \ })
     endif
@@ -139,6 +139,21 @@ endfunction
 
 function! s:on_fetched(ctx, module, result) abort
   let l:op_id = !a:ctx.silent ? a:ctx.ops[a:module.short_name] : ''
+  if a:result.status != 0
+    " A failed fetch must surface: comparing against stale refs would
+    " report a fake Up-to-date. (No error masking here.)
+    if !a:ctx.silent
+      call plugin_manager#ui#complete_operation(l:op_id, 'fail', 'Fetch failed')
+    endif
+    call plugin_manager#ui#log_detail('check',
+          \ 'fetch failed for ' . a:module.short_name . ': '
+          \ . (empty(a:result.errors) ? a:result.output : a:result.errors))
+    let a:ctx.pending -= 1
+    if a:ctx.pending == 0
+      call s:finalize(a:ctx)
+    endif
+    return
+  endif
   let l:behind = s:check_and_complete(a:ctx, a:module, l:op_id)
   if l:behind > 0
     call add(a:ctx.behind, {'name': a:module.short_name, 'behind': l:behind})

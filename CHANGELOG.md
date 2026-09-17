@@ -15,6 +15,174 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
   fork + PR for external contributors, `--no-ff` direct merges for
   maintainers, and an explicit test-first (TDD) guidance section.
 
+## [2.2.5] - 2026-09-17
+
+### Fixed
+- **`g:plugin_manager_gc_exclude` has a declared default** (`[]`) in
+  `plugin/plugin_manager.vim`, matching the documented convention that
+  every `g:plugin_manager_*` option ships a sensible default
+  (`tests/gc.vader` restore logic adapted to the list type).
+
+### Documentation
+- doc: `:PluginManager check-updates` alias documented.
+- doc accuracy re-checked against the 2.2.1-2.2.3 fixes: the
+  "submodule pointer is committed" pin claim, the "detached HEAD without
+  a declaration: skipped" behavior and the file:// transport lift now all
+  match the code.
+- tests/README.md coverage map: declare.vader and pin_collision.vader
+  added.
+
+## [2.2.4] - 2026-09-17
+
+### Removed
+- **Dead code sweep** (all verified with zero call sites):
+  `git#update_submodule` and `git#check_updates` (the latter also contained
+  an invalid `git fetch origin --all` invocation, exit 128); the
+  unreachable `local_only=0` branch in `status.vim`; `async#on_complete`;
+  the dead `NOT_GIT_REPO` tips branch in `core#handle_error`; a duplicate
+  `current_commit` assignment in the single-plugin update flow; a
+  redundant `test_force_sync` check in `declare.vim` (already covered by
+  `async#supported()`); a duplicated non-force `git submodule update` in
+  `restore.vim`; and 26 error codes that no `core#throw` site ever used
+  (the `s:error_types` table now reflects the codes actually raised;
+  dynamically thrown `NOT_VIM_DIR` entries are all kept).
+
+### Changed
+- **Timed-out jobs are force-killed**: the timeout path stopped at
+  SIGTERM, which a stuck git process can ignore; the watchdog now
+  escalates to SIGKILL when the process is still running.
+
+### Deferred (documented, not done)
+- Merging the single/all update pipelines into one state machine, the
+  list-driven `health#execute` split, and batching the per-module git
+  status fan-out (`git status -sb` + `rev-list --left-right --count`):
+  behavior-neutral or perf refactors with real regression risk; the audit
+  notes stay as the design entry point.
+
+## [2.2.3] - 2026-09-17
+
+### Fixed
+- **Fetch failures are no longer masked as "Up-to-date"**: `check` and
+  `status` fetched with `2>/dev/null || true`, converting a network
+  failure into a stale-ref comparison that reported a fake Up-to-date
+  (also violating the single-invocation command rule). Fetch failures now
+  surface as an explicit "Fetch failed" line plus a log entry
+  (regression test in `tests/check.vader`).
+- **`detail` logging actually logs**: `ui#log_detail` gated on
+  `exists('*plugin_manager#core#log#debug')`, which returns 0 for a
+  not-yet-loaded autoload function, silently disabling every detail log
+  until log.vim happened to be loaded by something else. The call is now
+  direct (calling an autoload function triggers its load). Surfaced by
+  the fetch-failure and auto-commit regression tests.
+- **Auto-commit failures are logged, never silent**: the pointer
+  add/commit calls in both update flows ran with errors discarded; a
+  failed commit (missing identity, failing hook) left `.gitmodules`
+  modified with zero trace. Failures now go to the detail log
+  (regression test in `tests/update.vader` with a failing pre-commit
+  hook).
+- **Backup honors its documentation**: the commit now stages untracked
+  files too (`git add -A` instead of `commit -am`: new config files were
+  silently never backed up), and the push goes to every configured
+  remote instead of only `origin`, with a partial-push warning when some
+  remotes fail (regression tests in `tests/backup.vader`).
+- **Stash includes untracked files during update** (`git stash push -u`):
+  an untracked file the incoming pull wants to write aborted the pull
+  after the "protective" stash (regression test in `tests/update.vader`).
+- **Bare `:PluginManager remove` reports MISSING_ARGS** instead of
+  "Unknown command: remove" (the dispatcher required two args before
+  routing; regression test in `tests/dispatch.vader`).
+- **Lazy loading reports the real error**: `lazy#invoke` used a catch-all
+  that mislabeled any runtime error inside the freshly loaded plugin as
+  "command is not provided by plugin". Real errors now propagate; the
+  missing-command case is detected with `exists()` (regression tests in
+  `tests/lazy.vader`).
+- **GC renders the orphan list in the sidebar** instead of `:messages`
+  (the header went to the sidebar, the list to messages).
+- **Remove treats user input literally**: partial module matching used
+  the user string as a vim regex (`=~?`), throwing on malformed input
+  mid-discovery; it now uses literal case-insensitive substring matching,
+  consistent with `git#find_module` (regression test in
+  `tests/remove.vader`).
+- **Sidebar is a real scratch buffer**: opening it used
+  `vnew PluginManager`, which loads an existing FILE named PluginManager
+  from the cwd and hijacks its buffer; the buffer is now created unnamed
+  and renamed (regression test in `tests/ui.vader`).
+- **Escaped the vim dir in regex constructions**: `escape(..., '/.\')`
+  missed `[`, `]`, `*`, `^`, `$`, `~`; a vim dir containing them broke
+  path normalization matching (`core/util.vim`, `git.vim`). No dedicated
+  test: purely additive escaping, exercising it requires a vim dir with
+  regex metacharacters on disk.
+- **health goes through `git#execute`** for the version probe instead of
+  a raw `system()` call (consistency; `tests/health.vader` covers the
+  output).
+
+## [2.2.2] - 2026-09-17
+
+### Fixed
+- **Local installs with `on`/`for` are reachable again**: `:PluginAdd
+  <path> {'on': [...]}` copied the plugin to `opt/` but never registered
+  the lazy placeholders, leaving it silently unreachable. The local path
+  now calls `lazy#register` like the remote path (regression test in
+  `tests/add.vader`).
+- **One malformed lazy trigger no longer aborts the declare batch**:
+  invalid `on`/`for` entries (wrong type, bad command name) were
+  interpolated raw into `:command!`/`:autocmd!` and the resulting throw
+  killed installation of every remaining plugin in the block. Invalid
+  triggers are now skipped with a warning; valid ones still register
+  (regression test in `tests/lazy.vader`).
+- **Detached submodules are skipped, never pulled**: a detached HEAD
+  without a tag/commit declaration fell through to the pull flow, which
+  failed noisily or could fast-forward the pin away (the doc already
+  claimed "skipped"). Both update paths now skip detached modules with an
+  explicit message; regression test in `tests/pin.vader`.
+- **GC can no longer aim the removal at the vim dir**: a corrupt
+  `.gitmodules` entry with an empty `path` produced an orphan with an
+  empty path, whose removal fallback resolved to the vim dir itself.
+  Orphan collection skips empty name/path values and the batch removal
+  entry point refuses empty arguments (`tests/gc.vader`).
+- **Removal reports the truth**: `remove_module` completed with "ok"
+  regardless of the actual outcome (failures were neither thrown nor
+  logged), so batch summaries could count removals that never happened.
+  The removal now verifies the directory is gone, returns the outcome,
+  and only commits on success; GC counts real removals
+  (`tests/gc.vader`).
+
+## [2.2.1] - 2026-09-17
+
+### Fixed
+- **`update all` pin path now commits the pointer**: the all-plugins pin
+  branch never recorded the pre-checkout commit, so a pin move reported
+  "Up-to-date", was excluded from `updated_modules`, and left the parent
+  repo with a dirty gitlink (no pointer commit, no helptags). The
+  pre-checkout commit is now recorded like the pull path; regression test
+  asserts a clean parent repo and the `Update Modules` commit after a pin
+  move (`tests/pin.vader`).
+- **Pin map collisions on shared basenames**: pins were keyed by short
+  name first, so `orgA/vim-foo` and `orgB/vim-foo` (both extracting to
+  `vim-foo`) made the last declaration's pin win for BOTH modules. Pin
+  resolution now matches the module URL first (exact per-module match),
+  falling back to the name key for URL drift. Regression test with two
+  forges sharing a basename (`tests/pin_collision.vader`).
+- **`file://` installs register the submodule again**: the file transport
+  lift (git >= 2.38.1) was applied to the clone only, so `git submodule
+  add file://...` failed after a successful clone and left an unregistered
+  plugin dir invisible to update/gc. The lift now covers the registration
+  (`git#add_submodule`). Regression test installs through a `file://`
+  declaration without any fixture protocol config (`tests/declare.vader`).
+- **Sync declare path probes the right pack dir for lazy plugins**: the
+  synchronous fallback passed raw options to the exists() probe, which
+  looked in `start/` while `on`/`for` declarations install to `opt/`:
+  every vimrc re-source of a lazy declaration errored SUBMODULE_EXISTS.
+  Options are normalized once at the top of `s:process_plugin` (same as
+  the async path). Regression test re-declares an installed lazy local
+  plugin and asserts a clean skip (`tests/declare.vader`).
+- **Re-entrant `PluginEnd` runs keep in-flight installs**: `PluginBegin`
+  wiped the pending-installs map, making the double-clone guard
+  unreachable (a reload re-runs Begin first). The map now survives Begin
+  and is pruned by the clone callbacks. Unit-tested via test-only helpers
+  (`declare#_pending_test_set`/`_pending_names`, same pattern as
+  `lazy#_reset`).
+
 ## [2.2.0] - 2026-09-17
 
 ### Security

@@ -157,3 +157,44 @@ Execute (complete position-2: returns short_name of installed plugins):
   call writefile([], g:_pm_disp_tmp . '/.gitmodules')
   call plugin_manager#git#refresh_modules_cache()
   unlet g:_pm_got g:_pm_pre
+
+Execute (dispatch remove with no args routes to the remove adapter):
+  " Bare 'remove' used to fall through to INVALID_COMMAND because the
+  " dispatcher required two args before routing. It must reach the remove
+  " path and fail with MISSING_ARGS instead.
+  let g:_pm_err = ''
+  function! plugin_manager#core#handle_error(error, component) abort
+    let g:_pm_err = a:error
+  endfunction
+  call plugin_manager#cmd#dispatch('remove')
+  Assert g:_pm_err =~# 'MISSING_ARGS',
+        \ 'bare remove must raise MISSING_ARGS, got: ' . g:_pm_err
+  runtime! autoload/plugin_manager/core.vim
+  unlet g:_pm_err
+
+Execute (completion treats arglead literally in position 1):
+  let g:_pm_threw = 0
+  try
+    let g:_pm_got = plugin_manager#cmd#complete('status\(', 'PluginManager status\(', 21)
+  catch
+    let g:_pm_threw = 1
+  endtry
+  Assert !g:_pm_threw, 'completion must not throw on regex metacharacters'
+  AssertEqual 0, len(g:_pm_got), 'literal prefix matches nothing here'
+  unlet g:_pm_got g:_pm_threw
+
+Execute (completion treats arglead literally in position 2):
+  " Mock the module list so the filter actually runs over entries
+  function! plugin_manager#git#valid_modules() abort
+    return [{'short_name': 'vim-fugitive'}]
+  endfunction
+  let g:_pm_threw = 0
+  try
+    let g:_pm_got = plugin_manager#cmd#complete('vim-\(', 'PluginManager update vim-\(', 28)
+  catch
+    let g:_pm_threw = 1
+  endtry
+  Assert !g:_pm_threw, 'module-name completion must not throw on regex metacharacters'
+  AssertEqual 0, len(g:_pm_got)
+  runtime! autoload/plugin_manager/git.vim
+  unlet g:_pm_got g:_pm_threw

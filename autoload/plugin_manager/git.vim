@@ -237,7 +237,7 @@ function! plugin_manager#git#submodule_exists(plugin_path_or_name) abort
       if l:abs_mod_path ==# l:search
         return 1
       endif
-      let l:rel_search = substitute(l:search, '^' . escape(l:vim_dir_norm, '/.\') . '/', '', '')
+      let l:rel_search = substitute(l:search, '^' . escape(l:vim_dir_norm, '/.\*[]^$~') . '/', '', '')
       if l:rel_search ==# l:norm_mod_path
         return 1
       endif
@@ -341,18 +341,6 @@ function! plugin_manager#git#repository_exists(url) abort
   let l:cmd = 'git ls-remote --exit-code ' . shellescape(a:url) . ' HEAD'
   let l:result = plugin_manager#git#execute(l:cmd, '', 0, 0)
   return l:result.success
-endfunction
-
-" Check module update status (synchronous: fetches then collects).
-" Kept for the no-async fallback and for tests. Prefer the async flow
-" (fetch as a job, then collect_status_local) for non-blocking operations.
-function! plugin_manager#git#check_updates(module_path) abort
-  if !isdirectory(a:module_path)
-    return s:empty_status()
-  endif
-  " Blocking network fetch, then fast local analysis
-  call plugin_manager#git#execute('git fetch origin --all', a:module_path, 0, 0)
-  return plugin_manager#git#collect_status_local(a:module_path)
 endfunction
 
 " Return an empty status dict
@@ -533,6 +521,14 @@ function! plugin_manager#git#add_submodule(url, install_dir, options) abort
   
   " Add the submodule
   let l:cmd = 'git submodule add'
+
+  " file:// remotes are trusted input (vimrc/local path): lift the file
+  " transport restriction (git >= 2.38.1) for the registration too, or a
+  " successful clone is followed by a failed submodule add that leaves an
+  " unregistered plugin dir the manager can no longer see.
+  if a:url =~# '^file://'
+    let l:cmd = 'git -c protocol.file.allow=always submodule add'
+  endif
   
   " Add branch option if specified
   if !empty(a:options.branch)
@@ -578,49 +574,6 @@ function! plugin_manager#git#add_submodule(url, install_dir, options) abort
   call plugin_manager#git#execute('git commit -m ' . shellescape(l:commit_msg), l:vim_dir, 1, 0)
   
   return l:result.success
-endfunction
-
-
-" Update a specific git submodule
-function! plugin_manager#git#update_submodule(module_path) abort
-  call plugin_manager#core#util#require_vim_directory('git')
-  
-  " Check if directory exists
-  if !isdirectory(a:module_path)
-    " Standardized error handling
-    call plugin_manager#core#throw('git', 'PATH_NOT_FOUND', 'Module directory not found: ' . a:module_path)
-  endif
-  
-  " Enter the module directory and fetch updates
-  call plugin_manager#git#execute('git fetch origin', a:module_path, 1, 0)
-  
-  " Get update status
-  let l:update_status = plugin_manager#git#check_updates(a:module_path)
-  
-  " Skip if already up to date
-  if !l:update_status.has_updates
-    return {'success': 1, 'changed': 0, 'message': 'Already up-to-date'}
-  endif
-  
-  " Capture HEAD before update
-  let l:before_commit = l:update_status.current_commit
-  
-  " Build pull command with stripped branch name (remove origin/ prefix)
-  let l:branch = plugin_manager#git#remote_branch_name(l:update_status.remote_branch)
-  let l:pull_flag = plugin_manager#core#util#get_pull_flag()
-  let l:result = plugin_manager#git#execute('git pull origin ' . shellescape(l:branch) . ' ' . l:pull_flag,
-        \ a:module_path, 1, 1)
-  
-  " Handle error
-  if !l:result.success
-    " Standardized error handling
-    call plugin_manager#core#throw('update', 'UPDATE_FAILED', 'Failed to update module ' . a:module_path . ': ' . l:result.output)
-  endif
-  
-  " Compare HEAD after pull to determine if anything actually changed
-  let l:changed = plugin_manager#git#head_changed(a:module_path, l:before_commit)
-
-  return {'success': 1, 'changed': l:changed, 'message': l:changed ? 'Updated' : 'Already up-to-date'}
 endfunction
 
 

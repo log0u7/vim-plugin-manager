@@ -111,17 +111,24 @@ Execute (tag pin declared in the vimrc is re-asserted by update):
   unlet g:_pm_pin_head
 
 Execute (satisfied tag pin reports up-to-date without moving HEAD):
+  " Vader re-runs Before for every case: the fixture starts with the
+  " submodule at v1, so the satisfied state is reached with a first run.
   call writefile(["Plugin '" . g:_pm_pin_bare . "', {'dir': 'myplugin', 'tag': 'v2'}"],
         \ g:_pm_pin_vimrc)
   call plugin_manager#cmd#update#execute('all')
   let g:_pm_pin_head = substitute(
         \ system('git -C ' . shellescape(g:_pm_pin_plug) . ' rev-parse HEAD'),
         \ '\n', '', 'g')
-  AssertEqual g:_pm_pin_c2, g:_pm_pin_head
+  AssertEqual g:_pm_pin_c2, g:_pm_pin_head, 'first run must apply the pin'
+  call plugin_manager#cmd#update#execute('all')
   let g:_pm_sbuf = bufnr('PluginManager')
   let g:_pm_content = join(getbufline(g:_pm_sbuf, 1, '$'), "\n")
   Assert g:_pm_content =~# '\cUp-to-date',
         \ 'satisfied pin must report up-to-date, got: ' . g:_pm_content
+  let g:_pm_pin_head = substitute(
+        \ system('git -C ' . shellescape(g:_pm_pin_plug) . ' rev-parse HEAD'),
+        \ '\n', '', 'g')
+  AssertEqual g:_pm_pin_c2, g:_pm_pin_head, 'satisfied pin must not move HEAD'
   unlet g:_pm_pin_head g:_pm_sbuf g:_pm_content
 
 Execute (commit pin is honored, including moving to an older commit):
@@ -144,3 +151,36 @@ Execute (unresolvable pin target fails the operation without crashing):
   Assert g:_pm_content =~# '\cnot found\|fail\|error',
         \ 'unresolvable pin must fail visibly, got: ' . g:_pm_content
   unlet g:_pm_sbuf g:_pm_content
+
+Execute (pin move in update all commits the gitlink pointer):
+  " Deterministic start: submodule at v1, gitlink recorded at v1, parent
+  " repo clean. The pin move must end with the pointer committed.
+  call system('git -C ' . shellescape(g:_pm_pin_plug) . ' checkout v1')
+  call system('git -C ' . shellescape(g:_pm_pin_vim) . ' add ' . shellescape('pack/plugins/start/myplugin'))
+  call system('git -C ' . shellescape(g:_pm_pin_vim) . ' commit -q -m "set gitlink v1"')
+  call writefile(["Plugin '" . g:_pm_pin_bare . "', {'dir': 'myplugin', 'tag': 'v2'}"],
+        \ g:_pm_pin_vimrc)
+  call plugin_manager#cmd#update#execute('all')
+  let g:_pm_status = system('git -C ' . shellescape(g:_pm_pin_vim) . ' status --porcelain')
+  AssertEqual '', g:_pm_status,
+        \ 'pin move in update all must leave the parent repo clean (pointer committed), got: ' . g:_pm_status
+  let g:_pm_log = system('git -C ' . shellescape(g:_pm_pin_vim) . ' log --oneline -1')
+  Assert g:_pm_log =~# 'Update Modules',
+        \ 'pin move must produce the Update Modules pointer commit, got: ' . g:_pm_log
+  unlet g:_pm_status g:_pm_log
+
+Execute (detached submodule without a declaration is skipped, never pulled):
+  " Fresh fixture per case: submodule detached at v1, vimrc without pins.
+  " Pulling a detached HEAD would either fail noisily or destroy a manual
+  " pin; the documented behavior is to skip it.
+  call writefile(['" no plugin declarations'], g:_pm_pin_vimrc)
+  call plugin_manager#cmd#update#execute('all')
+  let g:_pm_pin_head = substitute(
+        \ system('git -C ' . shellescape(g:_pm_pin_plug) . ' rev-parse HEAD'),
+        \ '\n', '', 'g')
+  AssertEqual g:_pm_pin_c1, g:_pm_pin_head, 'detached module must not be pulled'
+  let g:_pm_sbuf = bufnr('PluginManager')
+  let g:_pm_content = join(getbufline(g:_pm_sbuf, 1, '$'), "\n")
+  Assert g:_pm_content !~# '\cupdate failed',
+        \ 'skipping a detached module must not surface as a failed update, got: ' . g:_pm_content
+  unlet g:_pm_pin_head g:_pm_sbuf g:_pm_content

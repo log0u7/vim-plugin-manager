@@ -5,14 +5,15 @@
 let s:plugin_block_active = 0
 let s:plugin_declarations = []
 " Names with a background install in flight (async batch path): a re-run
-" of PluginEnd (reload) must not double-install them.
+" of PluginEnd (reload) must not double-install them. Kept across
+" PluginBegin: a reload runs Begin first, wiping the map here would make
+" the in-flight guard unreachable. on_clone_done removes entries.
 let s:pending_installs = {}
 
 " Begin a plugin declaration block
 function! plugin_manager#cmd#declare#begin() abort
   let s:plugin_block_active = 1
   let s:plugin_declarations = []
-  let s:pending_installs = {}
 endfunction
 
 " Add a plugin declaration
@@ -66,7 +67,7 @@ function! s:process_declarations() abort
     " submodule. The synchronous loop below remains the fallback for
     " builds without +job/+channel and for deterministic tests
     " (g:plugin_manager_test_force_sync).
-    if plugin_manager#async#supported() && !get(g:, 'plugin_manager_test_force_sync', 0)
+    if plugin_manager#async#supported()
       call s:process_declarations_async()
       return
     endif
@@ -250,6 +251,11 @@ function! s:maybe_finish_async(ctx) abort
 endfunction
 
 function! s:process_plugin(url, options) abort
+  " Normalize once, like the async path: on/for force load:'opt', so the
+  " exists() probe must look in the opt/ dir, and downstream parsers get
+  " the full option shape. process_plugin_options is idempotent.
+  let l:options = plugin_manager#core#util#process_plugin_options([a:options])
+
   " Convert to full URL
   let l:full_url = plugin_manager#core#util#convert_to_full_url(a:url)
   if empty(l:full_url)
@@ -266,21 +272,34 @@ function! s:process_plugin(url, options) abort
   " even while the plugin is still being installed, and for skipped
   " declarations (already installed) which never reach the install path.
   call plugin_manager#lazy#register(
-        \ empty(get(a:options, 'dir', '')) ? l:plugin_name : a:options.dir,
-        \ a:options)
+        \ empty(get(l:options, 'dir', '')) ? l:plugin_name : l:options.dir,
+        \ l:options)
 
   " Check if already exists
-  if plugin_manager#cmd#add#exists(l:plugin_name, a:options)
+  if plugin_manager#cmd#add#exists(l:plugin_name, l:options)
     return 'skipped'
   endif
   
   " Install
   try
-    let l:result = plugin_manager#api#add(a:url, a:options)
+    let l:result = plugin_manager#api#add(a:url, l:options)
     return l:result ? 'installed' : 'error'
   catch
     let l:op_id = plugin_manager#ui#start_operation(l:plugin_name, 'Installing')
     call plugin_manager#ui#complete_operation(l:op_id, 'fail', 'Installation failed')
     return 'error'
   endtry
+endfunction
+
+" Test-only helpers (same pattern as lazy#_reset): inspect/inject the
+" in-flight install map, which Vader cannot exercise through real jobs.
+function! plugin_manager#cmd#declare#_pending_test_set(names) abort
+  let s:pending_installs = {}
+  for l:n in a:names
+    let s:pending_installs[l:n] = 1
+  endfor
+endfunction
+
+function! plugin_manager#cmd#declare#_pending_names() abort
+  return keys(s:pending_installs)
 endfunction

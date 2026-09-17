@@ -327,6 +327,8 @@ The plugin provides the following commands:
                                  differs). See |plugin-manager-pinning|.
 
 :PluginManager check             Check for available updates without installing
+
+:PluginManager check-updates     Alias of :PluginManager check
                                  them. Reports plugins that are behind their
                                  remote branch in the sidebar.
 

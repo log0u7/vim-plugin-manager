@@ -38,6 +38,12 @@ function! plugin_manager#cmd#gc#orphans(decls, modules) abort
       continue
     endif
     let l:short_name = get(l:module, 'short_name', '')
+    let l:path = get(l:module, 'path', '')
+    " A corrupt .gitmodules entry can yield empty values: never aim the
+    " removal machinery at an empty path (it would resolve to the vim dir).
+    if empty(l:short_name) || empty(l:path)
+      continue
+    endif
     if index(l:protected, l:short_name) != -1
       continue
     endif
@@ -48,8 +54,7 @@ function! plugin_manager#cmd#gc#orphans(decls, modules) abort
     if !empty(l:url) && has_key(l:declared_urls, l:url)
       continue
     endif
-    call add(l:orphans, {'name': l:short_name,
-          \ 'path': get(l:module, 'path', ''), 'url': l:url})
+    call add(l:orphans, {'name': l:short_name, 'path': l:path, 'url': l:url})
   endfor
   return l:orphans
 endfunction
@@ -80,9 +85,12 @@ function! plugin_manager#cmd#gc#execute(...) abort
     endif
 
     call plugin_manager#ui#open_header('Orphaned plugins (not declared in vimrc):')
+    " Render the list in the sidebar like everything else, not via :messages
+    let l:lines = []
     for l:orphan in l:orphans
-      echomsg '  - ' . l:orphan.name . ' (' . l:orphan.path . ')'
+      call add(l:lines, '  - ' . l:orphan.name . ' (' . l:orphan.path . ')')
     endfor
+    call plugin_manager#ui#update_sidebar(l:lines, 1)
 
     if !l:force
       let l:response = input('Remove ' . len(l:orphans) . ' orphaned plugin(s)? [y/N] ')
@@ -95,8 +103,12 @@ function! plugin_manager#cmd#gc#execute(...) abort
     let l:removed = 0
     for l:orphan in l:orphans
       try
-        call plugin_manager#cmd#remove#_force_remove(l:orphan.name, l:orphan.path)
-        let l:removed += 1
+        if plugin_manager#cmd#remove#_force_remove(l:orphan.name, l:orphan.path)
+          let l:removed += 1
+        else
+          call plugin_manager#ui#log_detail('gc',
+                \ 'removal did not complete for ' . l:orphan.name)
+        endif
       catch
         call plugin_manager#core#handle_error(v:exception, 'gc')
       endtry

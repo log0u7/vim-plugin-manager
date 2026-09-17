@@ -15,12 +15,14 @@ let s:lazy = {}
 let s:loaded = {}
 
 " Register a package for on-demand loading. Returns 1 when triggers were
-" registered (i.e. on/for were present and non-empty).
+" registered (i.e. on/for were present and non-empty). Invalid trigger
+" names are skipped with a warning instead of throwing: one malformed
+" declaration must never abort the whole declare batch.
 function! plugin_manager#lazy#register(name, options) abort
   let l:opts_on = get(a:options, 'on', [])
   let l:opts_for = get(a:options, 'for', [])
-  let l:cmds = type(l:opts_on) == v:t_list ? l:opts_on : []
-  let l:fts = type(l:opts_for) == v:t_list ? l:opts_for : []
+  let l:cmds = s:valid_triggers('on', l:opts_on, '^[A-Za-z][A-Za-z0-9_#]*$')
+  let l:fts = s:valid_triggers('for', l:opts_for, '^[A-Za-z0-9_.-]\+$')
   if empty(l:cmds) && empty(l:fts)
     return 0
   endif
@@ -41,6 +43,26 @@ function! plugin_manager#lazy#register(name, options) abort
   call s:register_command_triggers(a:name, l:entry.on)
   call s:register_filetype_triggers(a:name, l:entry.for)
   return 1
+endfunction
+
+" Filter a trigger list down to usable names: strings matching the given
+" pattern. Anything else warns and is dropped (a non-list value yields []).
+function! s:valid_triggers(kind, values, pattern) abort
+  let l:valid = []
+  if type(a:values) != v:t_list
+    return l:valid
+  endif
+  for l:v in a:values
+    if type(l:v) == v:t_string && l:v =~# a:pattern
+      call add(l:valid, l:v)
+    else
+      echohl WarningMsg
+      echomsg "PluginManager: invalid '" . a:kind . "' trigger "
+            \ . string(l:v) . ' for ' . 'plugin, ignored'
+      echohl None
+    endif
+  endfor
+  return l:valid
 endfunction
 
 " Load a lazy package once. Returns 1 when the package is (or got) loaded.
@@ -81,13 +103,16 @@ function! plugin_manager#lazy#invoke(cmd, name, mods, count, line1, line2, bang,
     return
   endif
   let l:range = a:count != -1 ? (a:line1 . ',' . a:line2) : ''
-  try
-    execute a:mods . ' ' . l:range . ' ' . a:cmd . (a:bang ? '!' : '') . ' ' . a:args
-  catch
+  " The package is loaded: when the command still does not exist, report
+  " that. A catch-all here would mislabel any real runtime error inside
+  " the plugin as 'command not provided'.
+  if !exists(':' . a:cmd)
     echohl ErrorMsg
     echomsg 'PluginManager: command ' . a:cmd . ' is not provided by plugin ' . a:name
     echohl None
-  endtry
+    return
+  endif
+  execute a:mods . ' ' . l:range . ' ' . a:cmd . (a:bang ? '!' : '') . ' ' . a:args
 endfunction
 
 function! s:register_command_triggers(name, cmds) abort
