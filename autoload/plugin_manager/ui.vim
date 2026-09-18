@@ -462,6 +462,7 @@ function! s:purge_stale_operations() abort
       let l:op.type = 'still running (slow)'
       let l:warn_line = s:symbols.warning . ' ' . l:op.name . '... still running (slow)'
       call s:set_lines(l:buf, l:op.line, [l:warn_line])
+      call plugin_manager#core#log#debug('ui', 'slow marker: ' . l:op.name)
     endif
   endfor
 endfunction
