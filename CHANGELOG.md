@@ -33,7 +33,8 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
   refs; the footer reports failures (`n of total updated, m failed to
   fetch`).
 - Job timeout kills and slow markers leave a trace in
-  `~/.vim/logs/plugin_manager.log` (#3); timeout events used to be
+  `~/.vim/logs/plugin_manager.log` (#3) - kills always (JOB_TIMEOUT
+  warning), slow markers in debug mode; timeout events used to be
   invisible.
 
 ## [2.2.5] - 2026-09-17

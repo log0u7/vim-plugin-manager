@@ -459,10 +459,14 @@ function! s:purge_stale_operations() abort
     endif
     let l:op = s:active_operations[l:op_id]
     if l:buf != -1 && l:op.line > 0 && l:op.line <= s:line_count(l:buf)
-      let l:op.type = 'still running (slow)'
-      let l:warn_line = s:symbols.warning . ' ' . l:op.name . '... still running (slow)'
-      call s:set_lines(l:buf, l:op.line, [l:warn_line])
-      call plugin_manager#core#log#debug('ui', 'slow marker: ' . l:op.name)
+      " Mark only once: re-marking at every spinner tick would spam the
+      " debug log and fight the spinner glyph rewrite.
+      if l:op.type !=# 'still running (slow)'
+        let l:op.type = 'still running (slow)'
+        let l:warn_line = s:symbols.warning . ' ' . l:op.name . '... still running (slow)'
+        call s:set_lines(l:buf, l:op.line, [l:warn_line])
+        call plugin_manager#core#log#debug('ui', 'slow marker: ' . l:op.name)
+      endif
     endif
   endfor
 endfunction

@@ -356,9 +356,11 @@ function! s:on_module_fetched(ctx, module, result) abort
     " silent success: the analyze/pull batch would run on stale refs.
     call plugin_manager#ui#complete_operation(
           \ a:ctx.ops[a:module.short_name], 'fail', 'Fetch failed')
+    " git writes the reason on stderr: result.errors carries it in async
+    " mode (the sync fallback merges it into output).
     call plugin_manager#ui#log_detail('update',
           \ 'fetch failed in ' . get(a:module, 'abs_path', a:module.path)
-          \ . ': ' . get(a:result, 'output', ''))
+          \ . ': ' . get(a:result, 'errors', get(a:result, 'output', '')))
     let a:ctx.fetch_failed[a:module.short_name] = 1
   endif
   let a:ctx.pending_fetches -= 1
