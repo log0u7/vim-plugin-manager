@@ -261,3 +261,45 @@ Execute (auto-commit failures are logged, never silent):
   Assert g:_pm_upd_logtext =~# '\cauto-commit',
         \ 'auto-commit failure must be logged, got: ' . g:_pm_upd_logtext
   unlet g:_pm_upd_logtext
+
+Execute (fetch failure is reported and the failed module is excluded):
+  " Second module on a healthy remote: it must still update normally
+  let g:_pm_upd_plug2 = g:_pm_upd_vim . '/pack/plugins/start/myplugin2'
+  call system('git -C ' . shellescape(g:_pm_upd_vim) .
+        \ ' -c protocol.file.allow=always submodule add ' .
+        \ shellescape(g:_pm_upd_bare) . ' pack/plugins/start/myplugin2')
+  call system('git -C ' . shellescape(g:_pm_upd_vim) . ' commit -m "add myplugin2"')
+  call plugin_manager#git#refresh_modules_cache()
+
+  " Push v2 AFTER adding the module so both start behind
+  call writefile(['v2'], g:_pm_upd_tmp_src . '/file.txt')
+  call system('git -C ' . shellescape(g:_pm_upd_tmp_src) . ' add file.txt')
+  call system('git -C ' . shellescape(g:_pm_upd_tmp_src) . ' commit -m "v2"')
+  call system('git -C ' . shellescape(g:_pm_upd_tmp_src) . ' push -q origin HEAD:main')
+
+  " Break the first module's remote: its fetch must FAIL
+  call system('git -C ' . shellescape(g:_pm_upd_plug) .
+        \ ' remote set-url origin ' . shellescape(g:_pm_upd_root . '/no-such-bare.git'))
+  let g:_pm_upd_head = substitute(
+        \ system('git -C ' . shellescape(g:_pm_upd_plug) . ' rev-parse HEAD'),
+        \ '\n', '', 'g')
+  let g:plugin_manager_enable_logging = 1
+  let g:plugin_manager_debug_mode = 1
+
+  call plugin_manager#cmd#update#execute('all')
+
+  let g:_pm_upd_sb = join(getbufline(bufnr('PluginManager'), 1, '$'), "\n")
+  Assert g:_pm_upd_sb =~# 'Fetch failed',
+        \ 'the broken module must show Fetch failed, got: ' . g:_pm_upd_sb
+  Assert g:_pm_upd_sb =~# '\cUpdated',
+        \ 'the healthy module must still update, got: ' . g:_pm_upd_sb
+  let g:_pm_upd_after = substitute(
+        \ system('git -C ' . shellescape(g:_pm_upd_plug) . ' rev-parse HEAD'),
+        \ '\n', '', 'g')
+  AssertEqual g:_pm_upd_head, g:_pm_upd_after,
+        \ 'a failed fetch must not touch the module'
+  let g:_pm_upd_logtext = join(readfile(g:_pm_upd_vim . '/logs/plugin_manager.log'), "\n")
+  Assert g:_pm_upd_logtext =~# 'fetch failed',
+        \ 'the fetch failure must be logged, got: ' . g:_pm_upd_logtext
+  unlet g:_pm_upd_sb g:_pm_upd_head g:_pm_upd_after g:_pm_upd_logtext
+  unlet g:_pm_upd_plug2 g:plugin_manager_debug_mode
