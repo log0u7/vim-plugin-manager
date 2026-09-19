@@ -30,6 +30,8 @@ let g:_cb_start_job = []   " collects results from start_job opts.callback
 let g:_cb_async_git = []   " collects results from async#git callback
 let g:_cb_queue     = []   " collects results from queued jobs
 let g:_cb_large     = []   " collects results from large-output jobs
+let g:_cb_timeout   = []   " collects results from the timeout-killed job
+let g:_smoke_tmpdir = tempname()
 
 function! s:ok(msg) abort
   call add(g:_smoke_log, 'PASS: ' . a:msg)
@@ -74,6 +76,15 @@ function! s:launch(timer) abort
   call plugin_manager#async#start_job('echo q0', {'callback': {r -> add(g:_cb_queue, r.status)}})
   call plugin_manager#async#start_job('echo q1', {'callback': {r -> add(g:_cb_queue, r.status)}})
   call plugin_manager#async#start_job('echo q2', {'callback': {r -> add(g:_cb_queue, r.status)}})
+
+  " 5. Timeout kill: job_timeout=1 kills the 5s sleeper. The callback
+  "    must fire with status -2 and the kill must leave a log trace.
+  let g:plugin_manager_job_timeout = 1
+  call mkdir(g:_smoke_tmpdir, 'p')
+  let g:plugin_manager_vim_dir = g:_smoke_tmpdir
+  call plugin_manager#async#start_job('sleep 5', {
+        \ 'callback': {r -> add(g:_cb_timeout, r)}
+        \ })
 endfunction
 
 " --------------------------------------------------------------------------
@@ -115,6 +126,19 @@ function! s:finish(timer) abort
     let l:lines = split(g:_cb_large[0].output, "\n")
     call s:assert_eq('large output has 20000 lines', 20000, len(l:lines))
   endif
+
+  " --- Check 5: timeout kill reported + logged ---
+  call s:assert_eq('timeout kill callback fired', 1, len(g:_cb_timeout))
+  if len(g:_cb_timeout) > 0
+    call s:assert_eq('timeout kill status=-2', -2, g:_cb_timeout[0].status)
+  endif
+  let l:logpath = g:_smoke_tmpdir . '/logs/plugin_manager.log'
+  if filereadable(l:logpath)
+    call s:assert_eq('timeout kill logged', 1, join(readfile(l:logpath), "\n") =~# 'JOB_TIMEOUT')
+  else
+    call s:fail('timeout kill log missing: ' . l:logpath)
+  endif
+  let g:plugin_manager_job_timeout = 60
 
   " --- Write result file ---
   let l:total = g:_smoke_pass + g:_smoke_fail

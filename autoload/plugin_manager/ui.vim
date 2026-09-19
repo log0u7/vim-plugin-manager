@@ -225,6 +225,9 @@ function! plugin_manager#ui#update_operation(op_id, status_text) abort
   endif
 
   let l:op = s:active_operations[a:op_id]
+  " Each status change re-arms the staleness window: the purge must age
+  " from the last sign of life, not from the UI line creation.
+  let l:op.started = localtime()
   let l:buf = s:bufnr()
   if l:buf == -1 || l:op.line <= 0 || l:op.line > s:line_count(l:buf)
     return
@@ -429,12 +432,18 @@ function! s:maybe_stop_spinner() abort
 endfunction
 
 " Purge stale/orphaned operations whose timeout has elapsed.
-" Marks each timed-out line in the buffer with a warning symbol.
+" Marks each stale line in the buffer with a warning symbol. The
+" operation stays active on purpose: a late real completion must
+" overwrite the marker. unlet used to swallow that completion and leave
+" a permanent, wrong "timed out" line (#3).
 function! s:purge_stale_operations() abort
   let l:now = localtime()
+  " Override seam for tests/CI: an explicit value (e.g. -1 = stale
+  " immediately) wins over the default 2x job timeout window.
+  let l:timeout = get(g:, 'plugin_manager_stale_timeout', s:orphan_timeout)
   let l:stale = []
   for [l:op_id, l:op] in items(s:active_operations)
-    if l:now - l:op.started > s:orphan_timeout
+    if l:now - l:op.started > l:timeout
       call add(l:stale, l:op_id)
     endif
   endfor
@@ -450,10 +459,15 @@ function! s:purge_stale_operations() abort
     endif
     let l:op = s:active_operations[l:op_id]
     if l:buf != -1 && l:op.line > 0 && l:op.line <= s:line_count(l:buf)
-      let l:warn_line = s:symbols.warning . ' ' . l:op.name . '... timed out'
-      call s:set_lines(l:buf, l:op.line, [l:warn_line])
+      " Mark only once: re-marking at every spinner tick would spam the
+      " debug log and fight the spinner glyph rewrite.
+      if l:op.type !=# 'still running (slow)'
+        let l:op.type = 'still running (slow)'
+        let l:warn_line = s:symbols.warning . ' ' . l:op.name . '... still running (slow)'
+        call s:set_lines(l:buf, l:op.line, [l:warn_line])
+        call plugin_manager#core#log#debug('ui', 'slow marker: ' . l:op.name)
+      endif
     endif
-    unlet s:active_operations[l:op_id]
   endfor
 endfunction
 

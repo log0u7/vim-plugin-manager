@@ -323,6 +323,9 @@ function! s:update_all_plugins_async(ctx) abort
   let a:ctx.updated_modules = []
   let a:ctx.ops = {}
   let a:ctx.pre_commits = {}
+  " Modules whose fetch failed: the op is completed as a failure by
+  " s:on_module_fetched and the module is excluded from the pull batch.
+  let a:ctx.fetch_failed = {}
   
   " Pre-render all plugin lines as a block with pending spinners
   for l:module in a:ctx.valid_modules
@@ -342,12 +345,24 @@ function! s:update_all_plugins_async(ctx) abort
     let l:module_path = get(l:module, 'abs_path', l:module.path)
     call plugin_manager#async#git(
           \ 'git -C ' . shellescape(l:module_path) . ' fetch --tags origin', {
-          \ 'callback': function('s:on_module_fetched', [a:ctx])
+          \ 'callback': function('s:on_module_fetched', [a:ctx, l:module])
           \ })
   endfor
 endfunction
 
-function! s:on_module_fetched(ctx, ...) abort
+function! s:on_module_fetched(ctx, module, result) abort
+  if get(a:result, 'status', 0) != 0
+    " A failed/killed fetch must surface as a module failure, not as a
+    " silent success: the analyze/pull batch would run on stale refs.
+    call plugin_manager#ui#complete_operation(
+          \ a:ctx.ops[a:module.short_name], 'fail', 'Fetch failed')
+    " git writes the reason on stderr: result.errors carries it in async
+    " mode (the sync fallback merges it into output).
+    call plugin_manager#ui#log_detail('update',
+          \ 'fetch failed in ' . get(a:module, 'abs_path', a:module.path)
+          \ . ': ' . get(a:result, 'errors', get(a:result, 'output', '')))
+    let a:ctx.fetch_failed[a:module.short_name] = 1
+  endif
   let a:ctx.pending_fetches -= 1
   if a:ctx.pending_fetches == 0
     call s:on_batch_fetched(a:ctx)
@@ -364,8 +379,18 @@ function! s:on_batch_fetched(ctx) abort
 
   " Fan-out: analyze and update each module in parallel
   for l:module in a:ctx.valid_modules
+    if has_key(a:ctx.fetch_failed, l:module.short_name)
+      " The op is already completed as a failure; release its slot.
+      let a:ctx.pending -= 1
+      continue
+    endif
     call s:analyze_and_update(a:ctx, l:module)
   endfor
+
+  " Every module failed at fetch: nothing left to analyze, finalize now.
+  if a:ctx.pending == 0
+    call s:finalize_update_all(a:ctx)
+  endif
 endfunction
 
 function! s:analyze_and_update(ctx, module) abort
@@ -481,11 +506,21 @@ function! s:finalize_update_all(ctx) abort
 
   let l:n = len(a:ctx.updated_modules)
   let l:total = len(a:ctx.valid_modules)
+  let l:failed = len(get(a:ctx, 'fetch_failed', {}))
+  let l:footer = []
   if l:n > 0
-    call plugin_manager#ui#footer([plugin_manager#ui#success(l:n . ' of ' . l:total . ' plugins updated')])
+    call add(l:footer, plugin_manager#ui#success(l:n . ' of ' . l:total . ' plugins updated'))
+  elseif l:failed == 0
+    call add(l:footer, plugin_manager#ui#info('All ' . l:total . ' plugins are up-to-date'))
   else
-    call plugin_manager#ui#footer([plugin_manager#ui#info('All ' . l:total . ' plugins are up-to-date')])
+    call add(l:footer, plugin_manager#ui#warning(
+          \ l:failed . ' of ' . l:total . ' plugins failed to fetch'))
   endif
+  if l:failed > 0 && l:n > 0
+    call add(l:footer, plugin_manager#ui#warning(
+          \ l:failed . ' of ' . l:total . ' plugins failed to fetch'))
+  endif
+  call plugin_manager#ui#footer(l:footer)
 endfunction
 
 " ------------------------------------------------------------------------------

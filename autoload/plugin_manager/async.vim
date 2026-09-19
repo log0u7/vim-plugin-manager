@@ -156,6 +156,13 @@ function! s:on_job_timeout(job_id, timer) abort
   if !has_key(s:jobs, a:job_id) || s:jobs[a:job_id].finished
     return
   endif
+  " Leave a trace in the log: a timeout kill used to be invisible.
+  call plugin_manager#core#log#write({
+        \ 'type': 'internal',
+        \ 'component': 'async',
+        \ 'code': 'JOB_TIMEOUT',
+        \ 'message': 'job killed after timeout: ' . s:jobs[a:job_id].cmd,
+        \ })
   " Best-effort stop; completion bookkeeping happens in stop_job/exit cb.
   " A process that ignored SIGTERM for the whole timeout gets SIGKILL.
   try

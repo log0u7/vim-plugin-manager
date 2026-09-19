@@ -62,6 +62,20 @@ Execute (complete_operation_symbol renders the given glyph in place):
   Assert content =~# 'Modified', 'status text should appear'
   Assert content =~# glyph, 'the provided glyph should appear'
 
+Execute (stale op is marked slow and a late completion still rewrites it):
+  let g:plugin_manager_stale_timeout = -1
+  call plugin_manager#ui#open_sidebar(['Header'])
+  wincmd p
+  let opid = plugin_manager#ui#start_operation('slowplug', 'Pending')
+  call plugin_manager#ui#_purge_stale_test()
+  let sbuf = bufnr('PluginManager')
+  let content = join(getbufline(sbuf, 1, '$'), "\n")
+  Assert content =~# 'still running', 'stale op should show the slow marker, got: ' . content
+  call plugin_manager#ui#complete_operation(opid, 'ok', 'Updated')
+  let content = join(getbufline(sbuf, 1, '$'), "\n")
+  Assert content =~# 'Updated', 'late completion should overwrite the slow marker, got: ' . content
+  unlet g:plugin_manager_stale_timeout
+
 Execute (log_detail routes to log, never opens sidebar):
   let sbuf_before = bufnr('PluginManager')
   call plugin_manager#ui#log_detail('test', 'test detail message')

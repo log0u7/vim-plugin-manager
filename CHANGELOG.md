@@ -20,6 +20,23 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
   automated AI review is left aside for now; dependency PRs come from
   Dependabot and are merged by a human.
 
+### Fixed
+- **update-all no longer reports `timed out` on every module when one
+  fetch is slow** (#3): the stale-purge pass now marks slow operations
+  (`still running (slow)`) without removing them, so late real
+  completions overwrite the marker instead of being swallowed; the
+  staleness window re-arms on every status change instead of aging from
+  the pre-render time. Test seam: `g:plugin_manager_stale_timeout`.
+- **update-all respects the fetch status** (#3): a failed or killed
+  fetch now completes the module as `Fetch failed` (logged) and is
+  excluded from the pull batch instead of running the pull on stale
+  refs; the footer reports failures (`n of total updated, m failed to
+  fetch`).
+- Job timeout kills and slow markers leave a trace in
+  `~/.vim/logs/plugin_manager.log` (#3) - kills always (JOB_TIMEOUT
+  warning), slow markers in debug mode; timeout events used to be
+  invisible.
+
 ## [2.2.5] - 2026-09-17
 
 ### Fixed
