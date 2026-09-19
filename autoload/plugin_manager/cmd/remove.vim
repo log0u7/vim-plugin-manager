@@ -163,34 +163,49 @@ function! s:remove_module(module_name, module_path) abort
   let l:module_info = s:get_module_metadata(a:module_path)
 
   " git submodule deinit and git rm take the repo-relative path as argument
-  " but must run inside the repo root (vim_dir).
-  call plugin_manager#git#execute(
-        \ 'git submodule deinit -f ' . shellescape(a:module_path), l:vim_dir, 0, 0)
+  " but must run inside the repo root (vim_dir).  Discovery may hand us an
+  " absolute path (filesystem search): normalize so the vim_dir prefix is
+  " never applied twice.
+  let l:rel_path = plugin_manager#core#util#make_relative_path(a:module_path)
+
+  let l:deinit_result = plugin_manager#git#execute(
+        \ 'git submodule deinit -f ' . shellescape(l:rel_path), l:vim_dir, 0, 0)
+  if !l:deinit_result.success
+    call plugin_manager#ui#log_detail('remove',
+          \ 'submodule deinit failed for ' . l:rel_path . ': '
+          \ . l:deinit_result.output, 'warn')
+  endif
   let l:result = plugin_manager#git#execute(
-        \ 'git rm -f ' . shellescape(a:module_path), l:vim_dir, 0, 0)
+        \ 'git rm -f ' . shellescape(l:rel_path), l:vim_dir, 0, 0)
 
   if !l:result.success
     " Fallback: delete the working tree directory directly using absolute path
-    let l:abs_path = empty(l:vim_dir) ? a:module_path : (l:vim_dir . '/' . a:module_path)
+    let l:abs_path = empty(l:vim_dir) ? l:rel_path : (l:vim_dir . '/' . l:rel_path)
     call plugin_manager#ui#log_detail('remove', 'git rm failed, removing path manually: ' . l:abs_path, 'warn')
     call plugin_manager#core#util#remove_path(l:abs_path)
   endif
 
   " Remove the cached git metadata for this submodule (absolute path)
-  let l:git_modules_path = l:vim_dir . '/.git/modules/' . a:module_path
+  let l:git_modules_path = l:vim_dir . '/.git/modules/' . l:rel_path
   if plugin_manager#core#util#dir_exists(l:git_modules_path)
     call plugin_manager#core#util#remove_path(l:git_modules_path)
   endif
 
   " Removal outcome: the working tree directory must be gone. Report the
   " truth instead of an unconditional 'ok'.
-  let l:abs_module = empty(l:vim_dir) ? a:module_path : (l:vim_dir . '/' . a:module_path)
+  let l:abs_module = empty(l:vim_dir) ? l:rel_path : (l:vim_dir . '/' . l:rel_path)
   let l:success = !plugin_manager#core#util#dir_exists(l:abs_module)
 
   if l:success
-    call s:commit_removal(a:module_name, l:module_info)
-    call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Removed')
-    call plugin_manager#ui#footer([plugin_manager#ui#success('Plugin removed')])
+    if s:commit_removal(a:module_name, l:module_info)
+      call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Removed')
+      call plugin_manager#ui#footer([plugin_manager#ui#success('Plugin removed')])
+    else
+      call plugin_manager#ui#complete_operation(l:op_id, 'warn',
+            \ 'Removed (pointer commit failed: see log)')
+      call plugin_manager#ui#footer([plugin_manager#ui#warning(
+            \ 'Plugin removed, but the pointer commit failed (see log)')])
+    endif
   else
     call plugin_manager#ui#complete_operation(l:op_id, 'fail',
           \ 'Removal incomplete: ' . l:abs_module . ' still exists (see log)')
@@ -216,6 +231,9 @@ function! s:get_module_metadata(module_path) abort
   return {}
 endfunction
 
+" Stage the .gitmodules update and record the removal as its own history
+" entry.  Returns 1 when a commit was created, 0 when every commit attempt
+" failed (the failure is logged: the pointer state is degraded).
 function! s:commit_removal(module_name, module_info) abort
   let l:commit_msg = "Remove " . a:module_name . " plugin"
   let l:vim_dir = plugin_manager#core#util#get_config('vim_dir', '')
@@ -225,13 +243,25 @@ function! s:commit_removal(module_name, module_info) abort
   endif
 
   " Stage .gitmodules (updated by git rm); run in vim_dir for repo-root scope.
-  call plugin_manager#git#execute('git add .gitmodules', l:vim_dir, 0, 0)
+  let l:add_result = plugin_manager#git#execute(
+        \ 'git add .gitmodules', l:vim_dir, 0, 0)
+  if !l:add_result.success
+    call plugin_manager#ui#log_detail('remove',
+          \ 'git add .gitmodules failed: ' . l:add_result.output, 'warn')
+  endif
   " Try to commit; if nothing to commit (already removed via rm), create an
   " empty commit so the removal is recorded as a separate history entry.
   let l:result = plugin_manager#git#execute(
         \ 'git commit -m ' . shellescape(l:commit_msg), l:vim_dir, 0, 0)
   if !l:result.success
-    call plugin_manager#git#execute(
+    let l:result = plugin_manager#git#execute(
           \ 'git commit --allow-empty -m ' . shellescape(l:commit_msg), l:vim_dir, 0, 0)
   endif
+  if !l:result.success
+    call plugin_manager#ui#log_detail('remove',
+          \ 'pointer commit failed for ' . a:module_name . ': '
+          \ . l:result.output, 'warn')
+    return 0
+  endif
+  return 1
 endfunction

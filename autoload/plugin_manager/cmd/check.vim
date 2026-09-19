@@ -220,7 +220,10 @@ function! s:finish(plugins, opts) abort
     try
       call a:opts.on_done(a:plugins)
     catch
-      " Do not let callback failures bubble up
+      " Do not let callback failures bubble up, but leave a trace: a
+      " swallowed callback error must never be invisible.
+      call plugin_manager#core#log#warn('check',
+            \ 'on_done callback failed: ' . v:exception)
     endtry
   endif
 endfunction

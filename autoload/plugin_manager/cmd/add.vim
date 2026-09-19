@@ -131,6 +131,9 @@ function! s:install_local_plugin(path, options) abort
     if !empty(get(a:options, 'exec', ''))
       let l:result = plugin_manager#core#util#run_in_dir(a:options.exec, l:plugin_dir)
       if !l:result.success
+        call plugin_manager#ui#log_detail('add',
+              \ 'post-install exec failed: ' . a:options.exec . ' - '
+              \ . l:result.output, 'warn')
         call plugin_manager#ui#complete_operation(l:op_id, 'fail', 'Exec failed')
         return 0
       endif

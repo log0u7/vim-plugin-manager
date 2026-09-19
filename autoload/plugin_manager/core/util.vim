@@ -90,6 +90,10 @@ function! plugin_manager#core#util#ensure_directory(dir) abort
       call mkdir(l:dir, 'p')
       return 1
     catch
+      " A silent mkdir failure cascades into confusing downstream errors:
+      " warn so the real cause is visible.
+      call plugin_manager#core#log#warn('util',
+            \ 'mkdir failed: ' . l:dir . ': ' . v:exception)
       return 0
     endtry
   endif

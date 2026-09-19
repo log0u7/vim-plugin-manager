@@ -123,6 +123,12 @@ function! s:generate_for_plugin(plugin_name, plugin_path, ...) abort
   if s:generate_helptag(a:plugin_path)
     call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Helptags generated')
     return 1
+  elseif isdirectory(a:plugin_path . '/doc')
+    " The doc directory exists but :helptags failed: that is a failure,
+    " not a skip - label it truthfully (details in the log).
+    call plugin_manager#ui#complete_operation(l:op_id, 'fail',
+          \ 'Helptags failed (see log)')
+    return 0
   else
     call plugin_manager#ui#complete_operation(l:op_id, 'skip', 'No doc directory')
     return 0
@@ -140,6 +146,10 @@ function! s:generate_helptag(plugin_path) abort
       execute 'helptags ' . fnameescape(l:doc_path)
       return 1
     catch
+      " A failed :helptags used to be indistinguishable from a missing doc
+      " directory: warn so the real error is visible in a default setup.
+      call plugin_manager#core#log#warn('helptags',
+            \ 'helptags failed in ' . a:plugin_path . ': ' . v:exception)
       return 0
     endtry
   endif

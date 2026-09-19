@@ -350,7 +350,10 @@ function! s:process_job_completion(job_id) abort
         \ 'cmd': l:job.cmd
         \ })
     catch
-      " Handle callback errors
+      " Handle callback errors: surface on :messages and in the log (a
+      " swallowed callback error must never be invisible).
+      call plugin_manager#core#log#warn('async',
+            \ 'async callback error: ' . v:exception)
       echohl ErrorMsg
       echomsg "Error in async callback: " . v:exception
       echohl None
