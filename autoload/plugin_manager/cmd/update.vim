@@ -179,7 +179,7 @@ function! s:report_job_errors(result) abort
   endif
 
   if !empty(l:detail)
-    call plugin_manager#ui#log_detail('update', l:detail)
+    call plugin_manager#ui#log_detail('update', l:detail, 'warn')
   endif
 endfunction
 
@@ -360,7 +360,7 @@ function! s:on_module_fetched(ctx, module, result) abort
     " mode (the sync fallback merges it into output).
     call plugin_manager#ui#log_detail('update',
           \ 'fetch failed in ' . get(a:module, 'abs_path', a:module.path)
-          \ . ': ' . get(a:result, 'errors', get(a:result, 'output', '')))
+          \ . ': ' . get(a:result, 'errors', get(a:result, 'output', '')), 'warn')
     let a:ctx.fetch_failed[a:module.short_name] = 1
   endif
   let a:ctx.pending_fetches -= 1
@@ -532,7 +532,7 @@ endfunction
 function! s:log_silent_failure(step, res) abort
   if !a:res.success
     call plugin_manager#ui#log_detail('update',
-          \ 'auto-commit ' . a:step . ' failed: ' . a:res.output)
+          \ 'auto-commit ' . a:step . ' failed: ' . a:res.output, 'warn')
   endif
 endfunction
 
@@ -558,7 +558,7 @@ function! s:stash_pop(module_path, op_id) abort
     call plugin_manager#ui#complete_operation(a:op_id, 'warn',
           \ 'Local changes preserved in stash (run: git stash pop)')
     call plugin_manager#ui#log_detail('update',
-          \ 'stash pop failed in ' . a:module_path . ': ' . l:result.output)
+          \ 'stash pop failed in ' . a:module_path . ': ' . l:result.output, 'warn')
   endif
 endfunction
 

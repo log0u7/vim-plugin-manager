@@ -260,7 +260,7 @@ Execute (auto-commit failures are logged, never silent):
   let g:_pm_upd_logtext = join(readfile(g:_pm_upd_vim . '/logs/plugin_manager.log'), "\n")
   Assert g:_pm_upd_logtext =~# '\cauto-commit',
         \ 'auto-commit failure must be logged, got: ' . g:_pm_upd_logtext
-  unlet g:_pm_upd_logtext
+  unlet g:_pm_upd_logtext g:plugin_manager_debug_mode
 
 Execute (fetch failure is reported and the failed module is excluded):
   " Second module on a healthy remote: it must still update normally
@@ -284,7 +284,9 @@ Execute (fetch failure is reported and the failed module is excluded):
         \ system('git -C ' . shellescape(g:_pm_upd_plug) . ' rev-parse HEAD'),
         \ '\n', '', 'g')
   let g:plugin_manager_enable_logging = 1
-  let g:plugin_manager_debug_mode = 1
+  " NOTE: g:plugin_manager_debug_mode is deliberately NOT set (case 9
+  " now unlets it): failure details must be logged at warn level,
+  " visible in a default setup.
 
   call plugin_manager#cmd#update#execute('all')
 
@@ -302,4 +304,4 @@ Execute (fetch failure is reported and the failed module is excluded):
   Assert g:_pm_upd_logtext =~# 'fetch failed',
         \ 'the fetch failure must be logged, got: ' . g:_pm_upd_logtext
   unlet g:_pm_upd_sb g:_pm_upd_head g:_pm_upd_after g:_pm_upd_logtext
-  unlet g:_pm_upd_plug2 g:plugin_manager_debug_mode
+  unlet g:_pm_upd_plug2

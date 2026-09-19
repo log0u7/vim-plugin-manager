@@ -107,7 +107,7 @@ function! plugin_manager#cmd#gc#execute(...) abort
           let l:removed += 1
         else
           call plugin_manager#ui#log_detail('gc',
-                \ 'removal did not complete for ' . l:orphan.name)
+                \ 'removal did not complete for ' . l:orphan.name, 'warn')
         endif
       catch
         call plugin_manager#core#handle_error(v:exception, 'gc')

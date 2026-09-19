@@ -172,7 +172,7 @@ function! s:remove_module(module_name, module_path) abort
   if !l:result.success
     " Fallback: delete the working tree directory directly using absolute path
     let l:abs_path = empty(l:vim_dir) ? a:module_path : (l:vim_dir . '/' . a:module_path)
-    call plugin_manager#ui#log_detail('remove', 'git rm failed, removing path manually: ' . l:abs_path)
+    call plugin_manager#ui#log_detail('remove', 'git rm failed, removing path manually: ' . l:abs_path, 'warn')
     call plugin_manager#core#util#remove_path(l:abs_path)
   endif
 

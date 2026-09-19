@@ -87,7 +87,7 @@ function! s:install_remote_plugin(url, options) abort
     endif
   catch
     call plugin_manager#ui#complete_operation(l:op_id, 'fail', 'Failed')
-    call plugin_manager#ui#log_detail('add', v:exception)
+    call plugin_manager#ui#log_detail('add', v:exception, 'warn')
     call plugin_manager#core#handle_error(v:exception, "add")
     return 0
   endtry
@@ -150,7 +150,7 @@ function! s:install_local_plugin(path, options) abort
     return 1
   catch
     call plugin_manager#ui#complete_operation(l:op_id, 'fail', 'Failed')
-    call plugin_manager#ui#log_detail('add', v:exception)
+    call plugin_manager#ui#log_detail('add', v:exception, 'warn')
     call plugin_manager#core#handle_error(v:exception, "add")
     return 0
   endtry

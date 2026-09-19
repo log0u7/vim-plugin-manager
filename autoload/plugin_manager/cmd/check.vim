@@ -147,7 +147,7 @@ function! s:on_fetched(ctx, module, result) abort
     endif
     call plugin_manager#ui#log_detail('check',
           \ 'fetch failed for ' . a:module.short_name . ': '
-          \ . (empty(a:result.errors) ? a:result.output : a:result.errors))
+          \ . (empty(a:result.errors) ? a:result.output : a:result.errors), 'warn')
     let a:ctx.pending -= 1
     if a:ctx.pending == 0
       call s:finalize(a:ctx)

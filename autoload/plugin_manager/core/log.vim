@@ -158,6 +158,15 @@ function! plugin_manager#core#log#debug(component, message) abort
   endif
 endfunction
 
+" Write a warn entry.  Failure details: always written (a swallowed
+" failure must never depend on debug_mode being on - see issue #5).
+function! plugin_manager#core#log#warn(component, message) abort
+  if get(g:, 'plugin_manager_enable_logging', 1)
+    let l:parsed = {'type': 'internal', 'component': a:component, 'code': 'WARN', 'message': a:message}
+    call plugin_manager#core#log#write(l:parsed)
+  endif
+endfunction
+
 " Write a trace entry.  Gated by enable_logging only (callers gate on
 " g:plugin_manager_trace_commands before calling).
 function! plugin_manager#core#log#trace(component, message) abort
