@@ -164,11 +164,11 @@ Execute (async callback error logs a WARN):
 Execute (real helptags failure logs a WARN and is not labeled "No doc directory"):
   call delete(g:_pm_lw_log)
   call mkdir(g:_pm_lw_plug . '/doc', 'p')
-  " A valid help file forces :helptags to (re)write the tags file; the
-  " read-only tags file then makes the write fail with E152.
+  " A valid help file forces :helptags to (re)write the tags file; a tags
+  " DIRECTORY makes that write fail (E152) for root and users alike - CI
+  " containers run as root, so permission bits are not a usable trigger.
   call writefile(['*myplugin-help*'], g:_pm_lw_plug . '/doc/myplugin.txt')
-  call writefile(['seed'], g:_pm_lw_plug . '/doc/tags')
-  call setfperm(g:_pm_lw_plug . '/doc/tags', 'r--r--r--')
+  call mkdir(g:_pm_lw_plug . '/doc/tags', 'p')
   call plugin_manager#cmd#helptags#execute(1)
   let g:_pm_lw_sb = join(getbufline(bufnr('PluginManager'), 1, '$'), "\n")
   Assert g:_pm_lw_sb =~# 'Helptags failed',
