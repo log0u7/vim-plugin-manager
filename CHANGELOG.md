@@ -2,7 +2,7 @@
 
 All notable changes to the Vim Plugin Manager will be documented in this file.
 
-## [Unreleased]
+## [2.2.6] - 2026-09-19
 
 ### Added
 - Contributor workflow: GitHub issue forms (bug report, feature request),
