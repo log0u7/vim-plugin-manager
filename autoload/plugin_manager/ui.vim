@@ -286,11 +286,19 @@ endfunction
 " NOTE: do not guard with exists('*plugin_manager#core#log#debug'): on an
 " autoload function it returns 0 until the file is loaded, silently
 " disabling all detail logging. Calling it directly triggers autoload.
-function! plugin_manager#ui#log_detail(component, detail) abort
+" Route a detail line to the log. level: 'debug' (default, gated by
+" debug_mode) or 'warn' (failure details, always written - issue #5).
+function! plugin_manager#ui#log_detail(component, detail, ...) abort
+  let l:level = a:0 >= 1 && a:1 ==# 'warn' ? 'warn' : 'debug'
   if type(a:detail) == v:t_list
-    call plugin_manager#core#log#debug(a:component, join(a:detail, "\n"))
+    let l:detail = join(a:detail, "\n")
   else
-    call plugin_manager#core#log#debug(a:component, a:detail)
+    let l:detail = a:detail
+  endif
+  if l:level ==# 'warn'
+    call plugin_manager#core#log#warn(a:component, l:detail)
+  else
+    call plugin_manager#core#log#debug(a:component, l:detail)
   endif
 endfunction
 

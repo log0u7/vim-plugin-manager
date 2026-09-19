@@ -39,7 +39,18 @@ Execute (log#debug is gated by debug_mode):
   let g:log_lines = readfile(plugin_manager#core#log#get_path())
   Assert g:log_lines[-1] =~# 'DEBUG:test:DEBUG:shown$', 'debug on: entry written'
   unlet g:plugin_manager_debug_mode
-  unlet g:plugin_manager_enable_logging
+  unlet g:before
+  unlet g:log_lines
+
+Execute (log#warn is not gated by debug_mode):
+  let g:plugin_manager_enable_logging = 1
+  let g:plugin_manager_debug_mode = 0
+  call plugin_manager#core#log#write({'type': 'internal', 'component': 'core', 'code': 'SEED', 'message': 'seed'})
+  let g:before = len(readfile(plugin_manager#core#log#get_path()))
+  call plugin_manager#core#log#warn('test', 'failure detail')
+  let g:log_lines = readfile(plugin_manager#core#log#get_path())
+  AssertEqual g:before + 1, len(g:log_lines), 'warn must write with debug_mode off'
+  Assert g:log_lines[-1] =~# '| test | WARN | failure detail$', 'warn format: ' . g:log_lines[-1]
   unlet g:before
   unlet g:log_lines
 

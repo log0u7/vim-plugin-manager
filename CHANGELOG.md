@@ -12,6 +12,14 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
   (`ci` commit prefix, `dependencies` label); PRs are handled
   human-in-the-loop (review, approve, squash-merge), no auto-merge.
 
+### Fixed
+- **Install/operation failures are visible in a default setup** (#5):
+  a new WARN log level (always written, never debug-gated) covers every
+  failure branch - declare clone, declare `submodule add` (previously
+  unlogged), update/check fetch failures, stash pop, auto-commit,
+  backup, gc, add/remove; `ui#log_detail` takes an optional level
+  (default `debug`, backward compatible).
+
 ### Changed
 - CONTRIBUTING.md documents GitHub Flow + tags: one protected `main`
   (required checks, resolved conversations, no force push, squash merges),

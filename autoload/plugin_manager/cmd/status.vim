@@ -82,7 +82,7 @@ function! s:on_status_fetched(ctx, module, result) abort
           \ {'name': a:module.short_name, 'status': 'Fetch failed', 'details': ''})
     call plugin_manager#ui#log_detail('status',
           \ 'fetch failed for ' . a:module.short_name . ': '
-          \ . (empty(a:result.errors) ? a:result.output : a:result.errors))
+          \ . (empty(a:result.errors) ? a:result.output : a:result.errors), 'warn')
     let a:ctx.pending -= 1
     call s:maybe_finalize_status(a:ctx)
     return

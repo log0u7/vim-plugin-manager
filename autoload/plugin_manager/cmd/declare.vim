@@ -204,8 +204,11 @@ function! s:on_clone_done(ctx, name, url, options, target, result) abort
 
   if a:result.status != 0
     call plugin_manager#ui#complete_operation(l:op_id, 'fail', 'Clone failed')
+    " Failure details must be visible in a default setup (issue #5):
+    " log at warn level, never debug-gated.
     call plugin_manager#ui#log_detail('declare',
-          \ empty(a:result.errors) ? a:result.output : a:result.errors)
+          \ 'clone failed (' . a:result.status . '): '
+          \ . (empty(a:result.errors) ? a:result.output : a:result.errors), 'warn')
     let a:ctx.errors += 1
     call s:maybe_finish_async(a:ctx)
     return
@@ -221,11 +224,14 @@ function! s:on_clone_done(ctx, name, url, options, target, result) abort
       let a:ctx.installed += 1
     else
       call plugin_manager#ui#complete_operation(l:op_id, 'fail', 'Failed')
+      call plugin_manager#ui#log_detail('declare',
+            \ 'submodule add failed for ' . a:name . ' (' . a:url . ')',
+            \ 'warn')
       let a:ctx.errors += 1
     endif
   catch
     call plugin_manager#ui#complete_operation(l:op_id, 'fail', 'Install failed')
-    call plugin_manager#ui#log_detail('declare', v:exception)
+    call plugin_manager#ui#log_detail('declare', v:exception, 'warn')
     let a:ctx.errors += 1
   endtry
   call s:maybe_finish_async(a:ctx)

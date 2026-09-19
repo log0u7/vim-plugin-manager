@@ -72,7 +72,7 @@ function! s:commit_local_changes(op_id) abort
     call plugin_manager#ui#complete_operation(a:op_id, 'ok', 'Committed')
   else
     call plugin_manager#ui#complete_operation(a:op_id, 'fail', 'Commit failed')
-    call plugin_manager#ui#log_detail('backup', l:result.output)
+    call plugin_manager#ui#log_detail('backup', l:result.output, 'warn')
   endif
 endfunction
 
@@ -98,7 +98,7 @@ function! s:push_to_remotes(op_id) abort
   if empty(l:failures)
     call plugin_manager#ui#complete_operation(a:op_id, 'ok', 'Pushed')
   else
-    call plugin_manager#ui#log_detail('backup', join(l:failures, "\n"))
+    call plugin_manager#ui#log_detail('backup', join(l:failures, "\n"), 'warn')
     if len(l:failures) == len(l:remote_names)
       call plugin_manager#ui#complete_operation(a:op_id, 'fail', 'Push failed')
     else
