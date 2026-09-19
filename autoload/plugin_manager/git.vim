@@ -563,7 +563,9 @@ function! plugin_manager#git#add_submodule(url, install_dir, options) abort
     endif
   endif
 
-  " Commit changes (must run at repo root)
+  " Commit changes (must run at repo root).  A failed pointer commit
+  " leaves the submodule unrecorded: never swallow it - warn and fail the
+  " add so the caller reports the degraded outcome.
   let l:commit_msg = 'Add ' . a:url . ' plugin'
   if !empty(a:options.branch)
     let l:commit_msg .= ' (branch: ' . a:options.branch . ')'
@@ -571,9 +573,15 @@ function! plugin_manager#git#add_submodule(url, install_dir, options) abort
     let l:commit_msg .= ' (tag: ' . a:options.tag . ')'
   endif
 
-  call plugin_manager#git#execute('git commit -m ' . shellescape(l:commit_msg), l:vim_dir, 1, 0)
-  
-  return l:result.success
+  let l:commit_result = plugin_manager#git#execute(
+        \ 'git commit -m ' . shellescape(l:commit_msg), l:vim_dir, 1, 0)
+  if !l:commit_result.success
+    call plugin_manager#core#log#warn('git',
+          \ 'pointer commit failed for ' . l:relative_path . ': '
+          \ . l:commit_result.output)
+  endif
+
+  return l:result.success && l:commit_result.success
 endfunction
 
 

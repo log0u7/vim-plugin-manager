@@ -159,7 +159,10 @@ function! s:on_update_complete(ctx, result) abort
       call plugin_manager#ui#complete_operation(l:op_id, 'ok', 'Updated')
       call plugin_manager#cmd#helptags#execute(0, l:module_name, 1)
       let l:module_path = get(a:ctx.current_module, 'path', '')
-      call s:commit_update_async(l:module_name, l:module_path)
+      if s:commit_update_async(l:module_name, l:module_path)
+        call plugin_manager#ui#complete_operation(l:op_id, 'warn',
+              \ 'Updated (auto-commit failed: see log)')
+      endif
     else
       call plugin_manager#ui#complete_operation(l:op_id, 'info', 'Up-to-date')
     endif
@@ -239,6 +242,9 @@ function! s:sync_pinned(ctx, module, pin, current_commit, op_id) abort
   let l:res = plugin_manager#git#execute(
         \ 'git rev-parse ' . shellescape(l:ref . '^{commit}'), l:module_path, 0, 0)
   if !l:res.success
+    " The sidebar alone hides this from :PluginManagerViewLog: warn too.
+    call plugin_manager#core#log#warn('update',
+          \ 'Pin target not found: ' . l:ref . ' in ' . l:module_path)
     call plugin_manager#ui#complete_operation(a:op_id, 'fail',
           \ 'Pin target not found: ' . l:ref)
     call s:pin_done(a:ctx, a:module, 0)
@@ -299,7 +305,10 @@ function! s:pin_done(ctx, module, changed) abort
   elseif a:changed
     call plugin_manager#cmd#helptags#execute(0, a:module.short_name, 1)
     let l:module_path = get(get(a:ctx, 'current_module', {}), 'path', '')
-    call s:commit_update_async(a:module.short_name, l:module_path)
+    if s:commit_update_async(a:module.short_name, l:module_path)
+      call plugin_manager#ui#complete_operation(s:op_id_for(a:ctx, a:module),
+            \ 'warn', 'Updated (auto-commit failed: see log)')
+    endif
   endif
 endfunction
 
@@ -485,22 +494,34 @@ function! s:maybe_finalize(ctx) abort
 endfunction
 
 function! s:finalize_update_all(ctx) abort
+  let l:commit_failed = 0
   if !empty(a:ctx.updated_modules)
     if plugin_manager#core#util#should_auto_commit()
       let l:vd = plugin_manager#core#util#get_config('vim_dir', '')
-      call s:log_silent_failure('git add .gitmodules',
+      let l:commit_failed = s:log_silent_failure('git add .gitmodules',
             \ plugin_manager#git#execute('git add .gitmodules', l:vd, 0, 0))
       for l:module in a:ctx.updated_modules
-        call s:log_silent_failure('git add ' . l:module.path,
+        let l:commit_failed = s:log_silent_failure('git add ' . l:module.path,
               \ plugin_manager#git#execute(
               \   'git add ' . shellescape(l:module.path), l:vd, 0, 0))
+              \ || l:commit_failed
       endfor
-      call s:log_silent_failure('commit',
+      let l:commit_failed = s:log_silent_failure('commit',
             \ plugin_manager#git#execute(
             \   'git commit -m "Update Modules"', l:vd, 0, 0))
+            \ || l:commit_failed
     endif
     for l:module in a:ctx.updated_modules
       call plugin_manager#cmd#helptags#execute(0, l:module.short_name, 1)
+    endfor
+  endif
+
+  " Truthful completion: the plugins updated, but the pointer commit is the
+  " part that persists the update - a failure must not read as a clean win.
+  if l:commit_failed
+    for l:module in a:ctx.updated_modules
+      call plugin_manager#ui#complete_operation(a:ctx.ops[l:module.short_name],
+            \ 'warn', 'Updated (auto-commit failed: see log)')
     endfor
   endif
 
@@ -520,6 +541,10 @@ function! s:finalize_update_all(ctx) abort
     call add(l:footer, plugin_manager#ui#warning(
           \ l:failed . ' of ' . l:total . ' plugins failed to fetch'))
   endif
+  if l:commit_failed
+    call add(l:footer, plugin_manager#ui#warning(
+          \ 'auto-commit failed (see log): the update is not recorded in git'))
+  endif
   call plugin_manager#ui#footer(l:footer)
 endfunction
 
@@ -529,11 +554,14 @@ endfunction
 
 " Log silent git failures (git#execute with throw_on_error=0): a failed
 " pointer add/commit must leave a trace in the log, not vanish.
+" Returns 1 when the step failed, 0 otherwise.
 function! s:log_silent_failure(step, res) abort
   if !a:res.success
     call plugin_manager#ui#log_detail('update',
           \ 'auto-commit ' . a:step . ' failed: ' . a:res.output, 'warn')
+    return 1
   endif
+  return 0
 endfunction
 
 " Stash local changes if any exist. Returns 1 if a stash was created, 0 otherwise.
@@ -545,7 +573,14 @@ function! s:stash_if_needed(module_path) abort
   if !l:status.success || empty(trim(l:status.output))
     return 0
   endif
-  call plugin_manager#git#execute('git stash push -u -q', a:module_path, 0, 0)
+  let l:stash_result = plugin_manager#git#execute('git stash push -u -q', a:module_path, 0, 0)
+  if !l:stash_result.success
+    " Never claim a stash exists when the push failed: the caller would
+    " otherwise pop an unrelated stash after the pull.
+    call plugin_manager#ui#log_detail('update',
+          \ 'stash push failed in ' . a:module_path . ': ' . l:stash_result.output, 'warn')
+    return 0
+  endif
   return 1
 endfunction
 
@@ -562,21 +597,27 @@ function! s:stash_pop(module_path, op_id) abort
   endif
 endfunction
 
+" Auto-commit the pointer for a single updated module (mirror of
+" s:finalize_update_all).  Returns 1 when any step failed so the caller can
+" re-complete the operation with a truthful warn.
 function! s:commit_update_async(module_name, module_path) abort
   if !plugin_manager#core#util#should_auto_commit()
-    return
+    return 0
   endif
   let l:vim_dir = plugin_manager#core#util#get_config('vim_dir', '')
   " Three separate calls (mirrors s:finalize_update_all): a compound command
   " would only scope the first git -C, and the module name must stay escaped
   " so it can never break out of the commit message quoting.
-  call s:log_silent_failure('git add .gitmodules',
+  let l:failed = s:log_silent_failure('git add .gitmodules',
         \ plugin_manager#git#execute('git add .gitmodules', l:vim_dir, 0, 0))
-  call s:log_silent_failure('git add ' . a:module_path,
+  let l:failed = s:log_silent_failure('git add ' . a:module_path,
         \ plugin_manager#git#execute(
         \   'git add ' . shellescape(a:module_path), l:vim_dir, 0, 0))
-  call s:log_silent_failure('commit',
+        \ || l:failed
+  let l:failed = s:log_silent_failure('commit',
         \ plugin_manager#git#execute(
         \   'git commit -m ' . shellescape('Update Module: ' . a:module_name),
         \   l:vim_dir, 0, 0))
+        \ || l:failed
+  return l:failed
 endfunction

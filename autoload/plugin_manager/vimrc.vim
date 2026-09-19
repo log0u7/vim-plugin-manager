@@ -51,7 +51,9 @@ function! s:eval_declaration(rest) abort
     endif
   endif
   if empty(l:args) || type(get(l:args, 0, '')) != v:t_string
-    call plugin_manager#core#log#debug('vimrc',
+    " Warn, not debug: a silently skipped declaration must be visible in a
+    " default setup (debug_mode off), same contract as issue #5.
+    call plugin_manager#core#log#warn('vimrc',
           \ 'skipping unparsable declaration: ' . a:rest)
     return {}
   endif

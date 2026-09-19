@@ -140,6 +140,8 @@ function! s:process_declarations_async() abort
     if empty(l:full_url) || empty(l:name)
       let l:op_id = plugin_manager#ui#start_operation(
             \ empty(l:name) ? fnamemodify(l:plugin.url, ':t') : l:name, 'Processing')
+      call plugin_manager#ui#log_detail('declare',
+            \ 'invalid URL format: ' . l:plugin.url, 'warn')
       call plugin_manager#ui#complete_operation(l:op_id, 'fail', 'Invalid URL format')
       let l:ctx.errors += 1
       continue
@@ -266,6 +268,8 @@ function! s:process_plugin(url, options) abort
   let l:full_url = plugin_manager#core#util#convert_to_full_url(a:url)
   if empty(l:full_url)
     let l:plugin_name = fnamemodify(a:url, ':t')
+    call plugin_manager#ui#log_detail('declare',
+          \ 'invalid URL format: ' . a:url, 'warn')
     let l:op_id = plugin_manager#ui#start_operation(l:plugin_name, 'Processing')
     call plugin_manager#ui#complete_operation(l:op_id, 'fail', 'Invalid URL format')
     return 'error'

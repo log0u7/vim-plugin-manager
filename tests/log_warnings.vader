@@ -1,0 +1,321 @@
+" Regression tests: every degraded outcome must leave a WARN line in the log
+" with debug_mode NOT set (contract from issue #5 / log#warn).  Each Execute
+" block starts by deleting the log so assertions are case-local.
+" Fixture mirrors tests/update.vader (bare remote + vim repo + submodule).
+
+Before:
+  let g:_pm_lw_saved = {
+        \ 'vim_dir':     get(g:, 'plugin_manager_vim_dir', ''),
+        \ 'cwd':         getcwd(),
+        \ 'plugins_dir': get(g:, 'plugin_manager_plugins_dir', ''),
+        \ 'vimrc':       get(g:, 'plugin_manager_vimrc_path', ''),
+        \ 'logging':     get(g:, 'plugin_manager_enable_logging', 0),
+        \ 'auto_commit': get(g:, 'plugin_manager_auto_commit_on_update', 1),
+        \ }
+
+  let g:_pm_lw_root    = tempname()
+  let g:_pm_lw_bare    = g:_pm_lw_root . '/myplugin.git'
+  let g:_pm_lw_vim     = g:_pm_lw_root . '/vim'
+  let g:_pm_lw_plug    = g:_pm_lw_vim  . '/pack/plugins/start/myplugin'
+  let g:_pm_lw_src     = g:_pm_lw_root . '/src'
+  let g:_pm_lw_vimrc   = g:_pm_lw_root . '/ext-vimrc'
+  let g:_pm_lw_local   = g:_pm_lw_root . '/localsrc'
+  let g:_pm_lw_log     = g:_pm_lw_vim  . '/logs/plugin_manager.log'
+
+  call mkdir(g:_pm_lw_root, 'p')
+
+  " 1. Bare remote (named myplugin.git so extract_plugin_name matches)
+  call system('git init --bare ' . shellescape(g:_pm_lw_bare))
+  call system('git -C ' . shellescape(g:_pm_lw_bare) . ' symbolic-ref HEAD refs/heads/main')
+
+  " 2. Source working tree: initial commit pushed to the bare
+  call mkdir(g:_pm_lw_src, 'p')
+  call system('git init ' . shellescape(g:_pm_lw_src))
+  call system('git -C ' . shellescape(g:_pm_lw_src) . ' config user.email "test@test.com"')
+  call system('git -C ' . shellescape(g:_pm_lw_src) . ' config user.name "Test"')
+  call system('git -C ' . shellescape(g:_pm_lw_src)
+        \ . ' remote add origin ' . shellescape(g:_pm_lw_bare))
+  call writefile(['v1'], g:_pm_lw_src . '/file.txt')
+  call system('git -C ' . shellescape(g:_pm_lw_src) . ' add .')
+  call system('git -C ' . shellescape(g:_pm_lw_src) . ' commit -m "initial"')
+  call system('git -C ' . shellescape(g:_pm_lw_src) . ' push -q origin HEAD:main '
+        \ . '2>/dev/null || git -C ' . shellescape(g:_pm_lw_src)
+        \ . ' push -q --set-upstream origin HEAD:main')
+  call system('git -C ' . shellescape(g:_pm_lw_bare) . ' symbolic-ref HEAD refs/heads/main')
+
+  " 3. Vim config dir as a git repo
+  call mkdir(g:_pm_lw_vim, 'p')
+  call system('git init ' . shellescape(g:_pm_lw_vim))
+  call system('git -C ' . shellescape(g:_pm_lw_vim) . ' config user.email "test@test.com"')
+  call system('git -C ' . shellescape(g:_pm_lw_vim) . ' config user.name "Test"')
+
+  " 4. Submodule + local plugin source
+  call mkdir(g:_pm_lw_vim . '/pack/plugins/start', 'p')
+  call system('git -C ' . shellescape(g:_pm_lw_vim)
+        \ . ' -c protocol.file.allow=always submodule add '
+        \ . shellescape('file://' . g:_pm_lw_bare) . ' pack/plugins/start/myplugin')
+  call system('git -C ' . shellescape(g:_pm_lw_vim) . ' commit -m "add submodule"')
+  call mkdir(g:_pm_lw_local, 'p')
+  call writefile(['x'], g:_pm_lw_local . '/code.vim')
+
+  " 5. Point the manager at the fixture.  debug_mode is deliberately NOT
+  "    set: the WARN contract must hold in a default setup.
+  let g:plugin_manager_vim_dir        = g:_pm_lw_vim
+  let g:plugin_manager_plugins_dir    = g:_pm_lw_vim . '/pack/plugins'
+  let g:plugin_manager_vimrc_path     = g:_pm_lw_root . '/absent.vimrc'
+  let g:plugin_manager_enable_logging = 1
+  unlet! g:plugin_manager_debug_mode
+  " Self-healing: an earlier aborted test can leave an emptied git identity
+  " in the environment, which would break every fixture commit below.
+  unlet! $GIT_AUTHOR_NAME $GIT_AUTHOR_EMAIL
+  unlet! $GIT_COMMITTER_NAME $GIT_COMMITTER_EMAIL
+  let g:plugin_manager_test_force_sync = 1
+
+  execute 'cd ' . fnameescape(g:_pm_lw_vim)
+
+  let s:_pm_lw_buf = bufnr('PluginManager')
+  if s:_pm_lw_buf != -1
+    execute 'bwipeout! ' . s:_pm_lw_buf
+  endif
+
+  call plugin_manager#git#refresh_modules_cache()
+
+  " Read the whole log as one string (empty when the file does not exist).
+  function! g:_pm_lw_logtext() abort
+    if filereadable(g:_pm_lw_log)
+      return join(readfile(g:_pm_lw_log), "\n")
+    endif
+    return ''
+  endfunction
+
+After:
+  execute 'cd ' . fnameescape(g:_pm_lw_saved.cwd)
+  if isdirectory(g:_pm_lw_root)
+    call delete(g:_pm_lw_root, 'rf')
+  endif
+  unlet! $GIT_AUTHOR_NAME $GIT_AUTHOR_EMAIL
+  unlet! $GIT_COMMITTER_NAME $GIT_COMMITTER_EMAIL
+  let g:plugin_manager_vim_dir     = g:_pm_lw_saved.vim_dir
+  let g:plugin_manager_plugins_dir = g:_pm_lw_saved.plugins_dir
+  let g:plugin_manager_vimrc_path  = g:_pm_lw_saved.vimrc
+  let g:plugin_manager_enable_logging = g:_pm_lw_saved.logging
+  let g:plugin_manager_auto_commit_on_update = g:_pm_lw_saved.auto_commit
+  unlet! g:plugin_manager_test_force_sync
+  unlet g:_pm_lw_saved g:_pm_lw_root g:_pm_lw_bare g:_pm_lw_vim g:_pm_lw_plug
+  unlet g:_pm_lw_src g:_pm_lw_vimrc g:_pm_lw_local g:_pm_lw_log
+  let s:_pm_lw_buf2 = bufnr('PluginManager')
+  if s:_pm_lw_buf2 != -1
+    execute 'bwipeout! ' . s:_pm_lw_buf2
+  endif
+  call plugin_manager#git#refresh_modules_cache()
+
+Execute (ensure_directory logs a WARN when mkdir fails):
+  call delete(g:_pm_lw_log)
+  call writefile(['x'], g:_pm_lw_root . '/blocker')
+  call plugin_manager#core#util#ensure_directory(g:_pm_lw_root . '/blocker/child')
+  Assert g:_pm_lw_logtext() =~# 'mkdir failed',
+        \ 'mkdir failure must be logged, got: ' . g:_pm_lw_logtext()
+
+Execute (unparsable vimrc declaration logs a WARN, not a gated debug):
+  call delete(g:_pm_lw_log)
+  call writefile(["Plugin 'unclosed-string"], g:_pm_lw_vimrc)
+  let g:plugin_manager_vimrc_path = g:_pm_lw_vimrc
+  call plugin_manager#vimrc#parse_declarations()
+  let g:plugin_manager_vimrc_path = g:_pm_lw_root . '/absent.vimrc'
+  Assert g:_pm_lw_logtext() =~# 'skipping unparsable declaration',
+        \ 'unparsable declaration must warn, got: ' . g:_pm_lw_logtext()
+
+Execute (check on_done callback failure logs a WARN):
+  call delete(g:_pm_lw_log)
+  function! g:_pm_lw_boom(...) abort
+    throw 'on-done-boom'
+  endfunction
+  call plugin_manager#cmd#check#execute(
+        \ {'silent': 1, 'on_done': function('g:_pm_lw_boom')})
+  delfunction g:_pm_lw_boom
+  Assert g:_pm_lw_logtext() =~# 'on_done callback failed',
+        \ 'on_done failure must be logged, got: ' . g:_pm_lw_logtext()
+
+Execute (async callback error logs a WARN):
+  call delete(g:_pm_lw_log)
+  unlet g:plugin_manager_test_force_sync
+  if !plugin_manager#async#supported()
+    let g:plugin_manager_test_force_sync = 1
+    Log 'Skipping: async not supported on this Vim'
+    finish
+  endif
+  function! g:_pm_lw_cbboom(result) abort
+    throw 'async-callback-boom'
+  endfunction
+  let g:plugin_manager_max_concurrent_jobs = 1
+  " Job 1 fills the slot; job 2 queues.  Stopping the queued job runs
+  " s:process_job_completion synchronously, which invokes (and catches)
+  " the throwing callback - no event loop needed.
+  let g:_pm_lw_j1 = plugin_manager#async#start_job('sleep 5', {})
+  let g:_pm_lw_j2 = plugin_manager#async#start_job(
+        \ 'echo x', {'callback': function('g:_pm_lw_cbboom')})
+  call plugin_manager#async#stop_job(g:_pm_lw_j2)
+  call plugin_manager#async#stop_job(g:_pm_lw_j1)
+  delfunction g:_pm_lw_cbboom
+  unlet g:_pm_lw_j1 g:_pm_lw_j2
+  Assert g:_pm_lw_logtext() =~# 'async-callback-boom',
+        \ 'async callback failure must be logged, got: ' . g:_pm_lw_logtext()
+
+Execute (real helptags failure logs a WARN and is not labeled "No doc directory"):
+  call delete(g:_pm_lw_log)
+  call mkdir(g:_pm_lw_plug . '/doc', 'p')
+  " A valid help file forces :helptags to (re)write the tags file; the
+  " read-only tags file then makes the write fail with E152.
+  call writefile(['*myplugin-help*'], g:_pm_lw_plug . '/doc/myplugin.txt')
+  call writefile(['seed'], g:_pm_lw_plug . '/doc/tags')
+  call setfperm(g:_pm_lw_plug . '/doc/tags', 'r--r--r--')
+  call plugin_manager#cmd#helptags#execute(1)
+  let g:_pm_lw_sb = join(getbufline(bufnr('PluginManager'), 1, '$'), "\n")
+  Assert g:_pm_lw_sb =~# 'Helptags failed',
+        \ 'real failure must not read "No doc directory", got: ' . g:_pm_lw_sb
+  Assert g:_pm_lw_logtext() =~# 'helptags failed',
+        \ 'helptags failure must be logged, got: ' . g:_pm_lw_logtext()
+  unlet g:_pm_lw_sb
+
+Execute (local post-install exec failure logs a WARN):
+  call delete(g:_pm_lw_log)
+  " A plain existing directory path is the local-plugin input form.
+  call plugin_manager#cmd#add#execute(g:_pm_lw_local, {'exec': 'false'})
+  Assert g:_pm_lw_logtext() =~# 'post-install exec failed',
+        \ 'exec failure must be logged, got: ' . g:_pm_lw_logtext()
+
+Execute (declare invalid URL logs a WARN - synchronous path):
+  call delete(g:_pm_lw_log)
+  call plugin_manager#cmd#declare#begin()
+  call plugin_manager#cmd#declare#plugin('://nope')
+  call plugin_manager#cmd#declare#end()
+  Assert g:_pm_lw_logtext() =~# 'invalid URL format',
+        \ 'invalid URL (sync) must be logged, got: ' . g:_pm_lw_logtext()
+
+Execute (declare invalid URL logs a WARN - async batch path):
+  call delete(g:_pm_lw_log)
+  unlet g:plugin_manager_test_force_sync
+  if !plugin_manager#async#supported()
+    let g:plugin_manager_test_force_sync = 1
+    Log 'Skipping: async not supported on this Vim'
+    finish
+  endif
+  call plugin_manager#cmd#declare#begin()
+  call plugin_manager#cmd#declare#plugin('://nope')
+  call plugin_manager#cmd#declare#end()
+  let g:plugin_manager_test_force_sync = 1
+  Assert g:_pm_lw_logtext() =~# 'invalid URL format',
+        \ 'invalid URL (async batch) must be logged, got: ' . g:_pm_lw_logtext()
+
+Execute (backup git add failure logs a WARN):
+  call delete(g:_pm_lw_log)
+  call writefile(['set nocompatible'], g:_pm_lw_vimrc)
+  let g:plugin_manager_vimrc_path = g:_pm_lw_vimrc
+  call writefile(['lock'], g:_pm_lw_vim . '/.git/index.lock')
+  call plugin_manager#cmd#backup#execute()
+  call delete(g:_pm_lw_vim . '/.git/index.lock')
+  let g:plugin_manager_vimrc_path = g:_pm_lw_root . '/absent.vimrc'
+  Assert g:_pm_lw_logtext() =~# 'git add failed',
+        \ 'backup git add failure must be logged, got: ' . g:_pm_lw_logtext()
+
+Execute (removing a non-submodule dir logs a WARN when deinit fails):
+  call delete(g:_pm_lw_log)
+  call mkdir(g:_pm_lw_vim . '/pack/plugins/start/plainplugin', 'p')
+  call writefile(['x'], g:_pm_lw_vim . '/pack/plugins/start/plainplugin/a.txt')
+  call plugin_manager#cmd#remove#execute('plainplugin', '-f')
+  Assert g:_pm_lw_logtext() =~# 'deinit failed',
+        \ 'deinit failure must be logged, got: ' . g:_pm_lw_logtext()
+
+Execute (remove pointer commit failure logs a WARN and the op is not a plain "Removed"):
+  call delete(g:_pm_lw_log)
+  let $GIT_AUTHOR_NAME = ''
+  let $GIT_AUTHOR_EMAIL = ''
+  let $GIT_COMMITTER_NAME = ''
+  let $GIT_COMMITTER_EMAIL = ''
+  call plugin_manager#cmd#remove#execute('myplugin', '-f')
+  unlet $GIT_AUTHOR_NAME
+  unlet $GIT_AUTHOR_EMAIL
+  unlet $GIT_COMMITTER_NAME
+  unlet $GIT_COMMITTER_EMAIL
+  let g:_pm_lw_sb = join(getbufline(bufnr('PluginManager'), 1, '$'), "\n")
+  Assert g:_pm_lw_logtext() =~# 'pointer commit failed',
+        \ 'remove commit failure must be logged, got: ' . g:_pm_lw_logtext()
+  Assert g:_pm_lw_sb =~# 'pointer commit failed',
+        \ 'op must not claim a plain Removed, got: ' . g:_pm_lw_sb
+  unlet g:_pm_lw_sb
+
+Execute (add_submodule pointer commit failure logs a WARN and fails the add):
+  call delete(g:_pm_lw_log)
+  " Unit-level: the add#execute probe (ls-remote) is bypassed; the site
+  " under test is the discarded pointer commit in git#add_submodule.
+  let $GIT_AUTHOR_NAME = ''
+  let $GIT_AUTHOR_EMAIL = ''
+  let $GIT_COMMITTER_NAME = ''
+  let $GIT_COMMITTER_EMAIL = ''
+  let g:_pm_lw_r = plugin_manager#git#add_submodule(
+        \ 'file://' . g:_pm_lw_bare,
+        \ g:_pm_lw_vim . '/pack/plugins/start/pointerplugin',
+        \ plugin_manager#core#util#process_plugin_options([]))
+  unlet $GIT_AUTHOR_NAME
+  unlet $GIT_AUTHOR_EMAIL
+  unlet $GIT_COMMITTER_NAME
+  unlet $GIT_COMMITTER_EMAIL
+  AssertEqual 0, g:_pm_lw_r, 'pointer commit failure must fail the add'
+  Assert g:_pm_lw_logtext() =~# 'pointer commit failed',
+        \ 'add pointer commit failure must be logged, got: ' . g:_pm_lw_logtext()
+  unlet g:_pm_lw_r
+
+Execute (update with an unreachable pin target logs a WARN):
+  call delete(g:_pm_lw_log)
+  call writefile([
+        \ "Plugin 'file://" . g:_pm_lw_bare . "', {'tag': 'v-nope'}"
+        \ ], g:_pm_lw_vimrc)
+  let g:plugin_manager_vimrc_path = g:_pm_lw_vimrc
+  call plugin_manager#cmd#update#execute('myplugin')
+  let g:plugin_manager_vimrc_path = g:_pm_lw_root . '/absent.vimrc'
+  Assert g:_pm_lw_logtext() =~# 'Pin target not found',
+        \ 'pin target failure must be logged, got: ' . g:_pm_lw_logtext()
+
+Execute (stash push failure logs a WARN and does not pretend the stash exists):
+  call delete(g:_pm_lw_log)
+  " Push v2 so the module has updates, then dirty the module worktree.
+  call writefile(['v2'], g:_pm_lw_src . '/file.txt')
+  call system('git -C ' . shellescape(g:_pm_lw_src) . ' commit -aqm "v2"')
+  call system('git -C ' . shellescape(g:_pm_lw_src) . ' push -q origin HEAD:main')
+  call writefile(['dirty'], g:_pm_lw_plug . '/file.txt')
+  " Empty identity makes `git stash push` fail (it creates commits).
+  let $GIT_AUTHOR_NAME = ''
+  let $GIT_AUTHOR_EMAIL = ''
+  let $GIT_COMMITTER_NAME = ''
+  let $GIT_COMMITTER_EMAIL = ''
+  call plugin_manager#cmd#update#execute('myplugin')
+  unlet $GIT_AUTHOR_NAME
+  unlet $GIT_AUTHOR_EMAIL
+  unlet $GIT_COMMITTER_NAME
+  unlet $GIT_COMMITTER_EMAIL
+  Assert g:_pm_lw_logtext() =~# 'stash push failed',
+        \ 'stash push failure must be logged, got: ' . g:_pm_lw_logtext()
+
+Execute (auto-commit failure completes the op with a truthful warn):
+  call delete(g:_pm_lw_log)
+  let g:plugin_manager_auto_commit_on_update = 1
+  call writefile(['v3'], g:_pm_lw_src . '/file.txt')
+  call system('git -C ' . shellescape(g:_pm_lw_src) . ' commit -aqm "v3"')
+  call system('git -C ' . shellescape(g:_pm_lw_src) . ' push -q origin HEAD:main')
+  " Empty identity: the module pull (fast-forward) succeeds but the parent
+  " repo auto-commit fails.
+  let $GIT_AUTHOR_NAME = ''
+  let $GIT_AUTHOR_EMAIL = ''
+  let $GIT_COMMITTER_NAME = ''
+  let $GIT_COMMITTER_EMAIL = ''
+  call plugin_manager#cmd#update#execute('all')
+  unlet $GIT_AUTHOR_NAME
+  unlet $GIT_AUTHOR_EMAIL
+  unlet $GIT_COMMITTER_NAME
+  unlet $GIT_COMMITTER_EMAIL
+  let g:_pm_lw_sb = join(getbufline(bufnr('PluginManager'), 1, '$'), "\n")
+  Assert g:_pm_lw_logtext() =~# 'auto-commit commit failed',
+        \ 'auto-commit failure must be logged, got: ' . g:_pm_lw_logtext()
+  Assert g:_pm_lw_sb =~# 'auto-commit failed',
+        \ 'sidebar must reflect the auto-commit failure, got: ' . g:_pm_lw_sb
+  unlet g:_pm_lw_sb

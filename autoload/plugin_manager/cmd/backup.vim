@@ -48,8 +48,17 @@ function! s:backup_vimrc_file() abort
   if plugin_manager#core#util#file_exists(l:vimrc_path)
     let l:copy_cmd = 'cp ' . shellescape(l:vimrc_path) . ' ' . shellescape(l:local_vimrc)
     let l:vim_dir = plugin_manager#core#util#get_config('vim_dir', '')
-    call plugin_manager#core#util#run_in_dir(l:copy_cmd, '')
-    call plugin_manager#git#execute('git add ' . shellescape(l:local_vimrc), l:vim_dir, 0, 0)
+    let l:copy_result = plugin_manager#core#util#run_in_dir(l:copy_cmd, '')
+    if !l:copy_result.success
+      call plugin_manager#ui#log_detail('backup',
+            \ 'backup cp failed: ' . l:copy_result.output, 'warn')
+    endif
+    let l:add_result = plugin_manager#git#execute(
+          \ 'git add ' . shellescape(l:local_vimrc), l:vim_dir, 0, 0)
+    if !l:add_result.success
+      call plugin_manager#ui#log_detail('backup',
+            \ 'backup git add failed: ' . l:add_result.output, 'warn')
+    endif
   endif
 endfunction
 

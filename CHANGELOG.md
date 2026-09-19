@@ -2,6 +2,39 @@
 
 All notable changes to the Vim Plugin Manager will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- **No silent failures left** (#7): every degraded outcome writes a WARN
+  line (always logged, `debug_mode`-independent) and sidebar labels tell
+  the truth:
+  - `git#add_submodule`: the pointer commit result is checked; a failure
+    warns and fails the add instead of returning success.
+  - `remove`: `git submodule deinit` and `commit_removal` results are
+    checked; a failed pointer commit downgrades the op to
+    "Removed (pointer commit failed)" instead of a plain "Removed".
+  - `remove`: a module path that is already absolute is no longer
+    prefixed with `vim_dir` twice (filesystem-search removals).
+  - `update`: unreachable pin target warns, not sidebar-only.
+  - `update`: `stash_if_needed` returns 0 when `git stash push` fails
+    (previously returned 1, causing a phantom `stash pop`).
+  - `update`: auto-commit failures downgrade the op to
+    "Updated (auto-commit failed)" and add a truthful footer line.
+  - `vimrc`: unparsable declarations log at WARN instead of the
+    debug-gated level.
+  - `helptags`: a real `:helptags` failure is reported as
+    "Helptags failed" + WARN, no longer as the "skip / No doc directory".
+  - `check`: empty catch around `on_done` now warns.
+  - `async`: callback errors write a WARN in addition to `:messages`.
+  - `add` (local): post-install exec failure warns.
+  - `declare`: invalid URL format warns (both sync and async batch paths).
+  - `backup`: `cp` and `git add` results are checked and warn.
+  - `util#ensure_directory`: mkdir failures warn.
+
+### Added
+- `tests/log_warnings.vader`: 15 regression tests asserting the WARN line
+  exists with `debug_mode` unset (contract from issue #5).
+
 ## [2.2.7] - 2026-09-19
 
 ### Fixed
