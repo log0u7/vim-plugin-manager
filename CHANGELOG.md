@@ -3,7 +3,7 @@
 All notable changes to the Vim Plugin Manager will be documented in this file.
 
 
-## [Unreleased]
+## [2.2.10] - 2026-09-20
 
 ### Removed
 - `plugin_manager#async#on_complete`: zero call sites.  The 2.2.4 dead-code
