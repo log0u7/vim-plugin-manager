@@ -302,13 +302,17 @@ function! plugin_manager#git#execute(cmd, dir, ...) abort
     let l:full_cmd = 'git -C ' . shellescape(a:dir) . strpart(a:cmd, 3)
   endif
   
+  " Display/traced variant: commands embed user URLs which may carry
+  " credentials - never write the userinfo to logs, UI or error messages.
+  let l:display_cmd = plugin_manager#core#util#sanitize_cmd(l:full_cmd)
+
   " Trace the command to the debug log if enabled
   if get(g:, 'plugin_manager_trace_commands', 0)
-    call plugin_manager#core#log#trace('git', 'exec: ' . l:full_cmd)
+    call plugin_manager#core#log#trace('git', 'exec: ' . l:display_cmd)
   endif
   
   if l:output_to_ui && exists('*plugin_manager#ui#update_sidebar')
-    call plugin_manager#ui#update_sidebar(['Executing: ' . a:cmd], 1)
+    call plugin_manager#ui#update_sidebar(['Executing: ' . l:display_cmd], 1)
   endif
   
   let l:output = system(l:full_cmd)
@@ -322,8 +326,9 @@ function! plugin_manager#git#execute(cmd, dir, ...) abort
   endif
   
   if !l:success && l:throw_on_error
-    " Standardized error handling
-    call plugin_manager#core#throw('git', 'COMMAND_FAILED', 'Command failed: ' . a:cmd . ' - ' . l:output)
+    " Standardized error handling (sanitized: no credentials in messages)
+    call plugin_manager#core#throw('git', 'COMMAND_FAILED',
+          \ 'Command failed: ' . l:display_cmd . ' - ' . l:output)
   endif
   
   return {'success': l:success, 'output': l:output}
@@ -390,6 +395,13 @@ function! plugin_manager#git#collect_status_local(module_path) abort
         \ ' submodule.' . shellescape(l:rel_path) . '.branch',
         \ '', 0, 0)
   let l:remote_branch = l:res.success ? substitute(l:res.output, '\n', '', 'g') : ''
+  " .gitmodules is user-writable config content: its branch value is passed
+  " to `git pull origin <branch>` - a leading dash would be parsed as a git
+  " option (proven RCE via --upload-pack, issue #9).  Refuse + fall back to
+  " the default branch resolution.
+  if !empty(l:remote_branch)
+    let l:remote_branch = plugin_manager#core#util#sanitize_branch(l:remote_branch)
+  endif
   
   " If not found in .gitmodules, try to determine from the current branch's upstream
   if empty(l:remote_branch) && l:result.branch !=# 'detached'
@@ -530,9 +542,15 @@ function! plugin_manager#git#add_submodule(url, install_dir, options) abort
     let l:cmd = 'git -c protocol.file.allow=always submodule add'
   endif
   
-  " Add branch option if specified
+  " Add branch option if specified.  The value may come from the vimrc (or
+  " an API caller): refuse option-like values instead of passing them to
+  " `git submodule add -b` (issue #9).
+  let l:branch = ''
   if !empty(a:options.branch)
-    let l:cmd .= ' -b ' . shellescape(a:options.branch)
+    let l:branch = plugin_manager#core#util#sanitize_branch(a:options.branch)
+    if !empty(l:branch)
+      let l:cmd .= ' -b ' . shellescape(l:branch)
+    endif
   endif
   
   " Add URL and path
@@ -565,10 +583,11 @@ function! plugin_manager#git#add_submodule(url, install_dir, options) abort
 
   " Commit changes (must run at repo root).  A failed pointer commit
   " leaves the submodule unrecorded: never swallow it - warn and fail the
-  " add so the caller reports the degraded outcome.
-  let l:commit_msg = 'Add ' . a:url . ' plugin'
-  if !empty(a:options.branch)
-    let l:commit_msg .= ' (branch: ' . a:options.branch . ')'
+  " add so the caller reports the degraded outcome.  The URL may embed
+  " credentials: strip userinfo before it lands in a pushed commit.
+  let l:commit_msg = 'Add ' . plugin_manager#core#util#sanitize_url(a:url) . ' plugin'
+  if !empty(l:branch)
+    let l:commit_msg .= ' (branch: ' . l:branch . ')'
   elseif !empty(a:options.tag)
     let l:commit_msg .= ' (tag: ' . a:options.tag . ')'
   endif
@@ -596,7 +615,8 @@ function! plugin_manager#git#add_remote(url, name) abort
 
   " Check if the repository exists
   if !plugin_manager#git#repository_exists(a:url)
-    call plugin_manager#core#throw('remote', 'REPO_NOT_FOUND', 'Repository not found: ' . a:url)
+    call plugin_manager#core#throw('remote', 'REPO_NOT_FOUND',
+          \ 'Repository not found: ' . plugin_manager#core#util#sanitize_url(a:url))
   endif
 
   " Generate remote name if not provided

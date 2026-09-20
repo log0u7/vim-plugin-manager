@@ -115,7 +115,8 @@ function! plugin_manager#core#util#run_in_dir(cmd, dir) abort
   let l:full_cmd = empty(a:dir) ? a:cmd : 'cd ' . shellescape(a:dir) . ' && ' . a:cmd
 
   if plugin_manager#core#util#get_config('trace_commands', 0)
-    call plugin_manager#core#log#trace('util', 'run_in_dir: ' . l:full_cmd)
+    call plugin_manager#core#log#trace('util',
+          \ 'run_in_dir: ' . plugin_manager#core#util#sanitize_cmd(l:full_cmd))
   endif
 
   let l:output = system(l:full_cmd)
@@ -152,6 +153,76 @@ function! plugin_manager#core#util#get_plugin_dir(type) abort
     return l:plugins_dir . '/' . l:opt_dir
   endif
   return l:plugins_dir . '/' . l:start_dir
+endfunction
+
+" ------------------------------------------------------------------------------
+" UNTRUSTED INPUT VALIDATION (issue #9)
+"
+" Contract: warn + safe fallback (empty string), never a hard throw.  The
+" degraded state is visible in the log, the operation stays usable.
+" ------------------------------------------------------------------------------
+
+" Strip https/http userinfo (user:token@) from a URL: logs, error messages
+" and commit texts must never carry credentials.
+function! plugin_manager#core#util#sanitize_url(url) abort
+  return substitute(a:url, '\(https\?://\)[^/@]*@', '\1', '')
+endfunction
+
+" Strip userinfo from every https/http URL inside a command string (traces
+" and error messages embed whole commands).
+function! plugin_manager#core#util#sanitize_cmd(cmd) abort
+  return substitute(a:cmd, '\(https\?://\)[^/@]*@', '\1', 'g')
+endfunction
+
+" Validate a branch name coming from .gitmodules or user declarations.
+" Returns the value when it is a plain refname, '' otherwise (callers fall
+" back to default branch resolution).  A leading dash is parsed by git as an
+" option (--upload-pack = remote code execution, proven in issue #9);
+" anything outside ^[A-Za-z0-9._/-]+$ is not a refname git would track.
+function! plugin_manager#core#util#sanitize_branch(branch) abort
+  " First character may not be '-': a leading dash is parsed by git as an
+  " option (--upload-pack = remote code execution, proven in issue #9).
+  if a:branch =~# '^[A-Za-z0-9._/][A-Za-z0-9._/-]*$'
+    return a:branch
+  endif
+  call plugin_manager#core#log#warn('util', 'untrusted branch ignored: ' . a:branch)
+  return ''
+endfunction
+
+" Validate a module path coming from .gitmodules before it is used as a
+" pathspec (git rm / git submodule deinit) or a filesystem target.  Returns
+" the value when it is a repo-relative path under plugins_dir, '' otherwise.
+" Glob characters as a pathspec expand to unrelated files ('*' removes
+" everything); '..' and absolute paths escape the config repo.
+function! plugin_manager#core#util#validate_module_path(path) abort
+  if empty(a:path) || a:path =~# '^-' || a:path =~# '^[/~]'
+        \ || a:path =~# '[*?\[]' || a:path =~# '\.\.'
+    call plugin_manager#core#log#warn('util',
+          \ 'untrusted module path ignored: ' . a:path)
+    return ''
+  endif
+  " plugins_dir may be configured absolute: compare in repo-relative form.
+  let l:plugins_dir = plugin_manager#core#util#make_relative_path(
+        \ plugin_manager#core#util#get_config('plugins_dir', ''))
+  if stridx(a:path, l:plugins_dir . '/') != 0
+    call plugin_manager#core#log#warn('util',
+          \ 'untrusted module path ignored: ' . a:path)
+    return ''
+  endif
+  return a:path
+endfunction
+
+" Validate a `dir` option (custom install name).  Returns the value when it
+" is a plain basename, '' otherwise (callers fall back to the default plugin
+" name).  '..' and absolute paths would clone outside plugins_dir.
+function! plugin_manager#core#util#validate_dir_name(dir) abort
+  if empty(a:dir) || a:dir =~# '\.\.' || a:dir =~# '^[/~]'
+        \ || fnamemodify(a:dir, ':t') !=# a:dir
+    call plugin_manager#core#log#warn('util',
+          \ 'untrusted dir option ignored: ' . a:dir)
+    return ''
+  endif
+  return a:dir
 endfunction
 
 " ------------------------------------------------------------------------------
@@ -268,6 +339,9 @@ function! plugin_manager#core#util#process_plugin_options(args) abort
           echohl WarningMsg
           echomsg "Invalid 'load' value: " . l:val . ". Using default: 'start'"
           echohl None
+        elseif l:key ==# 'dir'
+          " Traversal guard: dir is a clone/install target (issue #9).
+          let l:options.dir = plugin_manager#core#util#validate_dir_name(l:val)
         else
           let l:options[l:key] = l:val
         endif
@@ -278,7 +352,7 @@ function! plugin_manager#core#util#process_plugin_options(args) abort
       endif
     endfor
   elseif len(a:args) >= 1 && type(a:args[0]) == v:t_string
-    let l:options.dir = a:args[0]
+    let l:options.dir = plugin_manager#core#util#validate_dir_name(a:args[0])
     if len(a:args) >= 2 && a:args[1] ==# 'opt'
       let l:options.load = 'opt'
     endif
