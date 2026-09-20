@@ -109,8 +109,10 @@ function! s:find_in_filesystem(name) abort
     endif
 
     " Fuzzy match: refuse if more than one candidate to avoid removing the
-    " wrong plugin. Even -f does not override this safety check.
-    let l:matches = glob(l:base_dir . '/*' . a:name . '*', 0, 1)
+    " wrong plugin. Even -f does not override this safety check.  The user
+    " name is literal input: escape glob metachars so 'X*' can never match
+    " an unrelated plugin (issue #11).
+    let l:matches = glob(l:base_dir . '/*' . escape(a:name, '*?[]') . '*', 0, 1)
     if len(l:matches) == 1
       let l:path = l:matches[0]
       return {'name': fnamemodify(l:path, ':t'), 'path': l:path, 'url': ''}
