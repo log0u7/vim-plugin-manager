@@ -2,7 +2,7 @@
 
 All notable changes to the Vim Plugin Manager will be documented in this file.
 
-## [Unreleased]
+## [2.2.8] - 2026-09-20
 
 ### Fixed
 - **No silent failures left** (#7): every degraded outcome writes a WARN
