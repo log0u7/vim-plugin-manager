@@ -2,7 +2,7 @@
 
 All notable changes to the Vim Plugin Manager will be documented in this file.
 
-## [Unreleased]
+## [2.2.9] - 2026-09-20
 
 ### Security
 - **Option injection via `.gitmodules` branch** (#9, HIGH, proven RCE):
