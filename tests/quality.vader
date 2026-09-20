@@ -1,0 +1,60 @@
+" Quality regressions (issue #11): dead async#on_complete, glob metachars
+" in the remove filesystem search, strict release tag validation.
+
+Before:
+  let g:_pm_q_saved = {
+        \ 'vim_dir':     get(g:, 'plugin_manager_vim_dir', ''),
+        \ 'plugins_dir': get(g:, 'plugin_manager_plugins_dir', ''),
+        \ 'cwd':         getcwd(),
+        \ 'logging':     get(g:, 'plugin_manager_enable_logging', 0),
+        \ }
+  let g:_pm_q_vim = '/tmp/pm-q-test/vim'
+  let g:plugin_manager_vim_dir     = g:_pm_q_vim
+  let g:plugin_manager_plugins_dir = g:_pm_q_vim . '/pack/plugins'
+  call delete('/tmp/pm-q-test', 'rf')
+  call mkdir(g:_pm_q_vim . '/pack/plugins/start', 'p')
+  let g:plugin_manager_enable_logging = 1
+  let g:plugin_manager_test_force_sync = 1
+  execute 'cd ' . fnameescape(g:_pm_q_vim)
+  call plugin_manager#git#refresh_modules_cache()
+
+After:
+  execute 'cd ' . fnameescape(g:_pm_q_saved.cwd)
+  call delete('/tmp/pm-q-test', 'rf')
+  let g:plugin_manager_vim_dir     = g:_pm_q_saved.vim_dir
+  let g:plugin_manager_plugins_dir = g:_pm_q_saved.plugins_dir
+  let g:plugin_manager_enable_logging = g:_pm_q_saved.logging
+  unlet! g:plugin_manager_test_force_sync
+  unlet g:_pm_q_saved g:_pm_q_vim
+  call plugin_manager#git#refresh_modules_cache()
+
+Execute (async#on_complete no longer exists):
+  " Force the autoload so exists() sees the real state of async.vim.
+  call plugin_manager#async#supported()
+  Assert !exists('*plugin_manager#async#on_complete'),
+        \ 'async#on_complete is dead code (zero callers) and must be gone'
+
+Execute (glob metachars in a remove name must not match other plugins):
+  " Two directories; the search name 'X*' must NOT glob-match plainXplugin.
+  " remove#execute swallows the throw internally (handle_error): assert the
+  " log line and the untouched directories instead.
+  call mkdir(g:_pm_q_vim . '/pack/plugins/start/plainplugin', 'p')
+  call mkdir(g:_pm_q_vim . '/pack/plugins/start/plainXplugin', 'p')
+  let g:_pm_q_r = plugin_manager#cmd#remove#execute('X*', '-f')
+  AssertEqual 0, g:_pm_q_r, 'the metachar name must not remove anything'
+  Assert isdirectory(g:_pm_q_vim . '/pack/plugins/start/plainXplugin'),
+        \ 'the glob must not have matched an unrelated plugin'
+  Assert isdirectory(g:_pm_q_vim . '/pack/plugins/start/plainplugin'),
+        \ 'unrelated plugins must be untouched'
+  unlet g:_pm_q_r
+
+Execute (release tags must be strict semver):
+  " The exact pattern enforced in release.yml and the Makefile tag target.
+  let g:_pm_q_pat = '^v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$'
+  Assert 'v2.2.10' =~# g:_pm_q_pat
+  Assert 'v0.0.0' =~# g:_pm_q_pat
+  Assert 'v2.2' !~# g:_pm_q_pat, 'two components must be rejected'
+  Assert 'vX.Y.Z' !~# g:_pm_q_pat, 'non-numeric must be rejected'
+  Assert 'v2.2.10-beta' !~# g:_pm_q_pat, 'suffix must be rejected'
+  Assert '2.2.10' !~# g:_pm_q_pat, 'missing v prefix must be rejected'
+  unlet g:_pm_q_pat

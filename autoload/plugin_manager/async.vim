@@ -207,23 +207,6 @@ endfunction
 " CALLBACKS AND HANDLERS
 " ------------------------------------------------------------------------------
 
-" Add a callback for when a job finishes
-function! plugin_manager#async#on_complete(job_id, callback) abort
-  if !has_key(s:jobs, a:job_id)
-    " Standardized error handling
-    call plugin_manager#core#throw('async', 'INVALID_JOB_ID', 'Invalid job ID: ' . a:job_id)
-  endif
-  
-  let s:jobs[a:job_id].callback = a:callback
-  
-  " If the job is already finished, call the callback immediately
-  if s:jobs[a:job_id].finished
-    call s:process_job_completion(a:job_id)
-  endif
-  
-  return 1
-endfunction
-
 " Clean up finished jobs older than a certain age.
 " Previously only jobs that had fired a callback were removed, leaking
 " finished callback-less jobs indefinitely.  All finished jobs are now

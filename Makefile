@@ -113,8 +113,8 @@ tag:
 		echo "Error: VERSION is required (e.g. make tag VERSION=v2.1.3)"; \
 		exit 1; \
 	fi
-	@echo "$(VERSION)" | grep -q '^v' || { \
-		echo "Error: VERSION must start with v (e.g. v2.1.3)"; \
+	@echo "$(VERSION)" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$$' || { \
+		echo "Error: VERSION must be strict semver vX.Y.Z (e.g. v2.1.3)"; \
 		exit 1; \
 	}
 	@git diff --quiet --exit-code || { \

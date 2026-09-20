@@ -24,6 +24,9 @@ jobs:
       - name: Install Make + Git
         run: sudo apt-get update && sudo apt-get install -y git make
 
+      - name: Validate tag format (strict semver)
+        run: '[[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::tag must be vX.Y.Z, got: $GITHUB_REF_NAME"; exit 1; }'
+
       - name: Build archive
         run: make archive VERSION=${{ github.ref_name }}
 

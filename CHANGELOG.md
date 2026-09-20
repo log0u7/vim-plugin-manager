@@ -2,6 +2,23 @@
 
 All notable changes to the Vim Plugin Manager will be documented in this file.
 
+
+## [Unreleased]
+
+### Removed
+- `plugin_manager#async#on_complete`: zero call sites.  The 2.2.4 dead-code
+  sweep already claimed this removal; it survived.  Deleted now.
+
+### Fixed
+- `remove`: the fuzzy filesystem search escapes glob metachars in the user
+  name - `PluginManager remove 'X*'` no longer glob-matches (and removes) an
+  unrelated plugin; it resolves to MODULE_NOT_FOUND (#11).
+
+### Changed
+- Release tags are validated with strict semver `^v[0-9]+.[0-9]+.[0-9]+$`:
+  a new "Validate tag format" step in release.yml rejects a malformed tag
+  before archiving, and the Makefile `tag` target enforces the same pattern
+  (was: any `^v`) (#11).
 ## [2.2.9] - 2026-09-20
 
 ### Security
