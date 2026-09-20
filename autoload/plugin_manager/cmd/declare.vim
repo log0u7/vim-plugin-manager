@@ -227,7 +227,8 @@ function! s:on_clone_done(ctx, name, url, options, target, result) abort
     else
       call plugin_manager#ui#complete_operation(l:op_id, 'fail', 'Failed')
       call plugin_manager#ui#log_detail('declare',
-            \ 'submodule add failed for ' . a:name . ' (' . a:url . ')',
+            \ 'submodule add failed for ' . a:name . ' ('
+            \ . plugin_manager#core#util#sanitize_url(a:url) . ')',
             \ 'warn')
       let a:ctx.errors += 1
     endif

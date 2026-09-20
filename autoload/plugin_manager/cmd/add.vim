@@ -26,7 +26,8 @@ function! plugin_manager#cmd#add#execute(...) abort
     
     " For remote plugins, check repository exists
     if !l:is_local && !plugin_manager#git#repository_exists(l:module_url)
-      call plugin_manager#core#throw('add', 'REPO_NOT_FOUND', 'Repository not found: ' . l:module_url)
+      call plugin_manager#core#throw('add', 'REPO_NOT_FOUND',
+            \ 'Repository not found: ' . plugin_manager#core#util#sanitize_url(l:module_url))
     endif
     
     " Install

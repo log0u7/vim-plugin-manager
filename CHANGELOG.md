@@ -2,6 +2,42 @@
 
 All notable changes to the Vim Plugin Manager will be documented in this file.
 
+## [Unreleased]
+
+### Security
+- **Option injection via `.gitmodules` branch** (#9, HIGH, proven RCE):
+  `submodule.<path>.branch` is passed to `git pull origin <branch>` - a
+  leading-dash value is parsed by git as an option
+  (`--upload-pack=<cmd>` executes the command, demonstrated locally with
+  git 2.43 despite shell quoting).  New `core#util#sanitize_branch`
+  (first char may not be `-`, charset `^[A-Za-z0-9._/-]+$`) applied at
+  the `.gitmodules` read (update pull flow) and at
+  `git submodule add -b`; refused values warn and fall back to the
+  default branch resolution.
+- **Pathspec injection via `.gitmodules` path** (#9, HIGH): module paths
+  reach `git rm -f` / `git submodule deinit -f` as pathspecs - `path = *`
+  would remove every tracked file.  New `core#util#validate_module_path`
+  (refuses `* ? [ ]`, `..`, leading `-`, absolute paths; requires a
+  repo-relative path under `plugins_dir`) applied in `remove` (covers
+  `:PluginManager remove` and `gc`); refused values warn and abort the
+  removal.
+- **Directory traversal via the `dir` option** (#9, MED): clone/install
+  targets accepted `..`, absolute paths and nested paths.  New
+  `core#util#validate_dir_name` (plain basename only) applied to both
+  the dict and the deprecated positional forms; refused values warn and
+  fall back to the default plugin name.
+- **Credential leak** (#9, MED): `https://user:token@host` userinfo no
+  longer reaches pushed commit messages ("Add/Remove <url> plugin"),
+  error messages (REPO_NOT_FOUND), command traces (git#execute,
+  run_in_dir) or sidebar output.  New `core#util#sanitize_url` /
+  `sanitize_cmd` strip the userinfo at every display point; the raw
+  value is still used for the actual git call.
+
+### Added
+- `tests/security.vader`: unit tests for the four validators plus an
+  integration test proving a hostile `.gitmodules` branch never
+  propagates to the pull flow.
+
 ## [2.2.8] - 2026-09-20
 
 ### Fixed

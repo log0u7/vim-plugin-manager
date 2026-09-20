@@ -167,6 +167,16 @@ function! s:remove_module(module_name, module_path) abort
   " absolute path (filesystem search): normalize so the vim_dir prefix is
   " never applied twice.
   let l:rel_path = plugin_manager#core#util#make_relative_path(a:module_path)
+  " .gitmodules is user-writable content: its path value is passed as a
+  " pathspec to `git rm` / `git submodule deinit` - a glob ('*') would match
+  " every tracked file (issue #9).  Refuse + abort the removal on invalid.
+  let l:rel_path = plugin_manager#core#util#validate_module_path(l:rel_path)
+  if empty(l:rel_path)
+    call plugin_manager#ui#complete_operation(l:op_id, 'fail',
+          \ 'Refusing to remove: untrusted module path (see log)')
+    call plugin_manager#git#refresh_modules_cache()
+    return 0
+  endif
 
   let l:deinit_result = plugin_manager#git#execute(
         \ 'git submodule deinit -f ' . shellescape(l:rel_path), l:vim_dir, 0, 0)
@@ -239,7 +249,8 @@ function! s:commit_removal(module_name, module_info) abort
   let l:vim_dir = plugin_manager#core#util#get_config('vim_dir', '')
 
   if !empty(a:module_info) && has_key(a:module_info, 'url')
-    let l:commit_msg .= " (" . a:module_info.url . ")"
+    " Pushed to remotes: strip credentials from the URL first.
+    let l:commit_msg .= " (" . plugin_manager#core#util#sanitize_url(a:module_info.url) . ")"
   endif
 
   " Stage .gitmodules (updated by git rm); run in vim_dir for repo-root scope.

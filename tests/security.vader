@@ -1,0 +1,110 @@
+" Security validators (issue #9): untrusted values must never reach git
+" commands, filesystem targets, or logs unvalidated.  Contract: warn + safe
+" fallback (empty string), never a hard throw.  Unit-level tests; the
+" hostile-branch case exercises the full collect_status_local path.
+
+Before:
+  let g:_pm_sec_saved = {
+        \ 'vim_dir':     get(g:, 'plugin_manager_vim_dir', ''),
+        \ 'plugins_dir': get(g:, 'plugin_manager_plugins_dir', ''),
+        \ 'logging':     get(g:, 'plugin_manager_enable_logging', 0),
+        \ }
+  let g:plugin_manager_vim_dir = '/tmp/pm-sec-test/vim'
+  let g:plugin_manager_plugins_dir = '/tmp/pm-sec-test/vim/pack/plugins'
+  call delete('/tmp/pm-sec-test', 'rf')
+  call mkdir('/tmp/pm-sec-test/vim', 'p')
+  let g:plugin_manager_enable_logging = 1
+  unlet! g:plugin_manager_debug_mode
+  function! g:_pm_sec_log() abort
+    let l:p = '/tmp/pm-sec-test/vim/logs/plugin_manager.log'
+    return filereadable(l:p) ? join(readfile(l:p), "\n") : ''
+  endfunction
+
+After:
+  call delete('/tmp/pm-sec-test', 'rf')
+  let g:plugin_manager_vim_dir     = g:_pm_sec_saved.vim_dir
+  let g:plugin_manager_plugins_dir = g:_pm_sec_saved.plugins_dir
+  let g:plugin_manager_enable_logging = g:_pm_sec_saved.logging
+  unlet g:_pm_sec_saved
+
+Execute (sanitize_branch accepts ordinary refnames):
+  AssertEqual 'main', plugin_manager#core#util#sanitize_branch('main')
+  AssertEqual 'feature/x.y-z', plugin_manager#core#util#sanitize_branch('feature/x.y-z')
+
+Execute (sanitize_branch refuses option-like and hostile values):
+  AssertEqual '', plugin_manager#core#util#sanitize_branch('--upload-pack=/bin/true')
+  AssertEqual '', plugin_manager#core#util#sanitize_branch('-b')
+  AssertEqual '', plugin_manager#core#util#sanitize_branch('main;rm -rf /')
+  AssertEqual '', plugin_manager#core#util#sanitize_branch('main$(x)')
+  AssertEqual '', plugin_manager#core#util#sanitize_branch('ma in')
+  Assert g:_pm_sec_log() =~# 'untrusted branch',
+        \ 'a refused branch must be logged, got: ' . g:_pm_sec_log()
+
+Execute (validate_module_path accepts repo-relative plugin paths):
+  AssertEqual 'pack/plugins/start/myplugin',
+        \ plugin_manager#core#util#validate_module_path('pack/plugins/start/myplugin')
+  AssertEqual 'pack/plugins/opt/lazy',
+        \ plugin_manager#core#util#validate_module_path('pack/plugins/opt/lazy')
+
+Execute (validate_module_path refuses glob chars, traversal and escapes):
+  AssertEqual '', plugin_manager#core#util#validate_module_path('*')
+  AssertEqual '', plugin_manager#core#util#validate_module_path('my*')
+  AssertEqual '', plugin_manager#core#util#validate_module_path('pack/plugins/start/[a]b')
+  AssertEqual '', plugin_manager#core#util#validate_module_path('pack/plugins/start/../evil')
+  AssertEqual '', plugin_manager#core#util#validate_module_path('evil')
+  AssertEqual '', plugin_manager#core#util#validate_module_path('-x')
+  AssertEqual '', plugin_manager#core#util#validate_module_path('')
+  Assert g:_pm_sec_log() =~# 'untrusted module path',
+        \ 'a refused path must be logged, got: ' . g:_pm_sec_log()
+
+Execute (validate_dir_name accepts plain basenames only):
+  AssertEqual 'myplugin', plugin_manager#core#util#validate_dir_name('myplugin')
+  AssertEqual '', plugin_manager#core#util#validate_dir_name('../evil')
+  AssertEqual '', plugin_manager#core#util#validate_dir_name('/abs/path')
+  AssertEqual '', plugin_manager#core#util#validate_dir_name('a/b')
+  AssertEqual '', plugin_manager#core#util#validate_dir_name('')
+  Assert g:_pm_sec_log() =~# 'untrusted dir option',
+        \ 'a refused dir must be logged, got: ' . g:_pm_sec_log()
+
+Execute (sanitize_url strips https userinfo, keeps the rest):
+  AssertEqual 'https://github.com/a/b.git',
+        \ plugin_manager#core#util#sanitize_url('https://user:token@github.com/a/b.git')
+  AssertEqual 'https://github.com/a/b.git',
+        \ plugin_manager#core#util#sanitize_url('https://token@github.com/a/b.git')
+  AssertEqual 'http://host/x',
+        \ plugin_manager#core#util#sanitize_url('http://u@host/x')
+  AssertEqual 'https://github.com/a/b.git',
+        \ plugin_manager#core#util#sanitize_url('https://github.com/a/b.git')
+  AssertEqual 'git@github.com:a/b.git',
+        \ plugin_manager#core#util#sanitize_url('git@github.com:a/b.git')
+
+Execute (a hostile .gitmodules branch never reaches git pull):
+  " Minimal module: a real repo with a main branch, a crafted .gitmodules
+  " whose branch value is a git option.
+  let g:_pm_sec_mod = '/tmp/pm-sec-test/vim/pack/plugins/start/hostile'
+  call mkdir(g:_pm_sec_mod, 'p')
+  call system('git init -q ' . shellescape(g:_pm_sec_mod))
+  call system('git -C ' . shellescape(g:_pm_sec_mod) . ' config user.email "t@t.com"')
+  call system('git -C ' . shellescape(g:_pm_sec_mod) . ' config user.name "T"')
+  call writefile(['x'], g:_pm_sec_mod . '/f')
+  call system('git -C ' . shellescape(g:_pm_sec_mod) . ' add .')
+  call system('git -C ' . shellescape(g:_pm_sec_mod) . ' commit -qm init')
+  call writefile([
+        \ '[submodule "pack/plugins/start/hostile"]',
+        \ "\tpath = pack/plugins/start/hostile",
+        \ "\turl = https://example.com/a/b.git",
+        \ "\tbranch = --upload-pack=/bin/true",
+        \ ], '/tmp/pm-sec-test/vim/.gitmodules')
+  call plugin_manager#git#refresh_modules_cache()
+  let g:_pm_sec_exc = ''
+  try
+    let g:_pm_sec_st = plugin_manager#git#collect_status_local(g:_pm_sec_mod)
+  catch
+    let g:_pm_sec_exc = v:exception . ' @ ' . v:throwpoint
+  endtry
+  AssertEqual '', g:_pm_sec_exc, 'collect_status_local must not throw: ' . g:_pm_sec_exc
+  Assert stridx(g:_pm_sec_st.remote_branch, '--') == -1,
+        \ 'the hostile branch value must not propagate, got: ' . g:_pm_sec_st.remote_branch
+  Assert g:_pm_sec_log() =~# 'untrusted branch',
+        \ 'the refused branch must be logged, got: ' . g:_pm_sec_log()
+  unlet g:_pm_sec_exc g:_pm_sec_st
