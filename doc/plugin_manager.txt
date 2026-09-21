@@ -317,7 +317,12 @@ The plugin provides the following commands:
 
 :PluginManager list              List all installed plugins
 
-:PluginManager status            Show status of installed plugins
+:PluginManager status            Show status of installed plugins.
+                                 A plugin whose HEAD is detached (e.g. it was
+                                 manually checked out at a tag) is reported
+                                 as "Detached" with a re-pin hint: declare a
+                                 {'tag': ...} pin in the vimrc to re-assert
+                                 it on every update, or reattach a branch.
 
 :PluginManager update [plugin]   Update all plugins or a specific one.
                                  Plugins pinned by 'tag' or 'commit' in the

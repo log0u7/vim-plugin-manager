@@ -5,6 +5,13 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- `:PluginManager status` reports detached plugins as "Detached" with an
+  actionable re-pin hint (nearest reachable tag, computed offline) instead
+  of silently rendering them as "Up-to-date". A detached plugin cannot be
+  pulled - update skips it - so the status now surfaces the decision the
+  user must make: re-declare a pin in the vimrc or reattach a branch.
+
 ### Performance
 - `git#collect_status_local`: worst case reduced from 9 git subprocesses
   per module to 7 (6 when a branch is declared in `.gitmodules`). The
