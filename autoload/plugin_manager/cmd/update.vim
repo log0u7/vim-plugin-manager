@@ -104,21 +104,16 @@ function! s:on_fetch_complete(ctx, result) abort
   let a:ctx.current_commit = l:update_status.current_commit
 
   " A declared tag/commit pin replaces the pull flow entirely
-  let l:pin = s:pin_for(a:ctx.pins, get(a:ctx, 'current_module', {}))
-  if !empty(l:pin) && (has_key(l:pin, 'tag') || has_key(l:pin, 'commit'))
-    call s:sync_pinned(a:ctx, a:ctx.current_module, l:pin,
-          \ l:update_status.current_commit, l:op_id)
+  if s:handle_pin(a:ctx, a:ctx.current_module, l:update_status, l:op_id)
     return
   endif
 
   " A custom branch or a detached HEAD without a declaration is never
   " pulled: the pull would fail noisily on the detached HEAD or destroy a
   " manually checked out revision. Declare a tag/commit to pin it instead.
-  if l:update_status.different_branch || l:update_status.branch ==# 'detached'
-    call plugin_manager#ui#complete_operation(l:op_id, 'skip',
-          \ l:update_status.branch ==# 'detached'
-          \       ? 'Detached HEAD: skipped (declare a tag/commit to pin it)'
-          \       : 'On custom branch')
+  let l:skip = s:skip_status(l:update_status)
+  if !empty(l:skip)
+    call plugin_manager#ui#complete_operation(l:op_id, 'skip', l:skip)
     return
   endif
 
@@ -132,9 +127,7 @@ function! s:on_fetch_complete(ctx, result) abort
 
   " Step 3: Pull
   call plugin_manager#ui#update_operation(l:op_id, 'Pulling changes')
-  let l:pull_flag = plugin_manager#core#util#get_pull_flag()
-  let l:branch = plugin_manager#git#remote_branch_name(l:update_status.remote_branch)
-  call plugin_manager#async#git('git -C ' . shellescape(l:module_path) . ' pull origin ' . shellescape(l:branch) . ' ' . l:pull_flag, {
+  call plugin_manager#async#git(s:pull_cmd(l:module_path, l:update_status.remote_branch), {
         \ 'callback': function('s:on_update_complete', [a:ctx])
         \ })
 endfunction
@@ -173,6 +166,7 @@ function! s:on_update_complete(ctx, result) abort
 endfunction
 
 " Surface detailed error output from a failed async job to the log
+
 function! s:report_job_errors(result) abort
   let l:detail = ''
   if has_key(a:result, 'errors') && !empty(a:result.errors)
@@ -231,6 +225,44 @@ function! s:pin_for(pins, module) abort
   " https, installed through ssh).
   return get(a:pins, 'url:' . get(a:module, 'url', ''),
         \ get(a:pins, 'name:' . get(a:module, 'short_name', ''), {}))
+endfunction
+
+" Shared pinned-module handling (identical in the single-plugin and
+" all-plugins paths): a declared tag/commit pin replaces the pull flow
+" entirely.  Returns 1 when the module was handled by its pin.
+function! s:handle_pin(ctx, module, update_status, op_id) abort
+  let l:pin = s:pin_for(a:ctx.pins, a:module)
+  if empty(l:pin) || !(has_key(l:pin, 'tag') || has_key(l:pin, 'commit'))
+    return 0
+  endif
+  " Record the pre-checkout commit when the context tracks them
+  " (all-plugins path): s:on_pin_checkout compares against it.
+  " Without it a pin move reports Up-to-date and skips the pointer commit.
+  if has_key(a:ctx, 'pre_commits')
+    let a:ctx.pre_commits[a:module.short_name] = a:update_status.current_commit
+  endif
+  call s:sync_pinned(a:ctx, a:module, l:pin,
+        \ a:update_status.current_commit, a:op_id)
+  return 1
+endfunction
+
+" Shared skip text for a module on a detached HEAD or a custom branch
+" (identical in both update paths; UI copy contract - see update.vader).
+" Returns the skip message, or '' when the module is on a pullable branch.
+function! s:skip_status(update_status) abort
+  if a:update_status.different_branch || a:update_status.branch ==# 'detached'
+    return a:update_status.branch ==# 'detached'
+          \ ? 'Detached HEAD: skipped (declare a tag/commit to pin it)'
+          \ : 'On custom branch'
+  endif
+  return ''
+endfunction
+
+" Shared pull command builder (identical in both update paths).
+function! s:pull_cmd(module_path, remote_branch) abort
+  return 'git -C ' . shellescape(a:module_path) . ' pull origin '
+        \ . shellescape(plugin_manager#git#remote_branch_name(a:remote_branch))
+        \ . ' ' . plugin_manager#core#util#get_pull_flag()
 endfunction
 
 " Resolve the pin target and checkout it when HEAD differs. Replaces the
@@ -410,25 +442,18 @@ function! s:analyze_and_update(ctx, module) abort
 
   let l:update_status = plugin_manager#git#collect_status_local(l:module_path)
 
-  " A declared tag/commit pin replaces the pull flow entirely
-  let l:pin = s:pin_for(get(a:ctx, 'pins', {}), a:module)
-  if !empty(l:pin) && (has_key(l:pin, 'tag') || has_key(l:pin, 'commit'))
-    " Record the pre-checkout commit: s:on_pin_checkout compares against it
-    " in the all-plugins path (the single-plugin path uses current_commit).
-    " Without it a pin move reports Up-to-date and skips the pointer commit.
-    if has_key(a:ctx, 'pre_commits')
-      let a:ctx.pre_commits[a:module.short_name] = l:update_status.current_commit
-    endif
-    call s:sync_pinned(a:ctx, a:module, l:pin,
-          \ l:update_status.current_commit, l:op_id)
+  " A declared tag/commit pin replaces the pull flow entirely.
+  " Record the pre-checkout commit when the all-plugins context tracks
+  " them: s:on_pin_checkout compares against it (the single-plugin path
+  " keeps its own current_commit).  Without it a pin move reports
+  " Up-to-date and skips the pointer commit.
+  if s:handle_pin(a:ctx, a:module, l:update_status, l:op_id)
     return
   endif
 
-  if l:update_status.different_branch || l:update_status.branch ==# 'detached'
-    call plugin_manager#ui#complete_operation(l:op_id, 'skip',
-          \ l:update_status.branch ==# 'detached'
-          \       ? 'Detached HEAD: skipped (declare a tag/commit to pin it)'
-          \       : 'On custom branch')
+  let l:skip = s:skip_status(l:update_status)
+  if !empty(l:skip)
+    call plugin_manager#ui#complete_operation(l:op_id, 'skip', l:skip)
     let a:ctx.pending -= 1
     call s:maybe_finalize(a:ctx)
     return
@@ -450,10 +475,7 @@ function! s:analyze_and_update(ctx, module) abort
 
   " Pull with the correct remote branch (use -C with absolute path)
   call plugin_manager#ui#update_operation(l:op_id, 'Updating')
-  let l:branch = plugin_manager#git#remote_branch_name(l:update_status.remote_branch)
-  let l:pull_flag = plugin_manager#core#util#get_pull_flag()
-  let l:update_cmd = 'git -C ' . shellescape(l:module_path) . ' pull origin ' . shellescape(l:branch) . ' ' . l:pull_flag
-  call plugin_manager#async#git(l:update_cmd, {
+  call plugin_manager#async#git(s:pull_cmd(l:module_path, l:update_status.remote_branch), {
         \ 'callback': function('s:on_module_updated', [a:ctx, a:module])
         \ })
 endfunction
