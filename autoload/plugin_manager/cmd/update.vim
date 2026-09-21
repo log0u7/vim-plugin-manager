@@ -88,7 +88,7 @@ function! s:update_specific_plugin_async(ctx) abort
 
   " Step 1: Fetch first, stash only if a pull turns out to be needed
   call plugin_manager#ui#update_operation(l:op_id, 'Fetching updates')
-  call plugin_manager#async#git('git -C ' . shellescape(a:ctx.module_path) . ' fetch --tags origin', {
+  call plugin_manager#async#git('git -C ' . shellescape(a:ctx.module_path) . ' fetch --tags --force origin', {
         \ 'callback': function('s:on_fetch_complete', [a:ctx])
         \ })
 endfunction
@@ -385,7 +385,7 @@ function! s:update_all_plugins_async(ctx) abort
   for l:module in a:ctx.valid_modules
     let l:module_path = get(l:module, 'abs_path', l:module.path)
     call plugin_manager#async#git(
-          \ 'git -C ' . shellescape(l:module_path) . ' fetch --tags origin', {
+          \ 'git -C ' . shellescape(l:module_path) . ' fetch --tags --force origin', {
           \ 'callback': function('s:on_module_fetched', [a:ctx, l:module])
           \ })
   endfor
