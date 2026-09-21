@@ -326,3 +326,28 @@ Execute (custom-branch module is skipped with the exact skip message):
   call system('git -C ' . shellescape(g:_pm_upd_plug) . ' checkout -q main')
   call system('git -C ' . shellescape(g:_pm_upd_plug) . ' branch -D dev')
   unlet g:_pm_upd_sb
+
+Execute (a moved upstream tag does not fail the fetch):
+  " Upstream tags can move (re-annotated).  The module's local tag copy is
+  " a mirror, never a local creation: git fetch --tags --force must refresh
+  " it instead of failing the whole fetch (branch refs update regardless;
+  " a plain tag rejection must not mark the module as failed).
+  call system('git -C ' . shellescape(g:_pm_upd_tmp_src) . ' tag -a v9.9.9 -m rel')
+  call system('git -C ' . shellescape(g:_pm_upd_tmp_src) . ' push -q origin v9.9.9')
+  " Local tag with a DIFFERENT tag-object SHA than the remote one.
+  call system('git -C ' . shellescape(g:_pm_upd_plug) . ' tag -a v9.9.9 -m local')
+  call plugin_manager#cmd#dispatch('update')
+  let g:_pm_upd_sb = join(getbufline(bufnr('PluginManager'), 1, '$'), "\n")
+  Assert g:_pm_upd_sb !~# 'Fetch failed',
+        \ 'a tag clobber rejection must not fail the fetch, got: ' . g:_pm_upd_sb
+  " The local tag mirror is refreshed to the remote tag object.
+  let g:_pm_upd_local_tag = substitute(
+        \ system('git -C ' . shellescape(g:_pm_upd_plug) . ' show-ref --tags v9.9.9'),
+        \ '\n', '', 'g')
+  let g:_pm_upd_remote_tag = substitute(
+        \ system('git -C ' . shellescape(g:_pm_upd_tmp_src) . ' show-ref --tags v9.9.9'),
+        \ '\n', '', 'g')
+  Assert g:_pm_upd_local_tag ==# g:_pm_upd_remote_tag,
+        \ 'tag must be refreshed to the remote object, got: '
+        \ . g:_pm_upd_local_tag . ' vs ' . g:_pm_upd_remote_tag
+  unlet g:_pm_upd_sb g:_pm_upd_local_tag g:_pm_upd_remote_tag

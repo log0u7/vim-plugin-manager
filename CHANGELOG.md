@@ -39,6 +39,17 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
   startup check re-fetches (TTL skipped). It was previously accepted
   but ignored.
 
+### Fixed
+- Update no longer reports "Fetch failed" when an upstream tag moved: the
+  update fetch is `git fetch --tags --force origin`, so a tag-clobber
+  rejection (local tag object differing from the remote one) refreshes
+  the tag mirror instead of failing the whole fetch - branch refs were
+  already updating successfully in that case. Local tags in a plugin
+  submodule are mirrors of upstream, never local creations, so the
+  forced refresh matches the pull trust level. Diagnosed on a real
+  setup: 12 stale v1.x/v2.1.x tag mirrors were poisoning every update
+  of the affected module.
+
 ### Removed
 - Dead code: never-read async job state fields (`id`, `started`,
   `queued`), the unused `g:plugin_manager_periodic_timer` write, four
