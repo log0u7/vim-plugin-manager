@@ -305,3 +305,24 @@ Execute (fetch failure is reported and the failed module is excluded):
         \ 'the fetch failure must be logged, got: ' . g:_pm_upd_logtext
   unlet g:_pm_upd_sb g:_pm_upd_head g:_pm_upd_after g:_pm_upd_logtext
   unlet g:_pm_upd_plug2
+
+Execute (detached HEAD module is skipped with the exact skip message):
+  " Characterization: the skip message is shared by both update paths and
+  " must stay verbatim (UI copy contract).
+  call system('git -C ' . shellescape(g:_pm_upd_plug) . ' checkout -q --detach HEAD')
+  call plugin_manager#cmd#dispatch('update', 'myplugin')
+  let g:_pm_upd_sb = join(getbufline(bufnr('PluginManager'), 1, '$'), "\n")
+  Assert g:_pm_upd_sb =~# 'Detached HEAD: skipped (declare a tag/commit to pin it)',
+        \ 'exact detached-HEAD skip message expected, got: ' . g:_pm_upd_sb
+  call system('git -C ' . shellescape(g:_pm_upd_plug) . ' checkout -q main')
+  unlet g:_pm_upd_sb
+
+Execute (custom-branch module is skipped with the exact skip message):
+  call system('git -C ' . shellescape(g:_pm_upd_plug) . ' checkout -qb dev')
+  call plugin_manager#cmd#dispatch('update', 'myplugin')
+  let g:_pm_upd_sb = join(getbufline(bufnr('PluginManager'), 1, '$'), "\n")
+  Assert g:_pm_upd_sb =~# 'On custom branch',
+        \ 'custom-branch skip message expected, got: ' . g:_pm_upd_sb
+  call system('git -C ' . shellescape(g:_pm_upd_plug) . ' checkout -q main')
+  call system('git -C ' . shellescape(g:_pm_upd_plug) . ' branch -D dev')
+  unlet g:_pm_upd_sb
