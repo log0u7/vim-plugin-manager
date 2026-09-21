@@ -41,3 +41,72 @@ Execute (status renders block instantly and resolves missing plugin):
   Assert full =~# 'myplugin', 'plugin line should contain myplugin'
   Assert full =~# 'Missing', 'missing plugin should show Missing'
   Assert full =~# 'checked', 'footer should report plugins checked'
+
+Execute (detached module shows Detached with the nearest-tag re-pin hint):
+  " A module manually checked out at a tag (no vimrc pin declared) used to
+  " fall through to 'Up-to-date' in status.  It must be reported as
+  " Detached with an actionable hint (nearest tag), never as Up-to-date.
+  let g:plugin_manager_test_force_sync = 1
+  let g:_pm_stat_mod = g:_pm_stat_tmp . '/pack/plugins/start/detached'
+  call mkdir(g:_pm_stat_mod, 'p')
+  call system('git init -q ' . shellescape(g:_pm_stat_mod))
+  call system('git -C ' . shellescape(g:_pm_stat_mod) . ' symbolic-ref HEAD refs/heads/main')
+  call system('git -C ' . shellescape(g:_pm_stat_mod) . ' config user.email "t@t.com"')
+  call system('git -C ' . shellescape(g:_pm_stat_mod) . ' config user.name "T"')
+  call writefile(['v1'], g:_pm_stat_mod . '/f')
+  call system('git -C ' . shellescape(g:_pm_stat_mod) . ' add .')
+  call system('git -C ' . shellescape(g:_pm_stat_mod) . ' commit -qm v1')
+  call system('git -C ' . shellescape(g:_pm_stat_mod) . ' tag v0.9.9')
+  call writefile(['v2'], g:_pm_stat_mod . '/f')
+  call system('git -C ' . shellescape(g:_pm_stat_mod) . ' commit -qam v2')
+  call system('git -C ' . shellescape(g:_pm_stat_mod) . ' remote add origin ' . shellescape(g:_pm_stat_mod))
+  " Detach at the tip past the tag: no vimrc pin declared.
+  call system('git -C ' . shellescape(g:_pm_stat_mod) . ' checkout -q --detach HEAD')
+  call writefile([
+        \ '[submodule "detached"]',
+        \ '  path = pack/plugins/start/detached',
+        \ '  url = https://github.com/user/detached.git',
+        \ ], g:_pm_stat_tmp . '/.gitmodules')
+  call plugin_manager#git#refresh_modules_cache()
+
+  call plugin_manager#cmd#status#execute()
+  let sbuf = bufnr('PluginManager')
+  let full = join(getbufline(sbuf, 1, '$'), "\n")
+  Assert full =~# 'Detached',
+        \ 'detached module must be reported as Detached, got: ' . full
+  Assert full =~# 'nearest tag v0.9.9',
+        \ 'the hint should carry the nearest tag, got: ' . full
+  Assert full !~# '\cUp-to-date',
+        \ 'a detached module must never render as Up-to-date'
+  unlet g:plugin_manager_test_force_sync
+  unlet g:_pm_stat_mod
+
+Execute (detached module without any tag gets the plain reattach hint):
+  " Before re-runs per case: rebuild the fixture from scratch, without tags.
+  let g:plugin_manager_test_force_sync = 1
+  let g:_pm_stat_mod2 = g:_pm_stat_tmp . '/pack/plugins/start/detached'
+  call mkdir(g:_pm_stat_mod2, 'p')
+  call system('git init -q ' . shellescape(g:_pm_stat_mod2))
+  call system('git -C ' . shellescape(g:_pm_stat_mod2) . ' symbolic-ref HEAD refs/heads/main')
+  call system('git -C ' . shellescape(g:_pm_stat_mod2) . ' config user.email "t@t.com"')
+  call system('git -C ' . shellescape(g:_pm_stat_mod2) . ' config user.name "T"')
+  call writefile(['v1'], g:_pm_stat_mod2 . '/f')
+  call system('git -C ' . shellescape(g:_pm_stat_mod2) . ' add .')
+  call system('git -C ' . shellescape(g:_pm_stat_mod2) . ' commit -qm v1')
+  call system('git -C ' . shellescape(g:_pm_stat_mod2) . ' remote add origin ' . shellescape(g:_pm_stat_mod2))
+  call system('git -C ' . shellescape(g:_pm_stat_mod2) . ' checkout -q --detach HEAD')
+  call writefile([
+        \ '[submodule "detached"]',
+        \ '  path = pack/plugins/start/detached',
+        \ '  url = https://github.com/user/detached.git',
+        \ ], g:_pm_stat_tmp . '/.gitmodules')
+  call plugin_manager#git#refresh_modules_cache()
+  call plugin_manager#cmd#status#execute()
+  let sbuf = bufnr('PluginManager')
+  let full = join(getbufline(sbuf, 1, '$'), "\n")
+  Assert full =~# 'Detached',
+        \ 'detached module must be reported as Detached, got: ' . full
+  Assert full =~# 'declare a pin or reattach',
+        \ 'tagless detached module should get the plain hint, got: ' . full
+  unlet g:plugin_manager_test_force_sync
+  unlet g:_pm_stat_mod2

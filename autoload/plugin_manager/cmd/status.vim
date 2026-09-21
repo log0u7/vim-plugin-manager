@@ -128,6 +128,7 @@ function! s:status_symbol(status) abort
         \ 'Missing':       'fail',
         \ 'Ahead':         'info',
         \ 'Custom branch': 'info',
+        \ 'Detached':      'warn',
         \ }
   let l:key = get(l:keyword_map, a:status, 'info')
   return plugin_manager#ui#get_status_glyph(l:key)
@@ -157,6 +158,15 @@ function! s:get_module_status_info(module) abort
 
   let l:update_status = plugin_manager#git#collect_status_local(l:path)
 
+  " A detached module must never render as Up-to-date: it cannot be
+  " pulled (update skips it) and it needs an explicit decision from the
+  " user: re-declare a pin, or reattach a branch.
+  if l:update_status.branch ==# 'detached'
+    let l:info.status = 'Detached'
+    let l:info.details = s:detached_hint(l:path)
+    return l:info
+  endif
+
   if l:update_status.different_branch && l:update_status.branch !=# 'detached'
     let l:info.status = 'Custom branch'
     let l:info.details = l:update_status.branch
@@ -180,5 +190,22 @@ function! s:get_module_status_info(module) abort
   endif
   
   return l:info
+endfunction
+
+" Build the actionable hint for a detached module (no vimrc pin declared).
+" Offline: the nearest reachable tag (git describe --tags --abbrev=0) is
+" the re-pin candidate - if the module was once pinned, re-declaring that
+" tag in the vimrc re-asserts it on every update.
+function! s:detached_hint(path) abort
+  let l:res = plugin_manager#git#execute('git describe --tags --abbrev=0',
+        \ a:path, 0, 0)
+  if l:res.success
+    let l:tag = substitute(l:res.output, '\n', '', 'g')
+    if !empty(l:tag)
+      return 'nearest tag ' . l:tag
+            \ . ' - declare a pin to re-assert it or reattach a branch'
+    endif
+  endif
+  return 'declare a pin or reattach a branch'
 endfunction
 
