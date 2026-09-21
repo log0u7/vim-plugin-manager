@@ -24,6 +24,9 @@ Before:
   unlet! g:plugin_manager_debug_mode
   call delete('/tmp/pm-perf-test', 'rf')
   call mkdir('/tmp/pm-perf-test/vim/pack/plugins/start', 'p')
+  " Real usage: the vim config dir is a git repository (parse_modules
+  " requires it); init it so .gitmodules comes from the cached parse.
+  call system('git init -q ' . shellescape('/tmp/pm-perf-test/vim'))
 
   " Module repo on branch main with a remote-tracking origin/main and no
   " upstream (worst-case remote-branch resolution: full cascade).
