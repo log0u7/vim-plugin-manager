@@ -3,6 +3,54 @@
 All notable changes to the Vim Plugin Manager will be documented in this file.
 
 
+## [Unreleased]
+
+### Performance
+- `git#collect_status_local`: worst case reduced from 9 git subprocesses
+  per module to 7 (6 when a branch is declared in `.gitmodules`). The
+  branch now comes from the mtime-cached `parse_modules` result instead
+  of a per-module `git config -f` call, and the sequential
+  upstream/show-ref cascade collapses into one `git for-each-ref` call
+  (same selection order; its sha listing also replaces the remote
+  `rev-parse` for `origin/*` refs - verbatim `.gitmodules` branches keep
+  their `rev-parse` since they resolve local refs). The direct
+  `.gitmodules` read is kept when `parse_modules` is unavailable so
+  hostile branch values still reach `sanitize_branch` (#9 parity).
+  `tests/perf.vader` pins the subprocess budget as a permanent
+  regression guard.
+- Health check rendering: the 200-line sequential function is now a
+  table of check Funcrefs; per-check report order and messages are
+  unchanged (pinned by a characterization test).
+
+### Changed
+- Log format: debug/trace entries carry a single level prefix
+  (`| comp | EXTERNAL | DEBUG:msg`) instead of the doubled
+  `DEBUG:comp:DEBUG:msg`. The `code` field was previously always
+  `EXTERNAL` for those entries; the level prefix is the marker.
+- `check` opts: the documented `force` option is now real - it always
+  fetches and leaves the update-check cache untouched, so the next
+  startup check re-fetches (TTL skipped). It was previously accepted
+  but ignored.
+
+### Removed
+- Dead code: never-read async job state fields (`id`, `started`,
+  `queued`), the unused `g:plugin_manager_periodic_timer` write, four
+  sidebar highlight keywords no code emits (`Synced`, `Skipped`,
+  `timed out`, `Stashing changes`), the `pending` UI glyph key, the
+  legacy numeric status branch of `ui#get_status_glyph` (all callers
+  pass keywords), the unreachable replace path of `ui#update_sidebar`,
+  the list branch of `ui#log_detail`, `ftdetect/pluginmanager.vim` (only
+  matched a literal file named `PluginManager`) and the `Makefile.test`
+  forwarding shim.
+- Internal refactors with zero behavior change: shared userinfo
+  sanitizer, shared log level writer, shared update-path helpers
+  (`s:handle_pin`, `s:skip_status`, `s:pull_cmd`), redundant
+  `get_config` re-read in backup. Deliberately NOT unified: the
+  single-plugin and all-plugins update flows (real behavior differences:
+  pull-step UI text, stash bookkeeping, helptags/auto-commit scope,
+  batch finalize).
+
+
 ## [2.2.10] - 2026-09-20
 
 ### Removed
