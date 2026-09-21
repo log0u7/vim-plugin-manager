@@ -47,7 +47,6 @@ function! s:backup_vimrc_file() abort
   " Copy vimrc
   if plugin_manager#core#util#file_exists(l:vimrc_path)
     let l:copy_cmd = 'cp ' . shellescape(l:vimrc_path) . ' ' . shellescape(l:local_vimrc)
-    let l:vim_dir = plugin_manager#core#util#get_config('vim_dir', '')
     let l:copy_result = plugin_manager#core#util#run_in_dir(l:copy_cmd, '')
     if !l:copy_result.success
       call plugin_manager#ui#log_detail('backup',

@@ -41,8 +41,11 @@ function! plugin_manager#git#parse_modules() abort
   " Output format: 'submodule.<subsection>.<varname> <value>'
   " Using --get-regexp lets git handle quoting, whitespace, and encoding.
   " throw_on_error=0: a missing/empty .gitmodules exits non-zero - not an error.
+  " -C anchors repo discovery at the vim dir: the command must not depend
+  " on the cwd (a cwd inside an unrelated repo must never leak in).
   let l:res = plugin_manager#git#execute(
-        \ 'git config -f ' . shellescape(l:gitmodules) .
+        \ 'git -C ' . shellescape(l:vim_dir) .
+        \ ' config -f ' . shellescape(l:gitmodules) .
         \ ' --get-regexp ''^submodule\.''',
         \ '', 0, 0)
 
@@ -387,14 +390,23 @@ function! plugin_manager#git#collect_status_local(module_path) abort
   
   " First try to find remote branch from .gitmodules at the vim config root.
   " Use the relative path as the submodule section key (not just the basename).
-  let l:vim_dir = plugin_manager#core#util#get_config('vim_dir', '')
-  let l:gitmodules_path = l:vim_dir . '/.gitmodules'
+  " Read from the parse_modules cache (mtime-cached): no per-module git
+  " subprocess for a value the cached parse already carries.
   let l:rel_path = plugin_manager#core#util#make_relative_path(a:module_path)
-  let l:res = plugin_manager#git#execute(
-        \ 'git config -f ' . shellescape(l:gitmodules_path) .
-        \ ' submodule.' . shellescape(l:rel_path) . '.branch',
-        \ '', 0, 0)
-  let l:remote_branch = l:res.success ? substitute(l:res.output, '\n', '', 'g') : ''
+  let l:modules = plugin_manager#git#parse_modules()
+  let l:remote_branch = get(get(l:modules, l:rel_path, {}), 'branch', '')
+  if empty(l:remote_branch) && empty(l:modules)
+    " parse_modules is unavailable (vim_dir is not a git repo): keep the
+    " direct .gitmodules read so untrusted branch values still reach
+    " sanitize_branch (which warns, see issue #9).  -C anchors discovery
+    " at the vim dir like parse_modules does.
+    let l:res = plugin_manager#git#execute(
+          \ 'git -C ' . shellescape(plugin_manager#core#util#get_config('vim_dir', '')) .
+          \ ' config -f ' . shellescape(plugin_manager#core#util#get_config('vim_dir', '') . '/.gitmodules') .
+          \ ' submodule.' . shellescape(l:rel_path) . '.branch',
+          \ '', 0, 0)
+    let l:remote_branch = l:res.success ? substitute(l:res.output, '\n', '', 'g') : ''
+  endif
   " .gitmodules is user-writable config content: its branch value is passed
   " to `git pull origin <branch>` - a leading dash would be parsed as a git
   " option (proven RCE via --upload-pack, issue #9).  Refuse + fall back to
@@ -416,40 +428,93 @@ function! plugin_manager#git#collect_status_local(module_path) abort
     endif
   endif
   
-  " If still not found, try to determine from standard branches
+  " If still not found, resolve from the remote-tracking refs in ONE batched
+  " call.  Replaces the sequential show-ref origin/main / origin/master /
+  " rev-parse origin/HEAD / show-ref origin/<branch> cascade (up to 4
+  " subprocesses).  Selection order kept: main > master > origin/HEAD
+  " (via its symref target, e.g. origin/develop) > origin/<local branch>.
+  let l:remote_sha = ''
   if empty(l:remote_branch)
-    " Check if origin/main exists
-    let l:res = plugin_manager#git#execute('git show-ref --verify --quiet refs/remotes/origin/main', 
+    " The format goes through the shell: escape it (parens are shell
+    " metacharacters, see tests/perf.vader for the regression pin).
+    let l:ref_fmt = shellescape('%(refname:short)' . "\t" . '%(symref:short)' . "\t" . '%(objectname)')
+    let l:res = plugin_manager#git#execute(
+          \ 'git for-each-ref --format=' . l:ref_fmt . ' refs/remotes/origin',
           \ a:module_path, 0, 0)
+    let l:remote_sha = ''
     if l:res.success
-      let l:remote_branch = 'origin/main'
-    else
-      " Check if origin/master exists
-      let l:res = plugin_manager#git#execute('git show-ref --verify --quiet refs/remotes/origin/master', 
-          \ a:module_path, 0, 0)
-      if l:res.success
-        let l:remote_branch = 'origin/master'
+      let l:refs = []
+      for l:line in split(l:res.output, '\n')
+        if empty(l:line)
+          continue
+        endif
+        let l:parts = split(l:line, "\t", 1)
+        if len(l:parts) < 3
+          continue
+        endif
+        call add(l:refs, {'name': l:parts[0], 'symref': l:parts[1], 'sha': l:parts[2]})
+      endfor
+      " Priority 1: origin/main
+      for l:ref in l:refs
+        if l:ref.name ==# 'origin/main'
+          let l:remote_branch = 'origin/main'
+          let l:remote_sha = l:ref.sha
+          break
+        endif
+      endfor
+      " Priority 2: origin/master
+      if empty(l:remote_branch)
+        for l:ref in l:refs
+          if l:ref.name ==# 'origin/master'
+            let l:remote_branch = 'origin/master'
+            let l:remote_sha = l:ref.sha
+            break
+          endif
+        endfor
+      endif
+      " Priority 3: the remote's default HEAD branch (symref target)
+      " (old cascade order: origin/HEAD beat origin/<local branch>)
+      if empty(l:remote_branch)
+        for l:ref in l:refs
+          if !empty(l:ref.symref)
+            let l:remote_branch = l:ref.symref
+            let l:remote_sha = l:ref.sha
+            break
+          endif
+        endfor
+      endif
+      " Priority 4: origin/<current local branch>
+      if empty(l:remote_branch) && l:result.branch !=# 'detached' && !empty(l:result.branch)
+        let l:candidate = 'origin/' . l:result.branch
+        for l:ref in l:refs
+          if l:ref.name ==# l:candidate
+            let l:remote_branch = l:candidate
+            let l:remote_sha = l:ref.sha
+            break
+          endif
+        endfor
+      endif
+      " An upstream-derived branch (origin/<x> from @{upstream}) also has
+      " its sha in this listing - same value `git rev-parse` would return.
+      if empty(l:remote_sha) && !empty(l:remote_branch)
+        for l:ref in l:refs
+          if l:ref.name ==# l:remote_branch
+            let l:remote_sha = l:ref.sha
+            break
+          endif
+        endfor
       endif
     endif
   endif
-  
-  " Ask the remote for its default HEAD branch
-  if empty(l:remote_branch)
-    let l:res = plugin_manager#git#execute(
-          \ 'git rev-parse --abbrev-ref origin/HEAD', a:module_path, 0, 0)
-    if l:res.success
-      let l:remote_branch = substitute(l:res.output, '\n', '', 'g')
-    endif
-  endif
 
-  " Last resort: try origin/<current-local-branch> when all else fails
-  if empty(l:remote_branch) && l:result.branch !=# 'detached' && !empty(l:result.branch)
-    let l:candidate = 'origin/' . l:result.branch
-    let l:res = plugin_manager#git#execute(
-          \ 'git show-ref --verify --quiet refs/remotes/' . l:candidate,
+  " Resolve the remote commit sha when the listing did not provide it.
+  " A .gitmodules branch used verbatim (e.g. 'main', a LOCAL ref) is not
+  " an origin/* ref: it keeps its own rev-parse (v2.2.10 behavior).
+  if !empty(l:remote_branch) && empty(l:remote_sha)
+    let l:res = plugin_manager#git#execute('git rev-parse ' . shellescape(l:remote_branch),
           \ a:module_path, 0, 0)
     if l:res.success
-      let l:remote_branch = l:candidate
+      let l:remote_sha = substitute(l:res.output, '\n', '', 'g')
     endif
   endif
 
@@ -458,13 +523,11 @@ function! plugin_manager#git#collect_status_local(module_path) abort
   
   let l:result.remote_branch = l:remote_branch
 
-  " Get the latest commit on the remote branch (skip if branch unknown)
-  if !empty(l:remote_branch)
-    let l:res = plugin_manager#git#execute('git rev-parse ' . shellescape(l:result.remote_branch),
-          \ a:module_path, 0, 0)
-    if l:res.success
-      let l:result.remote_commit = substitute(l:res.output, '\n', '', 'g')
-    endif
+  " Get the latest commit on the remote branch (skip if branch unknown).
+  " The sha is usually already known from the for-each-ref listing; a
+  " verbatim .gitmodules branch keeps its own rev-parse above.
+  if !empty(l:remote_branch) && !empty(l:remote_sha)
+    let l:result.remote_commit = l:remote_sha
   endif
   
   " Direct check if remote commit is different from current commit

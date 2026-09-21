@@ -69,15 +69,12 @@ function! plugin_manager#async#start_job(cmd, opts) abort
   " Promote opts.callback to the top-level 'callback' key so that
   " s:process_job_completion can find it without having to dig into opts.
   let s:jobs[l:job_id] = {
-    \ 'id': l:job_id,
     \ 'cmd': a:cmd,
     \ 'opts': a:opts,
     \ 'output': '',
     \ 'errors': '',
     \ 'status': -1,
-    \ 'started': 0,
     \ 'finished': 0,
-    \ 'queued': localtime(),
     \ 'job': v:null,
     \ 'timeout_timer': 0,
     \ 'exited': 0,
@@ -105,8 +102,6 @@ function! s:spawn_job(job_id) abort
   endif
   
   let l:job = s:jobs[a:job_id]
-  let l:opts = l:job.opts
-  let l:job.started = localtime()
   
   let s:active_count += 1
   

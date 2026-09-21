@@ -219,7 +219,6 @@ The project is organized into several key components:
      - `remote.vim`: Remote repository management.
 
 6. **Utility Files**
-   - `ftdetect/pluginmanager.vim`: Defines filetype detection rules.
    - `ftplugin/pluginmanager.vim`: Sets buffer configuration and key mappings.
    - `syntax/pluginmanager.vim`: Defines syntax highlighting for the plugin interface.
 
@@ -452,7 +451,7 @@ To run vint locally (requires Python):
 
 ```bash
 pip install vim-vint
-vint -e autoload/ plugin/ ftplugin/ ftdetect/ syntax/
+vint -e autoload/ plugin/ ftplugin/ syntax/
 ```
 
 When adding new features or fixing bugs:
@@ -517,8 +516,6 @@ Understanding the project's complete structure will help you contribute effectiv
 │           └── update.vim           # Plugin update
 ├── doc/                             # Vim help documentation
 │   └── plugin_manager.txt           # :help plugin-manager
-├── ftdetect/                        # Filetype detection
-│   └── pluginmanager.vim            # Registers the pluginmanager filetype
 ├── ftplugin/                        # Filetype plugin
 │   └── pluginmanager.vim            # Buffer settings and key mappings
 ├── plugin/                          # Plugin entry point
@@ -535,6 +532,8 @@ Understanding the project's complete structure will help you contribute effectiv
 │   ├── declare.vader                # Declarative Plugin/Begin/End blocks
 │   ├── dispatch.vader               # Command dispatch and tab completion
 │   ├── gitmodules.vader             # .gitmodules parsing and module lookup
+│   ├── health.vader                 # Health check statuses (characterized)
+│   ├── perf.vader                   # collect_status_local subprocess budget
 │   ├── remove.vader                 # Plugin removal and ambiguity guard
 │   ├── restore.vader                # Submodule restoration from .gitmodules
 │   ├── status.vader                 # Status block rendering
@@ -547,7 +546,6 @@ Understanding the project's complete structure will help you contribute effectiv
 ├── CONTRIBUTING.md                  # Contribution guidelines (this file)
 ├── LICENSE                          # MIT license
 ├── Makefile                         # Build, test, and version management
-├── Makefile.test                    # Compatibility shim (delegates to Makefile)
 └── README.md                        # Project overview and usage
 ```
 

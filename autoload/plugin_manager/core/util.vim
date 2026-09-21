@@ -164,14 +164,20 @@ endfunction
 
 " Strip https/http userinfo (user:token@) from a URL: logs, error messages
 " and commit texts must never carry credentials.
+" Strip userinfo from an https/http URL (single occurrence or all with
+" a:flags='g', for command strings embedding several URLs).
+function! s:sanitize_url_impl(url, flags) abort
+  return substitute(a:url, '\(https\?://\)[^/@]*@', '\1', a:flags)
+endfunction
+
 function! plugin_manager#core#util#sanitize_url(url) abort
-  return substitute(a:url, '\(https\?://\)[^/@]*@', '\1', '')
+  return s:sanitize_url_impl(a:url, '')
 endfunction
 
 " Strip userinfo from every https/http URL inside a command string (traces
 " and error messages embed whole commands).
 function! plugin_manager#core#util#sanitize_cmd(cmd) abort
-  return substitute(a:cmd, '\(https\?://\)[^/@]*@', '\1', 'g')
+  return s:sanitize_url_impl(a:cmd, 'g')
 endfunction
 
 " Validate a branch name coming from .gitmodules or user declarations.

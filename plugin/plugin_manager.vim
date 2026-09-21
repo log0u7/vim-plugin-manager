@@ -186,9 +186,7 @@ if g:plugin_manager_check_on_startup
   " Periodic re-check using the configured interval (hours -> milliseconds).
   " The check itself still honors the cache, so this only fetches when due.
   if exists('*timer_start') && get(g:, 'plugin_manager_check_interval', 24) > 0
-      let s:pm_check_period_ms = g:plugin_manager_check_interval * 3600 * 1000
-      let g:plugin_manager_periodic_timer =
-                  \ timer_start(s:pm_check_period_ms,
+      call timer_start(g:plugin_manager_check_interval * 3600 * 1000,
                   \ {-> plugin_manager#cmd#check#startup()}, {'repeat': -1})
   endif
 endif

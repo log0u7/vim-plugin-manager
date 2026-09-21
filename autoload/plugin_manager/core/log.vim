@@ -150,28 +150,40 @@ function! plugin_manager#core#log#view() abort
   endtry
 endfunction
 
+" Common writer for the three leveled entries.  a:level: 'debug'|'warn'|'trace'.
+" Gates: debug requires debug_mode, warn/trace only enable_logging (a
+" swallowed failure must never depend on debug_mode being on - issue #5).
+function! s:leveled(level, component, message) abort
+  if a:level ==# 'debug'
+        \ && !(get(g:, 'plugin_manager_enable_logging', 1)
+        \      && get(g:, 'plugin_manager_debug_mode', 0))
+    return
+  endif
+  if get(g:, 'plugin_manager_enable_logging', 1)
+    call plugin_manager#core#log#write({
+          \ 'type': a:level ==# 'warn' ? 'internal' : 'external',
+          \ 'component': a:component,
+          \ 'code': toupper(a:level),
+          \ 'message': a:level ==# 'warn'
+          \              ? a:message
+          \              : toupper(a:level) . ':' . a:message,
+          \ })
+  endif
+endfunction
+
 " Write a debug entry.  Only writes when both logging and debug_mode are on.
 function! plugin_manager#core#log#debug(component, message) abort
-  if get(g:, 'plugin_manager_enable_logging', 1) && get(g:, 'plugin_manager_debug_mode', 0)
-    let l:parsed = {'type': 'external', 'component': a:component, 'code': 'DEBUG', 'message': 'DEBUG:' . a:component . ':DEBUG:' . a:message}
-    call plugin_manager#core#log#write(l:parsed)
-  endif
+  call s:leveled('debug', a:component, a:message)
 endfunction
 
 " Write a warn entry.  Failure details: always written (a swallowed
 " failure must never depend on debug_mode being on - see issue #5).
 function! plugin_manager#core#log#warn(component, message) abort
-  if get(g:, 'plugin_manager_enable_logging', 1)
-    let l:parsed = {'type': 'internal', 'component': a:component, 'code': 'WARN', 'message': a:message}
-    call plugin_manager#core#log#write(l:parsed)
-  endif
+  call s:leveled('warn', a:component, a:message)
 endfunction
 
 " Write a trace entry.  Gated by enable_logging only (callers gate on
 " g:plugin_manager_trace_commands before calling).
 function! plugin_manager#core#log#trace(component, message) abort
-  if get(g:, 'plugin_manager_enable_logging', 1)
-    let l:parsed = {'type': 'external', 'component': a:component, 'code': 'TRACE', 'message': 'TRACE:' . a:component . ':TRACE:' . a:message}
-    call plugin_manager#core#log#write(l:parsed)
-  endif
+  call s:leveled('trace', a:component, a:message)
 endfunction

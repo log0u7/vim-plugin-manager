@@ -9,7 +9,8 @@
 " @param opts: dict with optional keys:
 "   - 'silent'   : 1 to suppress the sidebar header/progress (background mode)
 "   - 'on_done'  : Funcref called with the list of plugins behind once finished
-"   - 'force'    : 1 to ignore the cache freshness (always fetch)
+"   - 'force'    : 1 to always fetch and leave the update-check cache
+"                  untouched (the next startup check re-fetches)
 function! plugin_manager#cmd#check#execute(...) abort
   try
     call plugin_manager#core#util#require_vim_directory('check')
@@ -212,8 +213,14 @@ function! s:finalize(ctx) abort
 endfunction
 
 function! s:finish(plugins, opts) abort
-  " Persist to cache so startup checks can skip the network next time
-  call plugin_manager#core#cache#write(a:plugins)
+  " Persist to cache so startup checks can skip the network next time -
+  " unless forced: opts.force means "always fetch and leave the cache
+  " untouched" (the next startup check re-fetches, TTL skipped).
+  if !get(a:opts, 'force', 0)
+    call plugin_manager#core#cache#write(a:plugins)
+  else
+    call delete(plugin_manager#core#cache#get_path())
+  endif
 
   " Notify caller (e.g. auto-update flow)
   if has_key(a:opts, 'on_done') && !empty(a:opts.on_done)

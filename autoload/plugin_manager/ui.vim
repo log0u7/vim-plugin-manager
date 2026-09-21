@@ -7,7 +7,7 @@ let s:fancy_ui = get(g:, 'plugin_manager_fancy_ui', 1) && s:unicode_support
 let s:has_timers = exists('*timer_start') && exists('*timer_stop')
 
 " Status-to-glyph mapping (single source of truth used by complete_operation
-" and status.vim). Keys: 'ok', 'fail', 'warn', 'info', 'skip', 'pending'.
+" and status.vim). Keys: 'ok', 'fail', 'warn', 'info', 'skip'.
 " Built lazily after s:symbols so the references resolve correctly.
 " (Populated at the bottom of this section, after s:symbols is defined.)
 let s:status_glyphs = {}
@@ -21,7 +21,6 @@ let s:symbols = {
       \ 'separator': s:fancy_ui ? '━' : '-',
       \ 'warning':   s:fancy_ui ? '⚠' : '!',
       \ 'info':      s:fancy_ui ? 'ℹ' : 'i',
-      \ 'pending':   s:fancy_ui ? '○' : 'o',
       \ }
 
 " Build a separator bar sized to the given title (display width, multibyte
@@ -46,7 +45,6 @@ let s:status_glyphs = {
       \ 'warn':    s:symbols.warning,
       \ 'info':    s:symbols.info,
       \ 'skip':    s:symbols.info,
-      \ 'pending': s:symbols.pending,
       \ }
 
 let s:active_spinner_style = get(g:, 'plugin_manager_spinner_style', 'dots')
@@ -177,10 +175,9 @@ function! plugin_manager#ui#update_sidebar(lines, append) abort
     return
   endif
 
-  if a:append && !empty(a:lines)
+  " All callers append (v2.2.10 audit): the replace path was unreachable.
+  if !empty(a:lines)
     call s:append_lines(l:buf, a:lines)
-  elseif !a:append
-    call s:replace_all(l:buf, empty(a:lines) ? [''] : a:lines)
   endif
 
   call s:redraw_if_visible()
@@ -239,13 +236,9 @@ function! plugin_manager#ui#update_operation(op_id, status_text) abort
   call s:redraw_if_visible()
 endfunction
 
-" Resolve a status value to a glyph.
-" Accepts a keyword ('ok','fail','warn','info','skip','pending') or a legacy
-" boolean/number (non-zero -> 'ok', zero -> 'fail').
+" Resolve a status value to a glyph.  Accepts a keyword
+" ('ok','fail','warn','info','skip').
 function! plugin_manager#ui#get_status_glyph(status) abort
-  if type(a:status) == v:t_number
-    return a:status ? s:symbols.tick : s:symbols.cross
-  endif
   if has_key(s:status_glyphs, a:status)
     return s:status_glyphs[a:status]
   endif
@@ -253,9 +246,7 @@ function! plugin_manager#ui#get_status_glyph(status) abort
   return s:symbols.info
 endfunction
 
-" Complete an operation. status can be:
-"   - a boolean/number (legacy): non-zero -> ok (tick), zero -> fail (cross)
-"   - a keyword string: 'ok','fail','warn','info','skip','pending'
+" Complete an operation.  status is a keyword: 'ok','fail','warn','info','skip'.
 function! plugin_manager#ui#complete_operation(op_id, status, final_message) abort
   let l:symbol = plugin_manager#ui#get_status_glyph(a:status)
   call plugin_manager#ui#complete_operation_symbol(a:op_id, l:symbol, a:final_message)
@@ -290,15 +281,10 @@ endfunction
 " debug_mode) or 'warn' (failure details, always written - issue #5).
 function! plugin_manager#ui#log_detail(component, detail, ...) abort
   let l:level = a:0 >= 1 && a:1 ==# 'warn' ? 'warn' : 'debug'
-  if type(a:detail) == v:t_list
-    let l:detail = join(a:detail, "\n")
-  else
-    let l:detail = a:detail
-  endif
   if l:level ==# 'warn'
-    call plugin_manager#core#log#warn(a:component, l:detail)
+    call plugin_manager#core#log#warn(a:component, a:detail)
   else
-    call plugin_manager#core#log#debug(a:component, l:detail)
+    call plugin_manager#core#log#debug(a:component, a:detail)
   endif
 endfunction
 

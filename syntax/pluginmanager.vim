@@ -39,11 +39,11 @@ syntax match PMSymbolArrow /^[→>][-> ] / contains=NONE
 syntax match PMSymbolBullet /^\s*[•*] / contains=NONE
 
 " Status text keywords that appear after the dots
-syntax match PMStatusOk       /Up-to-date\|Installed\|Initialized\|Restored\|Synced\|Updated\|Committed\|Pushed\|Copied\|Reloaded\|Helptags generated\|Added/
-syntax match PMStatusSkip     /On custom branch\|Already exists\|No changes\|No doc directory\|Skipped/
-syntax match PMStatusWarn     /\<Missing\>\|commits behind\|No remotes\|Source not found\|timed out/
+syntax match PMStatusOk       /Up-to-date\|Installed\|Initialized\|Restored\|Updated\|Committed\|Pushed\|Copied\|Reloaded\|Helptags generated\|Added/
+syntax match PMStatusSkip     /On custom branch\|Already exists\|No changes\|No doc directory/
+syntax match PMStatusWarn     /\<Missing\>\|commits behind\|No remotes\|Source not found/
 syntax match PMStatusFail     /\<Failed\>\|Update failed\|Push failed\|Commit failed\|Exec failed\|Installation failed\|Invalid URL format/
-syntax match PMStatusProgress /Installing\|Removing\|Updating\|Checking\|Fetching updates\|Stashing changes\|Pulling changes\|Analyzing\|Generating helptags\|Backing up\|Committing\|Pushing\|Pending\|Reloading\|Processing\|Adding/
+syntax match PMStatusProgress /Installing\|Removing\|Updating\|Checking\|Fetching updates\|Pulling changes\|Analyzing\|Generating helptags\|Backing up\|Committing\|Pushing\|Pending\|Reloading\|Processing\|Adding/
 
 " Dots separating name from status (the padding in format_plugin_line)
 syntax match PMDots /\.\{2,}/

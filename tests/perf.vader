@@ -1,0 +1,110 @@
+" Performance contract (tests/perf.vader): collect_status_local must batch
+" its git subprocesses.  It runs once per module inside status/update/check
+" loops, so every call it makes is multiplied by the module count.
+" Baseline (v2.2.10), worst case per module: 9 git#execute calls
+"   rev-parse HEAD, symbolic-ref, per-module `git config -f .gitmodules`,
+"   upstream rev-parse, show-ref cascade (x2 here), remote rev-parse,
+"   2x rev-list --count, status -s.
+" Budget after batching: <= 7 (no branch key) / <= 6 (branch in .gitmodules).
+"
+" Counting seam (non-invasive): with trace_commands + logging on, git#execute
+" logs exactly one 'exec: <cmd>' line per subprocess.  We count those lines.
+
+Before:
+  let g:_pm_perf_saved = {
+        \ 'vim_dir':     get(g:, 'plugin_manager_vim_dir', ''),
+        \ 'plugins_dir': get(g:, 'plugin_manager_plugins_dir', ''),
+        \ 'logging':     get(g:, 'plugin_manager_enable_logging', 0),
+        \ 'trace':       get(g:, 'plugin_manager_trace_commands', 0),
+        \ }
+  let g:plugin_manager_vim_dir = '/tmp/pm-perf-test/vim'
+  let g:plugin_manager_plugins_dir = '/tmp/pm-perf-test/vim/pack/plugins'
+  let g:plugin_manager_enable_logging = 1
+  let g:plugin_manager_trace_commands = 1
+  unlet! g:plugin_manager_debug_mode
+  call delete('/tmp/pm-perf-test', 'rf')
+  call mkdir('/tmp/pm-perf-test/vim/pack/plugins/start', 'p')
+  " Real usage: the vim config dir is a git repository (parse_modules
+  " requires it); init it so .gitmodules comes from the cached parse.
+  call system('git init -q ' . shellescape('/tmp/pm-perf-test/vim'))
+
+  " Module repo on branch main with a remote-tracking origin/main and no
+  " upstream (worst-case remote-branch resolution: full cascade).
+  " Point HEAD at main BEFORE the first commit: HEAD is an unborn symref
+  " until then, and init.defaultBranch varies (master on stock CI images).
+  let g:_pm_perf_mod = '/tmp/pm-perf-test/vim/pack/plugins/start/foo'
+  call mkdir(g:_pm_perf_mod, 'p')
+  call system('git init -q ' . shellescape(g:_pm_perf_mod))
+  call system('git -C ' . shellescape(g:_pm_perf_mod) . ' symbolic-ref HEAD refs/heads/main')
+  call system('git -C ' . shellescape(g:_pm_perf_mod) . ' config user.email "t@t.com"')
+  call system('git -C ' . shellescape(g:_pm_perf_mod) . ' config user.name "T"')
+  call writefile(['x'], g:_pm_perf_mod . '/f')
+  call system('git -C ' . shellescape(g:_pm_perf_mod) . ' add .')
+  call system('git -C ' . shellescape(g:_pm_perf_mod) . ' commit -qm init')
+  call system('git -C ' . shellescape(g:_pm_perf_mod) . ' update-ref refs/remotes/origin/main HEAD')
+
+  " .gitmodules without a branch key: the branch must come from the cascade.
+  call writefile([
+        \ '[submodule "pack/plugins/start/foo"]',
+        \ "\tpath = pack/plugins/start/foo",
+        \ "\turl = https://example.com/a/b.git",
+        \ ], '/tmp/pm-perf-test/vim/.gitmodules')
+  call plugin_manager#git#refresh_modules_cache()
+
+  let g:_pm_perf_log = '/tmp/pm-perf-test/vim/logs/plugin_manager.log'
+
+After:
+  call delete('/tmp/pm-perf-test', 'rf')
+  let g:plugin_manager_vim_dir     = g:_pm_perf_saved.vim_dir
+  let g:plugin_manager_plugins_dir = g:_pm_perf_saved.plugins_dir
+  let g:plugin_manager_enable_logging = g:_pm_perf_saved.logging
+  let g:plugin_manager_trace_commands = g:_pm_perf_saved.trace
+  unlet g:_pm_perf_saved
+
+Execute (collect_status_local result is unchanged on a plain module):
+  let g:_pm_perf_st = plugin_manager#git#collect_status_local(g:_pm_perf_mod)
+  AssertEqual 'main', g:_pm_perf_st.branch
+  AssertEqual 'origin/main', g:_pm_perf_st.remote_branch
+  Assert g:_pm_perf_st.current_commit !=# 'N/A'
+  Assert g:_pm_perf_st.remote_commit !=# 'N/A'
+  Assert g:_pm_perf_st.current_commit ==# g:_pm_perf_st.remote_commit
+  AssertEqual 0, g:_pm_perf_st.has_updates
+  AssertEqual 0, g:_pm_perf_st.has_changes
+
+Execute (subprocess budget without .gitmodules branch: <= 7 calls):
+  " Push HEAD ahead of origin/main so both rev-list calls fire (worst case).
+  call system('git -C ' . shellescape(g:_pm_perf_mod) . ' commit --allow-empty -qm second')
+  call delete(g:_pm_perf_log)
+  call plugin_manager#git#collect_status_local(g:_pm_perf_mod)
+  let g:_pm_perf_cmds = map(
+        \ filter(readfile(g:_pm_perf_log), 'v:val =~# "exec: "'),
+        \ 'substitute(v:val, "^.*exec: ", "", "")')
+  Assert len(g:_pm_perf_cmds) <= 7,
+        \ 'collect_status_local made ' . len(g:_pm_perf_cmds)
+        \ . ' git calls: ' . join(g:_pm_perf_cmds, ' | ')
+
+Execute (subprocess budget with .gitmodules branch: <= 6 calls):
+  " Second commit: HEAD~1 must exist below.
+  call system('git -C ' . shellescape(g:_pm_perf_mod) . ' commit --allow-empty -qm second')
+  " .gitmodules branch is used verbatim: `git rev-parse <branch>` resolves
+  " the LOCAL ref of that name (v2.2.10 behavior, preserved).  Make that
+  " local ref differ from HEAD so both rev-list calls fire (worst case).
+  call system('git -C ' . shellescape(g:_pm_perf_mod) . ' update-ref refs/heads/master HEAD~1')
+  call writefile([
+        \ '[submodule "pack/plugins/start/foo"]',
+        \ "\tpath = pack/plugins/start/foo",
+        \ "\turl = https://example.com/a/b.git",
+        \ "\tbranch = master",
+        \ ], '/tmp/pm-perf-test/vim/.gitmodules')
+  call plugin_manager#git#refresh_modules_cache()
+  let g:_pm_perf_st = plugin_manager#git#collect_status_local(g:_pm_perf_mod)
+  AssertEqual 'master', g:_pm_perf_st.remote_branch
+  AssertEqual 1, g:_pm_perf_st.has_updates
+  call delete(g:_pm_perf_log)
+  call plugin_manager#git#collect_status_local(g:_pm_perf_mod)
+  let g:_pm_perf_cmds = map(
+        \ filter(readfile(g:_pm_perf_log), 'v:val =~# "exec: "'),
+        \ 'substitute(v:val, "^.*exec: ", "", "")')
+  Assert len(g:_pm_perf_cmds) <= 6,
+        \ 'collect_status_local made ' . len(g:_pm_perf_cmds)
+        \ . ' git calls: ' . join(g:_pm_perf_cmds, ' | ')
