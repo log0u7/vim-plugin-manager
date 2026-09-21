@@ -30,15 +30,17 @@ Before:
 
   " Module repo on branch main with a remote-tracking origin/main and no
   " upstream (worst-case remote-branch resolution: full cascade).
+  " Point HEAD at main BEFORE the first commit: HEAD is an unborn symref
+  " until then, and init.defaultBranch varies (master on stock CI images).
   let g:_pm_perf_mod = '/tmp/pm-perf-test/vim/pack/plugins/start/foo'
   call mkdir(g:_pm_perf_mod, 'p')
   call system('git init -q ' . shellescape(g:_pm_perf_mod))
+  call system('git -C ' . shellescape(g:_pm_perf_mod) . ' symbolic-ref HEAD refs/heads/main')
   call system('git -C ' . shellescape(g:_pm_perf_mod) . ' config user.email "t@t.com"')
   call system('git -C ' . shellescape(g:_pm_perf_mod) . ' config user.name "T"')
   call writefile(['x'], g:_pm_perf_mod . '/f')
   call system('git -C ' . shellescape(g:_pm_perf_mod) . ' add .')
   call system('git -C ' . shellescape(g:_pm_perf_mod) . ' commit -qm init')
-  call system('git -C ' . shellescape(g:_pm_perf_mod) . ' symbolic-ref HEAD refs/heads/main')
   call system('git -C ' . shellescape(g:_pm_perf_mod) . ' update-ref refs/remotes/origin/main HEAD')
 
   " .gitmodules without a branch key: the branch must come from the cascade.

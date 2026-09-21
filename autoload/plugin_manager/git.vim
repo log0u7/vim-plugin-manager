@@ -41,8 +41,11 @@ function! plugin_manager#git#parse_modules() abort
   " Output format: 'submodule.<subsection>.<varname> <value>'
   " Using --get-regexp lets git handle quoting, whitespace, and encoding.
   " throw_on_error=0: a missing/empty .gitmodules exits non-zero - not an error.
+  " -C anchors repo discovery at the vim dir: the command must not depend
+  " on the cwd (a cwd inside an unrelated repo must never leak in).
   let l:res = plugin_manager#git#execute(
-        \ 'git config -f ' . shellescape(l:gitmodules) .
+        \ 'git -C ' . shellescape(l:vim_dir) .
+        \ ' config -f ' . shellescape(l:gitmodules) .
         \ ' --get-regexp ''^submodule\.''',
         \ '', 0, 0)
 
@@ -395,9 +398,11 @@ function! plugin_manager#git#collect_status_local(module_path) abort
   if empty(l:remote_branch) && empty(l:modules)
     " parse_modules is unavailable (vim_dir is not a git repo): keep the
     " direct .gitmodules read so untrusted branch values still reach
-    " sanitize_branch (which warns, see issue #9).
+    " sanitize_branch (which warns, see issue #9).  -C anchors discovery
+    " at the vim dir like parse_modules does.
     let l:res = plugin_manager#git#execute(
-          \ 'git config -f ' . shellescape(plugin_manager#core#util#get_config('vim_dir', '') . '/.gitmodules') .
+          \ 'git -C ' . shellescape(plugin_manager#core#util#get_config('vim_dir', '')) .
+          \ ' config -f ' . shellescape(plugin_manager#core#util#get_config('vim_dir', '') . '/.gitmodules') .
           \ ' submodule.' . shellescape(l:rel_path) . '.branch',
           \ '', 0, 0)
     let l:remote_branch = l:res.success ? substitute(l:res.output, '\n', '', 'g') : ''
