@@ -73,6 +73,46 @@ Execute (health sidebar contains expected check labels):
         \ 'sidebar should contain submodules check'
   unlet g:_pm_hlt_sbuf3 g:_pm_hlt_content
 
+Execute (health check statuses on a healthy fixture are pinned):
+  " Characterization: each check's exact status on the healthy fixture
+  " (git repo, no remotes, no submodules).  Condition-dependent checks
+  " (async/encoding/vim version) assert against the actual environment.
+  let g:_pm_hlt_stbuf = bufnr('PluginManager')
+  if g:_pm_hlt_stbuf != -1
+    execute 'bwipeout! ' . g:_pm_hlt_stbuf
+  endif
+  call plugin_manager#cmd#health#execute()
+  let g:_pm_hlt_stbuf = bufnr('PluginManager')
+  let g:_pm_hlt_scontent = join(getbufline(g:_pm_hlt_stbuf, 1, '$'), "\n")
+  " Deterministic checks
+  Assert g:_pm_hlt_scontent =~# 'git executable.*found',
+        \ 'git executable should be ok, got: ' . g:_pm_hlt_scontent
+  Assert g:_pm_hlt_scontent =~# 'git version.*>= 2.39',
+        \ 'git version should report ok, got: ' . g:_pm_hlt_scontent
+  Assert g:_pm_hlt_scontent =~# 'vim dir is git repo: ' . g:_pm_hlt_vim,
+        \ 'vim dir repo check should be ok'
+  Assert g:_pm_hlt_scontent =~# 'log dir writable',
+        \ 'log dir check should run'
+  Assert g:_pm_hlt_scontent =~# 'submodules.*all initialized and in sync',
+        \ 'empty .gitmodules means submodules ok'
+  Assert g:_pm_hlt_scontent =~# 'no remotes configured',
+        \ 'fixture has no remotes: warn expected'
+  " Environment-dependent checks: status must match the environment
+  if has('job') && has('channel')
+    Assert g:_pm_hlt_scontent =~# 'async support.*+job +channel available'
+  else
+    Assert g:_pm_hlt_scontent =~# 'async support.*synchronously'
+  endif
+  if &encoding ==# 'utf-8'
+    Assert g:_pm_hlt_scontent =~# 'encoding.*utf-8'
+  endif
+  " Footer: summary line, never a failure on the healthy fixture
+  Assert g:_pm_hlt_scontent =~# 'checks passed',
+        \ 'footer summary expected, got: ' . g:_pm_hlt_scontent
+  Assert g:_pm_hlt_scontent !~# 'failure',
+        \ 'healthy fixture must not report failures'
+  unlet g:_pm_hlt_stbuf g:_pm_hlt_scontent
+
 Execute (health fails gracefully when vim_dir has no .git):
   " Point vim_dir at a directory that exists but is not a git repo.
   let g:_pm_hlt_nogit = g:_pm_hlt_root . '/nogit'
