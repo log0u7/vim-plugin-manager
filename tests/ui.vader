@@ -22,7 +22,7 @@ Execute (operations do not steal focus from the user window):
   let before = getpos('.')
   let opid = plugin_manager#ui#start_operation('myplugin', 'Installing')
   call plugin_manager#ui#update_operation(opid, 'Cloning')
-  call plugin_manager#ui#complete_operation(opid, 1, 'Done')
+  call plugin_manager#ui#complete_operation(opid, 'ok', 'Done')
   let after = getpos('.')
   AssertEqual before[1], after[1], 'cursor line should not move'
   AssertEqual before[2], after[2], 'cursor column should not move'
@@ -32,7 +32,7 @@ Execute (completed operation is rendered in the sidebar buffer):
   call plugin_manager#ui#open_sidebar(['Header'])
   wincmd p
   let opid = plugin_manager#ui#start_operation('alpha', 'Installing')
-  call plugin_manager#ui#complete_operation(opid, 1, 'Installed')
+  call plugin_manager#ui#complete_operation(opid, 'ok', 'Installed')
   let sbuf = bufnr('PluginManager')
   let content = join(getbufline(sbuf, 1, '$'), "\n")
   Assert content =~# 'alpha', 'sidebar should contain the plugin name'
@@ -154,11 +154,9 @@ Execute (get_status_glyph maps keyword to glyph):
   AssertEqual info,  plugin_manager#ui#get_status_glyph('info'), 'info -> info'
   AssertEqual info,  plugin_manager#ui#get_status_glyph('skip'), 'skip -> info'
 
-Execute (get_status_glyph accepts legacy boolean - non-zero is ok):
-  let tick  = plugin_manager#ui#get_symbol('tick')
-  let cross = plugin_manager#ui#get_symbol('cross')
-  AssertEqual tick,  plugin_manager#ui#get_status_glyph(1), 'non-zero bool -> tick'
-  AssertEqual cross, plugin_manager#ui#get_status_glyph(0), 'zero bool -> cross'
+Execute (get_status_glyph falls back to info for unknown keys):
+  let info = plugin_manager#ui#get_symbol('info')
+  AssertEqual info, plugin_manager#ui#get_status_glyph('bogus'), 'unknown -> info'
 
 Execute (complete_operation with keyword renders correct glyph):
   call plugin_manager#ui#open_sidebar(['Header'])
@@ -172,32 +170,12 @@ Execute (complete_operation with keyword renders correct glyph):
   Assert content =~# 'Modified', 'status text should appear'
   Assert content =~# warn_glyph, 'warning glyph should appear for warn status'
 
-Execute (complete_operation with legacy boolean 1 renders tick):
-  call plugin_manager#ui#open_sidebar(['Header'])
-  wincmd p
-  let opid = plugin_manager#ui#start_operation('plugin2', 'Installing')
-  call plugin_manager#ui#complete_operation(opid, 1, 'Installed')
-  let sbuf = bufnr('PluginManager')
-  let content = join(getbufline(sbuf, 1, '$'), "\n")
-  let tick = plugin_manager#ui#get_symbol('tick')
-  Assert content =~# tick, 'legacy boolean 1 should render tick glyph'
-
-Execute (complete_operation with legacy boolean 0 renders cross):
-  call plugin_manager#ui#open_sidebar(['Header'])
-  wincmd p
-  let opid = plugin_manager#ui#start_operation('plugin3', 'Installing')
-  call plugin_manager#ui#complete_operation(opid, 0, 'Failed')
-  let sbuf = bufnr('PluginManager')
-  let content = join(getbufline(sbuf, 1, '$'), "\n")
-  let cross = plugin_manager#ui#get_symbol('cross')
-  Assert content =~# cross, 'legacy boolean 0 should render cross glyph'
-
 Execute (purge stale operations does not remove active ops):
   call plugin_manager#ui#open_sidebar(['Header'])
   wincmd p
   let opid = plugin_manager#ui#start_operation('keep', 'Running')
   call plugin_manager#ui#_purge_stale_test()
-  call plugin_manager#ui#complete_operation(opid, 1, 'Kept')
+  call plugin_manager#ui#complete_operation(opid, 'ok', 'Kept')
   let sbuf = bufnr('PluginManager')
   let content = join(getbufline(sbuf, 1, '$'), "\n")
   Assert content =~# 'keep', 'active operation should survive purge'

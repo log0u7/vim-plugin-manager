@@ -547,7 +547,6 @@ Understanding the project's complete structure will help you contribute effectiv
 ├── CONTRIBUTING.md                  # Contribution guidelines (this file)
 ├── LICENSE                          # MIT license
 ├── Makefile                         # Build, test, and version management
-├── Makefile.test                    # Compatibility shim (delegates to Makefile)
 └── README.md                        # Project overview and usage
 ```
 
