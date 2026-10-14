@@ -624,6 +624,16 @@ function! plugin_manager#git#add_submodule(url, install_dir, options) abort
   " Execute the command (must run at the repo root so git knows the repo)
   let l:result = plugin_manager#git#execute(l:cmd, l:vim_dir, 1, 1)
 
+  " `git submodule add -b` records the branch for later `update --remote`,
+  " but the freshly cloned worktree may still sit on the default branch
+  " (the async batch path pre-clones without -b). Check the declared branch
+  " out now so the install matches the vimrc: coc.nvim only ships its
+  " compiled dist on the release branch.
+  if !empty(l:branch)
+    let l:abs_path = empty(l:vim_dir) ? l:relative_path : (l:vim_dir . '/' . l:relative_path)
+    call s:checkout_version(l:abs_path, l:branch)
+  endif
+
   " Process version options if needed (precedence: branch > commit > tag;
   " a branch is tracked by .gitmodules via -b, commit/tag pin a revision).
   if empty(a:options.branch) && !empty(a:options.commit)
