@@ -1,0 +1,82 @@
+" branch_clone.vader - the declared branch is checked out right after the
+" clone+submodule registration. `git submodule add -b` only records the
+" branch in .gitmodules for later updates: the freshly cloned worktree
+" stays on the default branch (coc.nvim ships its compiled dist on the
+" release branch only, master installs are broken).
+
+Before:
+  " Fixture: a fake vim config dir + a local source repo with a non-default
+  " branch. Async is disabled so the install flow is deterministic.
+  let g:_bc_saved = {
+        \ 'vim_dir':     get(g:, 'plugin_manager_vim_dir', ''),
+        \ 'plugins_dir': get(g:, 'plugin_manager_plugins_dir', ''),
+        \ 'logging':     get(g:, 'plugin_manager_enable_logging', 0),
+        \ 'jobs':        get(g:, 'plugin_manager_max_concurrent_jobs', 4),
+        \ 'check_startup': get(g:, 'plugin_manager_check_on_startup', 0),
+        \ }
+
+  let g:_bc_root = tempname()
+  let g:_bc_vim  = g:_bc_root . '/vim'
+  let g:_bc_src  = g:_bc_root . '/branch-src'
+
+  call mkdir(g:_bc_root, 'p')
+  call mkdir(g:_bc_vim,  'p')
+
+  " Source repo: default branch without the marker, dev branch with it.
+  call system('git init -q -b main ' . shellescape(g:_bc_src))
+  call system('git -C ' . shellescape(g:_bc_src) . ' config user.email "t@t.com"')
+  call system('git -C ' . shellescape(g:_bc_src) . ' config user.name "T"')
+  call writefile(['" default branch'], g:_bc_src . '/plugin-src.txt')
+  call system('git -C ' . shellescape(g:_bc_src) . ' add .')
+  call system('git -C ' . shellescape(g:_bc_src) . ' commit -q -m "main"')
+  call system('git -C ' . shellescape(g:_bc_src) . ' checkout -q -b dev')
+  call writefile(['" dev branch'], g:_bc_src . '/dev-marker.txt')
+  call system('git -C ' . shellescape(g:_bc_src) . ' add .')
+  call system('git -C ' . shellescape(g:_bc_src) . ' commit -q -m "dev marker"')
+
+  " Vim dir: git repo (required by require_vim_directory).
+  call system('git init -q ' . shellescape(g:_bc_vim))
+  call system('git -C ' . shellescape(g:_bc_vim) . ' config user.email "t@t.com"')
+  call system('git -C ' . shellescape(g:_bc_vim) . ' config user.name "T"')
+  call writefile(['# vimrc'], g:_bc_vim . '/vimrc')
+  call system('git -C ' . shellescape(g:_bc_vim) . ' add .')
+  call system('git -C ' . shellescape(g:_bc_vim) . ' commit -q -m "init"')
+
+  let g:plugin_manager_vim_dir             = g:_bc_vim
+  let g:plugin_manager_plugins_dir         = g:_bc_vim . '/pack/plugins'
+  let g:plugin_manager_enable_logging      = 0
+  let g:plugin_manager_max_concurrent_jobs = 0
+  let g:plugin_manager_check_on_startup    = 0
+
+Execute (declared branch is checked out after install):
+  call plugin_manager#cmd#declare#begin()
+  call plugin_manager#cmd#declare#plugin('file://' . g:_bc_src, {'branch': 'dev'})
+  call plugin_manager#cmd#declare#end()
+
+  let g:_bc_target = g:_bc_vim . '/pack/plugins/start/branch-src'
+  Assert isdirectory(g:_bc_target), 'plugin should be installed'
+
+  let g:_bc_branch = system('git -C ' . shellescape(g:_bc_target) . ' rev-parse --abbrev-ref HEAD')
+  Assert matchstr(g:_bc_branch, 'dev') != '', 'HEAD should be on dev, got: ' . g:_bc_branch
+  Assert filereadable(g:_bc_target . '/dev-marker.txt'), 'dev branch content should be checked out'
+
+Execute (branch checkout applies to a pre-cloned worktree, like the async path):
+  " The async batch path pre-clones at the default branch, then registers
+  " the submodule: add_submodule must not leave HEAD on the default branch
+  " when a branch is declared.
+  let g:_bc_target2 = g:_bc_vim . '/pack/plugins/start/branch-preclone'
+  call system('git clone -q ' . shellescape(g:_bc_src) . ' ' . shellescape(g:_bc_target2))
+  call plugin_manager#git#add_submodule('file://' . g:_bc_src, g:_bc_target2, {'branch': 'dev', 'commit': '', 'tag': '', 'exec': ''})
+  let g:_bc_branch2 = system('git -C ' . shellescape(g:_bc_target2) . ' rev-parse --abbrev-ref HEAD')
+  Assert matchstr(g:_bc_branch2, 'dev') != '', 'HEAD should be on dev, got: ' . g:_bc_branch2
+  Assert filereadable(g:_bc_target2 . '/dev-marker.txt'), 'dev branch content should be checked out'
+
+After:
+  call setreg('/', '')
+  execute 'cd' fnameescape(g:_bc_saved.cwd)
+  let g:plugin_manager_vim_dir             = g:_bc_saved.vim_dir
+  let g:plugin_manager_plugins_dir         = g:_bc_saved.plugins_dir
+  let g:plugin_manager_enable_logging      = g:_bc_saved.logging
+  let g:plugin_manager_max_concurrent_jobs = g:_bc_saved.jobs
+  let g:plugin_manager_check_on_startup    = g:_bc_saved.check_startup
+  call system('rm -rf ' . shellescape(g:_bc_root))
