@@ -3,7 +3,7 @@
 All notable changes to the Vim Plugin Manager will be documented in this file.
 
 
-## [Unreleased]
+## [2.2.11] - 2026-10-25
 
 ### Added
 - `:PluginManager status` reports detached plugins as "Detached" with an
@@ -49,6 +49,11 @@ All notable changes to the Vim Plugin Manager will be documented in this file.
   forced refresh matches the pull trust level. Diagnosed on a real
   setup: 12 stale v1.x/v2.1.x tag mirrors were poisoning every update
   of the affected module.
+- Clone + submodule registration now checks out the declared branch in
+  the pre-cloned worktree: `git submodule add -b` recorded the branch for
+  `update --remote`, but the worktree pre-cloned by the async batch path
+  stayed on the default branch (coc.nvim only ships its compiled dist on
+  the release branch). Covered by `tests/branch_clone.vader` (#16).
 
 ### Removed
 - Dead code: never-read async job state fields (`id`, `started`,
