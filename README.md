@@ -10,8 +10,9 @@ A lightweight Vim plugin manager that uses Git submodules and Vim 8's native pac
 > supported here.
 
 [![CI vader tests](https://github.com/log0u7/vim-plugin-manager/actions/workflows/test.yml/badge.svg)](https://github.com/log0u7/vim-plugin-manager/actions/workflows/test.yml)
-[![Version](https://img.shields.io/github/v/tag/log0u7/vim-plugin-manager?style=flat&label=version&sort=semver)](https://github.com/log0u7/vim-plugin-manager/tags)
-[![Vim](https://img.shields.io/badge/vim-%3E%3D8.2%20%28%2Bjob%20%2Bchannel%29-brightgreen)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Vim](https://img.shields.io/badge/Vim-%3E%3D8.2%20%28%2Bjob%20%2Bchannel%29-019733?logo=vim&logoColor=white)](https://www.vim.org)
+[![Version](https://img.shields.io/github/v/tag/log0u7/vim-plugin-manager?label=version&sort=semver)](https://github.com/log0u7/vim-plugin-manager/tags)
 
 ## Table of Contents
 
